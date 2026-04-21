@@ -1,0 +1,138 @@
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export type UserRole = 'member' | 'leader' | 'admin' | 'superadmin';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  avatar?: string;
+  birthDate?: string; // ISO format or YYYY-MM-DD
+  leaderOf?: string; // ID of the CellGroup they lead
+  cellIds?: string[]; // IDs of the CellGroups they belong to
+  notificationSettings?: {
+    wordOfDayEnabled: boolean;
+    wordOfDayTime: string; // HH:mm
+    newSermonEnabled: boolean;
+    allMuted: boolean;
+  };
+}
+
+export interface Attendance {
+  id: string;
+  cellId: string;
+  date: string;
+  presentMembers: string[]; // Array of user UIDs
+  absentMembers: string[]; // Array of user UIDs
+  visitorsCount?: number;
+  notes?: string;
+  createdAt: any;
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  image: string;
+  category: string;
+}
+
+export interface PrayerComment {
+  id: string;
+  uid: string;
+  userName: string;
+  content: string;
+  date: string;
+  createdAt?: string;
+}
+
+export interface PrayerRequest {
+  id: string;
+  uid?: string;
+  user: string;
+  content: string;
+  privacy?: 'public' | 'private';
+  cellIds?: string[]; // The cells of the author at the time of posting
+  date: string;
+  likes: number;
+  comments: number;
+  commentsList?: PrayerComment[];
+  prayedBy?: string[]; // Array of user UIDs who clicked "I prayed"
+  createdAt?: any;
+}
+
+export interface CellGroup {
+  id: string;
+  name: string;
+  leader: string;
+  day: string;
+  time: string;
+  location: string;
+  members: number;
+  membersList?: string[]; // Array of user UIDs who are in the cell
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  date: string;
+  author: string;
+}
+
+export interface ReadingPlan {
+  id: string;
+  title: string;
+  description: string;
+  duration: string; // changed to string to match form input "30 dias"
+  imageUrl?: string;
+  chapters: string[];
+}
+
+export interface VerseHighlight {
+  id: string;
+  uid: string;
+  book: string;
+  chapter: number;
+  verse: number;
+  color: string;
+  text: string;
+  createdAt: any;
+}
+
+export interface Sermon {
+  id: string;
+  title: string;
+  preacher: string;
+  date: string;
+  videoUrl?: string;
+  audioUrl?: string;
+  description: string;
+  thumbnail?: string;
+  createdAt: any;
+}
+
+export interface TitheConfig {
+  pixKey: string;
+  bankName: string;
+  accountHolder: string;
+}
+
+export interface TitheTransaction {
+  id: string;
+  uid: string;
+  userName: string;
+  amount: number;
+  date: string;
+  type: 'tithe' | 'offering' | 'love_offering';
+  status: 'pending' | 'completed';
+}
