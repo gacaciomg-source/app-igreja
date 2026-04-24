@@ -54,6 +54,7 @@ import { TithesAdminScreen } from './components/TithesAdminScreen';
 
 // --- Error Handling ---
 let setGlobalErrorRef: (msg: string | null) => void = () => {};
+let setGlobalSuccessRef: (msg: string | null) => void = () => {};
 
 function handleApiError(error: unknown, context: string) {
   const message = error instanceof Error ? error.message : String(error);
@@ -61,6 +62,11 @@ function handleApiError(error: unknown, context: string) {
   
   setGlobalErrorRef(`Erro: ${message} (em ${context})`);
   setTimeout(() => setGlobalErrorRef(null), 6000);
+}
+
+function handleApiSuccess(message: string) {
+  setGlobalSuccessRef(message);
+  setTimeout(() => setGlobalSuccessRef(null), 3000);
 }
 
 interface ErrorBoundaryProps {
@@ -195,10 +201,6 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const handleGoogleLogin = () => {
-    setError('O login com Google não está disponível nesta versão local.');
-  };
-
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -210,6 +212,7 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
         const { user: loggedUser } = await api.login(email, password);
         console.log('Login successful:', loggedUser.email);
         localStorage.setItem('auth_user', JSON.stringify(loggedUser));
+        localStorage.setItem('auth_token', 'mock_token'); // Ensure token is set if not already
         onAuthSuccess(loggedUser);
       } else if (mode === 'signup') {
         const { user: newUser } = await api.register({
@@ -221,6 +224,7 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
         });
         console.log('Register successful:', newUser.email);
         localStorage.setItem('auth_user', JSON.stringify(newUser));
+        localStorage.setItem('auth_token', 'mock_token');
         onAuthSuccess(newUser);
       } else if (mode === 'reset') {
         setMessage('A funcionalidade de recuperação de senha não está disponível para arquivos locais.');
@@ -371,29 +375,6 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
               mode === 'signup' ? 'Criar Conta' : 'Enviar E-mail'
             )}
           </Button>
-
-          {mode === 'login' && (
-            <div className="space-y-4">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-secondary px-2 text-slate-500 font-bold">Ou entre com</span>
-                </div>
-              </div>
-
-              <Button 
-                variant="outline" 
-                className="w-full py-4 bg-white"
-                onClick={handleGoogleLogin}
-                disabled={loading}
-              >
-                <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
-                Google
-              </Button>
-            </div>
-          )}
         </form>
 
         <div className="text-center space-y-4">
@@ -2385,6 +2366,7 @@ export default function App() {
 
   useEffect(() => {
     setGlobalErrorRef = setGlobalError;
+    setGlobalSuccessRef = setGlobalMessage;
   }, []);
 
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
@@ -2471,27 +2453,27 @@ export default function App() {
     // Dynamic polling based on roles
     const unsubscribes: (() => void)[] = [];
 
-    unsubscribes.push(api.subscribe('events', setEvents));
+    unsubscribes.push(api.subscribe('events', setEvents, 2000));
     unsubscribes.push(api.subscribe('prayers', (data) => {
       data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setPrayers(data);
-    }));
-    unsubscribes.push(api.subscribe('cells', setCells));
-    unsubscribes.push(api.subscribe('users', setUsers));
-    unsubscribes.push(api.subscribe('announcements', setAnnouncements));
-    unsubscribes.push(api.subscribe('readingPlans', setReadingPlans));
-    unsubscribes.push(api.subscribe('sermons', setSermons));
+    }, 2000));
+    unsubscribes.push(api.subscribe('cells', setCells, 2000));
+    unsubscribes.push(api.subscribe('users', setUsers, 2000));
+    unsubscribes.push(api.subscribe('announcements', setAnnouncements, 2000));
+    unsubscribes.push(api.subscribe('readingPlans', setReadingPlans, 2000));
+    unsubscribes.push(api.subscribe('sermons', setSermons, 2000));
     unsubscribes.push(api.subscribe('verseHighlights', (data) => {
       setVerseHighlights(data.filter((h: any) => h.uid === currentUserData?.id));
-    }));
-    unsubscribes.push(api.subscribe('attendance', setAttendanceHistory));
+    }, 2000));
+    unsubscribes.push(api.subscribe('attendance', setAttendanceHistory, 2000));
     unsubscribes.push(api.subscribe('config', (data) => {
       const tConfig = data.find((c: any) => c.id === 'tithes');
       if (tConfig) setTitheConfig(tConfig);
-    }));
+    }, 2000));
 
     if (userRole === 'admin' || userRole === 'superadmin') {
-      unsubscribes.push(api.subscribe('transactions', setTransactions));
+      unsubscribes.push(api.subscribe('transactions', setTransactions, 2000));
     }
 
     return () => unsubscribes.forEach(unsub => unsub());
@@ -2511,6 +2493,28 @@ export default function App() {
     
     const existing = verseHighlights.find(h => h.book === book && h.chapter === chapter && h.verse === verse);
     
+    // Optimistic update
+    let newHighlights;
+    if (existing) {
+      if (existing.color === color) {
+        newHighlights = verseHighlights.filter(h => h.id !== existing.id);
+      } else {
+        newHighlights = verseHighlights.map(h => h.id === existing.id ? { ...h, color } : h);
+      }
+    } else {
+      const tempHighlight = {
+        id: 'temp-' + Date.now(),
+        uid: currentUserData.id,
+        book,
+        chapter,
+        verse,
+        text,
+        color
+      };
+      newHighlights = [...verseHighlights, tempHighlight];
+    }
+    setVerseHighlights(newHighlights);
+
     try {
       if (existing) {
         if (existing.color === color) {
@@ -2528,7 +2532,11 @@ export default function App() {
           color
         });
       }
+      handleApiSuccess('Destaque atualizado!');
     } catch (err) {
+      // Revert on error
+      const highlights = await api.list('verseHighlights');
+      setVerseHighlights(highlights.filter((h: any) => h.uid === currentUserData.id));
       handleApiError(err, 'toggleVerseHighlight');
     }
   };
@@ -2654,6 +2662,7 @@ export default function App() {
         date: new Date().toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
       });
       setShowAddTransaction(false);
+      handleApiSuccess('Transação registrada!');
     } catch (err) {
       handleApiError(err, 'addTransaction');
     }
@@ -2662,6 +2671,7 @@ export default function App() {
   const deleteTransaction = async (id: string) => {
     try {
       await api.delete('transactions', id);
+      handleApiSuccess('Transação removida!');
     } catch (err) {
       handleApiError(err, 'deleteTransaction');
     }
@@ -2672,10 +2682,12 @@ export default function App() {
       if (editingCell) {
         await api.update('cells', editingCell.id, newCell);
         setEditingCell(null);
+        handleApiSuccess('PG atualizado!');
       } else {
         await api.create('cells', {
           ...newCell,
         });
+        handleApiSuccess('PG criado com sucesso!');
       }
       setShowAddCell(false);
     } catch (err) {
@@ -2686,6 +2698,7 @@ export default function App() {
   const deleteCell = async (id: string) => {
     try {
       await api.delete('cells', id);
+      handleApiSuccess('PG removido!');
     } catch (err) {
       handleApiError(err, 'deleteCell');
     }
@@ -2696,6 +2709,24 @@ export default function App() {
       setGlobalError('Você precisa estar logado para publicar um pedido.');
       return;
     }
+    
+    setLoading(true);
+    const tempPrayer: PrayerRequest = {
+      id: 'temp-' + Date.now(),
+      uid: currentUserData.id,
+      user: currentUserData.name || 'Usuário',
+      content,
+      privacy,
+      date: 'Agora',
+      likes: 0,
+      comments: 0,
+      createdAt: new Date().toISOString()
+    };
+
+    // Optimistic update
+    setPrayers(prev => [tempPrayer, ...prev]);
+    setShowAddPrayer(false);
+
     try {
       await api.create('prayers', {
         uid: currentUserData.id,
@@ -2706,10 +2737,15 @@ export default function App() {
         date: new Date().toLocaleDateString('pt-BR'),
         likes: 0,
         comments: 0,
+        createdAt: new Date().toISOString()
       });
-      setShowAddPrayer(false);
+      handleApiSuccess('Pedido de oração enviado!');
     } catch (err) {
+      // Revert optimistic update
+      setPrayers(prev => prev.filter(p => p.id !== tempPrayer.id));
       handleApiError(err, 'addPrayer');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2774,33 +2810,40 @@ export default function App() {
       if (myProgress) {
         setUserReadingProgress(myProgress.readingPlans || {});
       }
-    });
+    }, 2000);
   }, [isLoggedIn, currentUserData]);
 
   const toggleChapter = async (planId: string, chapter: string) => {
     if (!currentUserData) return;
     const currentProgress = userReadingProgress[planId] || [];
-    const newProgress = currentProgress.includes(chapter)
-      ? currentProgress.filter(c => c !== chapter)
-      : [...currentProgress, chapter];
+    const isAdding = !currentProgress.includes(chapter);
+    const newProgress = isAdding
+      ? [...currentProgress, chapter]
+      : currentProgress.filter(c => c !== chapter);
     
+    // Optimistic update
+    const newReadingPlans = {
+      ...userReadingProgress,
+      [planId]: newProgress
+    };
+    setUserReadingProgress(newReadingPlans);
+
     try {
       const allProgress = await api.list('userProgress');
       const myProgress = allProgress.find((p: any) => p.id === currentUserData.id);
       
-      const newReadingPlans = {
-        ...userReadingProgress,
-        [planId]: newProgress
-      };
-
       if (myProgress) {
         await api.update('userProgress', myProgress.id, { readingPlans: newReadingPlans });
       } else {
         await api.create('userProgress', { id: currentUserData.id, readingPlans: newReadingPlans });
       }
       
-      showMessage(currentProgress.includes(chapter) ? 'Capítulo desmarcado' : 'Capítulo concluído!');
+      handleApiSuccess(isAdding ? 'Capítulo concluído!' : 'Capítulo desmarcado');
     } catch (err) {
+      // Revert on error
+      const history = await api.list('userProgress');
+      const myProgress = history.find((h: any) => h.id === currentUserData.id);
+      setUserReadingProgress(myProgress?.readingPlans || {});
       handleApiError(err, 'toggleChapter');
     }
   };
@@ -3181,10 +3224,10 @@ const joinCell = async (cellId: string) => {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
-              className="fixed bottom-24 left-4 right-4 z-[200] bg-slate-800 text-white p-4 rounded-xl shadow-lg flex items-center gap-3"
+              className="fixed bottom-24 left-4 right-4 z-[200] bg-primary text-white p-4 rounded-xl shadow-lg shadow-primary/20 flex items-center gap-3"
             >
               <div className="p-2 bg-white/20 rounded-lg">
-                <Bell className="w-5 h-5" />
+                <CheckCircle2 className="w-5 h-5" />
               </div>
               <p className="text-sm font-medium">{globalMessage}</p>
             </motion.div>
