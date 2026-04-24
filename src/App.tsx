@@ -91,15 +91,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   render() {
     if (this.state.hasError) {
-      let message = "Ocorreu um erro inesperado.";
-      try {
-        const parsed = JSON.parse(this.state.error.message);
-        if (parsed.error && parsed.error.includes('Missing or insufficient permissions')) {
-          message = "Você não tem permissão para realizar esta ação ou acessar estes dados.";
-        }
-      } catch (e) {
-        // Not a JSON error
-      }
+      const message = this.state.error?.message || "Ocorreu um erro inesperado.";
+
       return (
         <div className="min-h-screen flex items-center justify-center bg-secondary p-6">
           <Card className="max-w-md w-full text-center space-y-4">
@@ -2458,12 +2451,20 @@ export default function App() {
 
   useEffect(() => {
     // Session restoration
-    const savedUser = localStorage.getItem('auth_user');
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-      setCurrentUserData(user);
-      setIsLoggedIn(true);
-      setUserRole(user.role);
+    try {
+      const savedUser = localStorage.getItem('auth_user');
+      if (savedUser) {
+        const user = JSON.parse(savedUser);
+        if (user && user.id) {
+          setCurrentUserData(user);
+          setIsLoggedIn(true);
+          setUserRole(user.role);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to restore session:", e);
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('auth_token');
     }
     setLoading(false);
 
@@ -2613,6 +2614,9 @@ export default function App() {
   const handleLogout = async () => {
     try {
       api.logout();
+      localStorage.removeItem('auth_user');
+      setIsLoggedIn(false);
+      setCurrentUserData(null);
       window.location.reload();
     } catch (err) {
       console.error("Erro ao sair:", err);
