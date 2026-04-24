@@ -43,7 +43,8 @@ import {
   Grid,
   Mic,
   Video,
-  Music
+  Music,
+  Phone
 } from 'lucide-react';
 import { cn, UserRole, User as UserType, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
@@ -212,7 +213,6 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
         const { user: loggedUser } = await api.login(email, password);
         console.log('Login successful:', loggedUser.email);
         localStorage.setItem('auth_user', JSON.stringify(loggedUser));
-        localStorage.setItem('auth_token', 'mock_token'); // Ensure token is set if not already
         onAuthSuccess(loggedUser);
       } else if (mode === 'signup') {
         const { user: newUser } = await api.register({
@@ -224,7 +224,6 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
         });
         console.log('Register successful:', newUser.email);
         localStorage.setItem('auth_user', JSON.stringify(newUser));
-        localStorage.setItem('auth_token', 'mock_token');
         onAuthSuccess(newUser);
       } else if (mode === 'reset') {
         setMessage('A funcionalidade de recuperação de senha não está disponível para arquivos locais.');
@@ -1017,6 +1016,150 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   );
 };
 
+const AdminPastoralVisits = ({ visits, onUpdateStatus }: { visits: PastoralVisit[], onUpdateStatus: (id: string, status: PastoralVisit['status']) => void }) => {
+  const getStatusColor = (status: PastoralVisit['status']) => {
+    switch (status) {
+      case 'pending': return 'bg-amber-50 text-amber-600';
+      case 'scheduled': return 'bg-blue-50 text-blue-600';
+      case 'completed': return 'bg-emerald-50 text-emerald-600';
+      case 'cancelled': return 'bg-red-50 text-red-600';
+      default: return 'bg-slate-50 text-slate-600';
+    }
+  };
+
+  const getStatusLabel = (status: PastoralVisit['status']) => {
+    switch (status) {
+      case 'pending': return 'Pendente';
+      case 'scheduled': return 'Agendado';
+      case 'completed': return 'Concluído';
+      case 'cancelled': return 'Cancelado';
+      default: return status;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h2 className="text-2xl font-bold text-slate-900">Visitas Pastorais</h2>
+        <p className="text-sm text-slate-500">Gerenciar solicitações de visitas</p>
+      </header>
+
+      <div className="space-y-4">
+        {visits.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(visit => (
+          <Card key={visit.id} className="space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900">{visit.userName}</h4>
+                  <p className="text-[10px] text-slate-500">{new Date(visit.createdAt).toLocaleDateString('pt-BR')}</p>
+                </div>
+              </div>
+              <span className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider", getStatusColor(visit.status))}>
+                {getStatusLabel(visit.status)}
+              </span>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl space-y-2">
+              <p className="text-sm text-slate-700 font-medium">Motivo: {visit.reason}</p>
+              <div className="flex items-center gap-2 text-slate-500 text-xs">
+                <Calendar className="w-4 h-4" />
+                Data Sugerida: {new Date(visit.preferredDate).toLocaleDateString('pt-BR')}
+              </div>
+              <div className="flex items-center gap-2 text-slate-500 text-xs">
+                <MapPin className="w-4 h-4" />
+                Endereço: {visit.userAddress}
+              </div>
+              {visit.userPhone && (
+                <div className="flex items-center gap-2 text-slate-500 text-xs">
+                  <Phone className="w-4 h-4" />
+                  Telefone: {visit.userPhone}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              {visit.status === 'pending' && (
+                <Button className="flex-1 py-2 text-xs h-auto" onClick={() => onUpdateStatus(visit.id, 'scheduled')}>
+                  Agendar
+                </Button>
+              )}
+              {visit.status === 'scheduled' && (
+                <Button className="flex-1 py-2 text-xs h-auto bg-emerald-600 hover:bg-emerald-700" onClick={() => onUpdateStatus(visit.id, 'completed')}>
+                  Concluir
+                </Button>
+              )}
+              {visit.status !== 'completed' && visit.status !== 'cancelled' && (
+                <Button variant="outline" className="flex-1 py-2 text-xs h-auto border-red-100 text-red-500" onClick={() => onUpdateStatus(visit.id, 'cancelled')}>
+                  Cancelar
+                </Button>
+              )}
+            </div>
+          </Card>
+        ))}
+        {visits.length === 0 && (
+          <div className="text-center py-12 text-slate-500">Nenhuma solicitação encontrada</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const UserPastoralVisitsScreen = ({ visits, onAddRequest }: { visits: PastoralVisit[], onAddRequest: () => void }) => {
+  const getStatusColor = (status: PastoralVisit['status']) => {
+    switch (status) {
+      case 'pending': return 'bg-amber-50 text-amber-600';
+      case 'scheduled': return 'bg-blue-50 text-blue-600';
+      case 'completed': return 'bg-emerald-50 text-emerald-600';
+      case 'cancelled': return 'bg-red-50 text-red-600';
+      default: return 'bg-slate-50 text-slate-600';
+    }
+  };
+
+  return (
+    <div className="space-y-6 pb-24">
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Minhas Visitas</h2>
+          <p className="text-sm text-slate-500">Acompanhe suas solicitações</p>
+        </div>
+        <Button className="rounded-full w-10 h-10 p-0" onClick={onAddRequest}>
+          <Plus className="w-6 h-6" />
+        </Button>
+      </header>
+
+      <div className="space-y-4">
+        {visits.map(visit => (
+          <Card key={visit.id} className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-400">{new Date(visit.createdAt).toLocaleDateString('pt-BR')}</span>
+              <span className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider", getStatusColor(visit.status))}>
+                {visit.status}
+              </span>
+            </div>
+            <p className="text-slate-700 font-medium">{visit.reason}</p>
+            <div className="flex items-center gap-2 text-slate-500 text-xs">
+              <Calendar className="w-4 h-4" />
+              Sugerido para: {new Date(visit.preferredDate).toLocaleDateString('pt-BR')}
+            </div>
+          </Card>
+        ))}
+        {visits.length === 0 && (
+          <div className="text-center py-12 space-y-4">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300">
+              <Heart className="w-8 h-8" />
+            </div>
+            <p className="text-slate-500">Você ainda não solicitou nenhuma visita.</p>
+            <Button variant="outline" onClick={onAddRequest}>Solicitar Visita</Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage }: { stats: any, users: UserType[], onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void }) => {
   const [showBirthdays, setShowBirthdays] = useState<'today' | 'month' | null>(null);
 
@@ -1244,6 +1387,7 @@ const AdminAllScreens = ({ onTabChange }: { onTabChange: (tab: string) => void }
     { id: 'events', label: 'Agenda de Eventos', icon: Calendar, color: 'bg-purple-500' },
     { id: 'announcements', label: 'Avisos e Notícias', icon: Bell, color: 'bg-orange-500' },
     { id: 'groups', label: 'Pequenos Grupos', icon: Home, color: 'bg-indigo-500' },
+    { id: 'pastoral', label: 'Visitas Pastorais', icon: Heart, color: 'bg-rose-500' },
     { id: 'sermons', label: 'Gerenciar Sermões', icon: Mic, color: 'bg-orange-600' },
     { id: 'tithes', label: 'Configuração de Dízimos', icon: DollarSign, color: 'bg-emerald-600' },
   ];
@@ -2340,6 +2484,7 @@ export default function App() {
   const [sermons, setSermons] = useState<Sermon[]>([]);
   const [verseHighlights, setVerseHighlights] = useState<VerseHighlight[]>([]);
   const [attendanceHistory, setAttendanceHistory] = useState<Attendance[]>([]);
+  const [pastoralVisits, setPastoralVisits] = useState<PastoralVisit[]>([]);
   const [userReadingProgress, setUserReadingProgress] = useState<Record<string, string[]>>({});
   const [allUserProgress, setAllUserProgress] = useState<Record<string, Record<string, string[]>>>({});
   const [titheConfig, setTitheConfig] = useState<TitheConfig>({ pixKey: '', bankName: '', accountHolder: '' });
@@ -2432,7 +2577,7 @@ export default function App() {
   }, [currentUserData]);
 
   useEffect(() => {
-    // Session restoration
+    // Session restoration - only run once
     try {
       const savedUser = localStorage.getItem('auth_user');
       if (savedUser) {
@@ -2449,6 +2594,22 @@ export default function App() {
       localStorage.removeItem('auth_token');
     }
     setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setEvents([]);
+      setPrayers([]);
+      setCells([]);
+      setTransactions([]);
+      setUsers([]);
+      setAnnouncements([]);
+      setReadingPlans([]);
+      setSermons([]);
+      setVerseHighlights([]);
+      setPastoralVisits([]);
+      return;
+    }
 
     // Dynamic polling based on roles
     const unsubscribes: (() => void)[] = [];
@@ -2467,6 +2628,7 @@ export default function App() {
       setVerseHighlights(data.filter((h: any) => h.uid === currentUserData?.id));
     }, 2000));
     unsubscribes.push(api.subscribe('attendance', setAttendanceHistory, 2000));
+    unsubscribes.push(api.subscribe('pastoralVisits', setPastoralVisits, 2000));
     unsubscribes.push(api.subscribe('config', (data) => {
       const tConfig = data.find((c: any) => c.id === 'tithes');
       if (tConfig) setTitheConfig(tConfig);
@@ -2477,7 +2639,7 @@ export default function App() {
     }
 
     return () => unsubscribes.forEach(unsub => unsub());
-  }, [userRole, isLoggedIn, currentUserData?.id]);
+  }, [isLoggedIn, userRole, currentUserData?.id]);
 
   const deleteReadingPlan = async (id: string) => {
     try {
@@ -2543,15 +2705,31 @@ export default function App() {
 
   const updateUserProfile = async (data: Partial<UserType>) => {
     if (!currentUserData) return;
+    const originalUser = { ...currentUserData };
+    const updatedUser = { ...currentUserData, ...data };
+    
+    setCurrentUserData(updatedUser);
+    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    
     try {
       await api.update('users', currentUserData.id, data);
-      showMessage('Perfil atualizado com sucesso!');
+      handleApiSuccess('Perfil atualizado!');
     } catch (err) {
+      setCurrentUserData(originalUser);
+      setUsers(prev => prev.map(u => u.id === originalUser.id ? originalUser : u));
       handleApiError(err, 'updateUserProfile');
     }
   };
 
   const addAnnouncement = async (data: Omit<Announcement, 'id' | 'date' | 'author'>) => {
+    const tempAnnouncement = {
+      ...data,
+      id: 'temp-' + Date.now(),
+      date: new Date().toLocaleDateString('pt-BR'),
+      author: currentUserData?.name || 'Admin'
+    };
+    setAnnouncements(prev => [tempAnnouncement, ...prev]);
+    
     try {
       await api.create('announcements', {
         ...data,
@@ -2559,38 +2737,48 @@ export default function App() {
         author: currentUserData?.name || 'Admin'
       });
       setShowAddAnnouncement(false);
-      showMessage('Aviso criado com sucesso!');
+      handleApiSuccess('Aviso criado com sucesso!');
     } catch (err) {
+      setAnnouncements(prev => prev.filter(a => a.id !== tempAnnouncement.id));
       handleApiError(err, 'addAnnouncement');
     }
   };
 
   const deleteAnnouncement = async (id: string) => {
+    const original = [...announcements];
+    setAnnouncements(prev => prev.filter(a => a.id !== id));
     try {
       await api.delete('announcements', id);
-      showMessage('Aviso removido com sucesso!');
+      handleApiSuccess('Aviso removido com sucesso!');
     } catch (err) {
+      setAnnouncements(original);
       handleApiError(err, 'deleteAnnouncement');
     }
   };
 
   const addReadingPlan = async (data: Omit<ReadingPlan, 'id'>) => {
+    const tempPlan = { ...data, id: 'temp-' + Date.now() } as ReadingPlan;
+    setReadingPlans(prev => [...prev, tempPlan]);
     try {
       await api.create('readingPlans', data);
       setShowAddReadingPlan(false);
-      showMessage('Plano de leitura criado com sucesso!');
+      handleApiSuccess('Plano de leitura criado com sucesso!');
     } catch (err) {
+      setReadingPlans(prev => prev.filter(p => p.id !== tempPlan.id));
       handleApiError(err, 'addReadingPlan');
     }
   };
 
   const addSermon = async (data: Omit<Sermon, 'id' | 'createdAt'>) => {
+    const tempSermon = { ...data, id: 'temp-' + Date.now(), createdAt: new Date().toISOString() } as Sermon;
+    setSermons(prev => [tempSermon, ...prev]);
     try {
       await api.create('sermons', {
         ...data,
       });
-      showMessage('Sermão adicionado com sucesso!');
+      handleApiSuccess('Sermão adicionado com sucesso!');
     } catch (err) {
+      setSermons(prev => prev.filter(s => s.id !== tempSermon.id));
       handleApiError(err, 'addSermon');
     }
   };
@@ -2632,30 +2820,49 @@ export default function App() {
   };
 
   const addEvent = async (newEvent: Omit<Event, 'id'>) => {
+    const original = [...events];
+    if (!editingEvent) {
+      const tempEvent = { ...newEvent, id: 'temp-' + Date.now() } as Event;
+      setEvents(prev => [...prev, tempEvent]);
+    }
+
     try {
       if (editingEvent) {
         await api.update('events', editingEvent.id, newEvent);
         setEditingEvent(null);
+        handleApiSuccess('Evento atualizado!');
       } else {
         await api.create('events', {
           ...newEvent,
         });
+        handleApiSuccess('Evento criado!');
       }
       setShowAddEvent(false);
     } catch (err) {
+      setEvents(original);
       handleApiError(err, 'addEvent');
     }
   };
 
   const deleteEvent = async (id: string) => {
+    const original = [...events];
+    setEvents(prev => prev.filter(e => e.id !== id));
     try {
       await api.delete('events', id);
+      handleApiSuccess('Evento removido!');
     } catch (err) {
+      setEvents(original);
       handleApiError(err, 'deleteEvent');
     }
   };
 
   const addTransaction = async (t: { label: string, value: number, type: 'in' | 'out' }) => {
+    const tempT = {
+      ...t,
+      id: 'temp-' + Date.now(),
+      date: new Date().toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    };
+    setTransactions(prev => [tempT, ...prev]);
     try {
       await api.create('transactions', {
         ...t,
@@ -2664,20 +2871,29 @@ export default function App() {
       setShowAddTransaction(false);
       handleApiSuccess('Transação registrada!');
     } catch (err) {
+      setTransactions(prev => prev.filter(item => item.id !== tempT.id));
       handleApiError(err, 'addTransaction');
     }
   };
 
   const deleteTransaction = async (id: string) => {
+    const original = [...transactions];
+    setTransactions(prev => prev.filter(t => t.id !== id));
     try {
       await api.delete('transactions', id);
       handleApiSuccess('Transação removida!');
     } catch (err) {
+      setTransactions(original);
       handleApiError(err, 'deleteTransaction');
     }
   };
 
   const addCell = async (newCell: Omit<CellGroup, 'id'>) => {
+    const original = [...cells];
+    if (!editingCell) {
+      const tempCell = { ...newCell, id: 'temp-' + Date.now() } as CellGroup;
+      setCells(prev => [...prev, tempCell]);
+    }
     try {
       if (editingCell) {
         await api.update('cells', editingCell.id, newCell);
@@ -2691,15 +2907,19 @@ export default function App() {
       }
       setShowAddCell(false);
     } catch (err) {
+      setCells(original);
       handleApiError(err, 'addCell');
     }
   };
 
   const deleteCell = async (id: string) => {
+    const original = [...cells];
+    setCells(prev => prev.filter(c => c.id !== id));
     try {
       await api.delete('cells', id);
       handleApiSuccess('PG removido!');
     } catch (err) {
+      setCells(original);
       handleApiError(err, 'deleteCell');
     }
   };
@@ -2850,38 +3070,78 @@ export default function App() {
 
 const joinCell = async (cellId: string) => {
     if (!currentUserData) return;
+    const originalCells = [...cells];
+    const originalUser = { ...currentUserData };
+    
     try {
       const cell = cells.find(c => c.id === cellId);
       if (!cell) return;
       
-      await api.update('cells', cellId, {
+      const updatedCell = {
+        ...cell,
         membersList: [...(cell.membersList || []), currentUserData.id],
         members: (cell.members || 0) + 1
+      };
+      const updatedUser = {
+        ...currentUserData,
+        cellIds: [...(currentUserData.cellIds || []), cellId]
+      };
+      
+      setCells(prev => prev.map(c => c.id === cellId ? updatedCell : c));
+      setCurrentUserData(updatedUser);
+      setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+
+      await api.update('cells', cellId, {
+        membersList: updatedCell.membersList,
+        members: updatedCell.members
       });
       await api.update('users', currentUserData.id, {
-        cellIds: [...(currentUserData.cellIds || []), cellId]
+        cellIds: updatedUser.cellIds
       });
-      showMessage('Você agora faz parte deste PG!');
+      handleApiSuccess('Você agora faz parte deste PG!');
     } catch (err) {
+      setCells(originalCells);
+      setCurrentUserData(originalUser);
+      setUsers(prev => prev.map(u => u.id === originalUser.id ? originalUser : u));
       handleApiError(err, 'joinCell');
     }
   };
 
   const leaveCell = async (cellId: string) => {
     if (!currentUserData) return;
+    const originalCells = [...cells];
+    const originalUser = { ...currentUserData };
+    
     try {
       const cell = cells.find(c => c.id === cellId);
       if (!cell) return;
 
-      await api.update('cells', cellId, {
+      const updatedCell = {
+        ...cell,
         membersList: (cell.membersList || []).filter(uid => uid !== currentUserData.id),
         members: Math.max(0, (cell.members || 0) - 1)
+      };
+      const updatedUser = {
+        ...currentUserData,
+        cellIds: (currentUserData.cellIds || []).filter(id => id !== cellId)
+      };
+
+      setCells(prev => prev.map(c => c.id === cellId ? updatedCell : c));
+      setCurrentUserData(updatedUser);
+      setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+
+      await api.update('cells', cellId, {
+        membersList: updatedCell.membersList,
+        members: updatedCell.members
       });
       await api.update('users', currentUserData.id, {
-        cellIds: (currentUserData.cellIds || []).filter(id => id !== cellId)
+        cellIds: updatedUser.cellIds
       });
-      showMessage('Você saiu deste PG.');
+      handleApiSuccess('Você saiu deste PG.');
     } catch (err) {
+      setCells(originalCells);
+      setCurrentUserData(originalUser);
+      setUsers(prev => prev.map(u => u.id === originalUser.id ? originalUser : u));
       handleApiError(err, 'leaveCell');
     }
   };
@@ -2917,14 +3177,36 @@ const joinCell = async (cellId: string) => {
   };
 
   const handlePastoralVisitSubmit = async (data: Omit<PastoralVisit, 'id' | 'createdAt'>) => {
+    const tempVisit = {
+      ...data,
+      id: 'temp-' + Date.now(),
+      createdAt: new Date().toISOString(),
+      status: 'pending'
+    } as PastoralVisit;
+    setPastoralVisits(prev => [tempVisit, ...prev]);
+
     try {
       await api.create('pastoralVisits', {
         ...data,
+        createdAt: new Date().toISOString()
       });
       setShowAddPastoralVisit(false);
-      showMessage('Solicitação de visita enviada com sucesso!');
+      handleApiSuccess('Solicitação de visita enviada com sucesso!');
     } catch (err) {
+      setPastoralVisits(prev => prev.filter(v => v.id !== tempVisit.id));
       handleApiError(err, 'handlePastoralVisitSubmit');
+    }
+  };
+
+  const updatePastoralVisitStatus = async (id: string, status: PastoralVisit['status']) => {
+    const original = [...pastoralVisits];
+    setPastoralVisits(prev => prev.map(v => v.id === id ? { ...v, status } : v));
+    try {
+      await api.update('pastoralVisits', id, { status });
+      handleApiSuccess('Status da visita atualizado!');
+    } catch (err) {
+      setPastoralVisits(original);
+      handleApiError(err, 'updatePastoralVisitStatus');
     }
   };
 
@@ -2969,6 +3251,7 @@ const joinCell = async (cellId: string) => {
         case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
+        case 'pastoral': return <AdminPastoralVisits visits={pastoralVisits} onUpdateStatus={updatePastoralVisitStatus} />;
         case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} />;
         case 'profile': {
           const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
@@ -3006,6 +3289,7 @@ const joinCell = async (cellId: string) => {
       case 'tithes': return <TithesScreen config={titheConfig} onConfirmDonation={(val, label) => addTransaction({ label, value: val, type: 'in' })} showMessage={showMessage} currentUserData={currentUserData} />;
       case 'groups': return <GroupsScreen cells={cells} users={users} currentUser={currentUserData} onJoin={joinCell} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
       case 'media': return <MediaScreen showMessage={showMessage} />;
+      case 'pastoral': return <UserPastoralVisitsScreen visits={pastoralVisits.filter(v => v.uid === currentUserData?.id)} onAddRequest={() => setShowAddPastoralVisit(true)} />;
       case 'profile': {
         const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
         const userPrayers = prayers.filter(p => p.uid === currentUserData?.id);
@@ -3036,6 +3320,7 @@ const joinCell = async (cellId: string) => {
     { id: 'prayer', icon: Heart, label: 'Mural' },
     { id: 'bible', icon: BookOpen, label: 'Bíblia' },
     { id: 'sermons', icon: Mic, label: 'Sermões' },
+    { id: 'pastoral', icon: Heart, label: 'Visitas' },
     { id: 'tithes', icon: DollarSign, label: 'Dízimos' },
     (userRole === 'admin' || userRole === 'superadmin') && { id: 'admin_switch', icon: LayoutDashboard, label: 'Gestão' },
     { id: 'profile', icon: User, label: 'Perfil' },
@@ -3045,6 +3330,7 @@ const joinCell = async (cellId: string) => {
     { id: 'home', icon: PieChart, label: 'Dashboard' },
     { id: 'all_screens', icon: Grid, label: 'Telas' },
     { id: 'financial', icon: DollarSign, label: 'Financeiro' },
+    { id: 'pastoral', icon: Heart, label: 'Visitas' },
     { id: 'sermons', icon: Mic, label: 'Sermões' },
     { id: 'prayer', icon: Heart, label: 'Mural' },
     { id: 'members', icon: Users, label: 'Membros' },

@@ -17,14 +17,29 @@ class ApiService {
       ...((options.headers as any) || {}),
     };
 
-    const response = await fetch(`${API_URL}${path}`, { ...options, headers });
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
-      throw new Error(error.error || 'Erro na requisição');
-    }
+    try {
+      const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Ocorreu um erro no servidor' }));
+        const errorMessage = error.error || `Erro ${response.status}: ${response.statusText}`;
+        
+        if (response.status === 401 || response.status === 403) {
+          this.logout();
+          // Force reload to clear app state if not handled by components
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth')) {
+            window.location.href = '/';
+          }
+        }
+        
+        throw new Error(errorMessage);
+      }
 
-    return response.json();
+      return response.json();
+    } catch (err) {
+      if (err instanceof Error) throw err;
+      throw new Error('Falha na comunicação com o servidor');
+    }
   }
 
   setToken(token: string | null) {
@@ -33,6 +48,7 @@ class ApiService {
       localStorage.setItem('auth_token', token);
     } else {
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
     }
   }
 
