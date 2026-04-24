@@ -11,6 +11,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: UserRole;
   avatar?: string;
   birthDate?: string; // ISO format or YYYY-MM-DD
@@ -130,6 +131,7 @@ export interface Sermon {
   date: string;
   videoUrl?: string;
   audioUrl?: string;
+  pdfUrl?: string;
   description: string;
   thumbnail?: string;
   createdAt: any;
@@ -149,4 +151,10 @@ export interface TitheTransaction {
   date: string;
   type: 'tithe' | 'offering' | 'love_offering';
   status: 'pending' | 'completed';
+}
+
+export interface WhatsAppConfig {
+  phoneNumberId: string;
+  isEnabled: boolean;
+  destinationPhone?: string; // Number to receive admin alerts (e.g. new pastoral visit)
 }

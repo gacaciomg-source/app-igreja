@@ -44,9 +44,12 @@ import {
   Mic,
   Video,
   Music,
-  Phone
+  Phone,
+  FileText,
+  CheckCircle,
+  RefreshCw
 } from 'lucide-react';
-import { cn, UserRole, User as UserType, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit } from './types';
+import { cn, UserRole, User as UserType, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
 import { api } from './services/apiService';
 import { ReadingPlansScreen } from './components/ReadingPlansScreen';
@@ -198,6 +201,7 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -215,12 +219,14 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
         localStorage.setItem('auth_user', JSON.stringify(loggedUser));
         onAuthSuccess(loggedUser);
       } else if (mode === 'signup') {
+        if (!phone) throw new Error("O número de WhatsApp é obrigatório.");
         const { user: newUser } = await api.register({
           name,
           email,
           password,
           age,
-          address
+          address,
+          phone
         });
         console.log('Register successful:', newUser.email);
         localStorage.setItem('auth_user', JSON.stringify(newUser));
@@ -274,6 +280,21 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">WhatsApp (Obrigatório)</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input 
+                    type="tel" 
+                    required
+                    placeholder="Ex: 5511999999999"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Idade</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -283,6 +304,21 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
                     placeholder="Sua idade"
                     value={age}
                     onChange={e => setAge(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">WhatsApp (Obrigatório)</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input 
+                    type="tel" 
+                    required
+                    placeholder="Ex: 5511999999999"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
                 </div>
@@ -1574,14 +1610,170 @@ const NotificationSettingsScreen = ({ settings, onUpdate, onClose, showMessage }
   );
 };
 
-const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, isAdmin, onSwitchToAdmin, onSwitchToMember, showMessage, onOpenNotifications }: { onLogout: () => void, user: UserType | null, onUpdateProfile: (data: Partial<UserType>) => Promise<void>, stats: { cells: number, prayers: number }, prayers?: PrayerRequest[], isAdmin?: boolean, onSwitchToAdmin?: () => void, onSwitchToMember?: () => void, showMessage: (msg: string) => void, onOpenNotifications?: () => void }) => {
+const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsAppConfig, onUpdate: (data: WhatsAppConfig) => void, showMessage: (msg: string) => void }) => {
+  const [formData, setFormData] = useState(config);
+  const [statusData, setStatusData] = useState<{ status: string, hasQr: boolean, qr: string | null }>({ status: 'DISCONNECTED', hasQr: false, qr: null });
+  const [loading, setLoading] = useState(false);
+
+  const fetchStatus = async () => {
+    try {
+      const data = await api.getWhatsAppStatus();
+      setStatusData(data);
+    } catch (err) {
+      console.error('Failed to fetch WhatsApp status:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleUpdate = () => {
+    onUpdate(formData);
+  };
+
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      await api.logoutWhatsApp();
+      showMessage('Desconectado com sucesso!');
+      fetchStatus();
+    } catch (err) {
+      showMessage('Erro ao desconectar');
+    }
+    setLoading(false);
+  };
+
+  const handleReconnect = async () => {
+    setLoading(true);
+    try {
+      await api.reconnectWhatsApp();
+      showMessage('Iniciando reconexão...');
+      fetchStatus();
+    } catch (err) {
+      showMessage('Erro ao reconectar');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="space-y-6 pt-4">
+      <header className="space-y-1">
+        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <div className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg">
+            <MessageSquare className="w-4 h-4" />
+          </div>
+          WhatsApp (Não Oficial)
+        </h3>
+        <p className="text-xs text-slate-500">Conecte sua conta para notificações automáticas</p>
+      </header>
+
+      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xl space-y-6 text-center">
+        {statusData.status === 'READY' ? (
+          <div className="space-y-4">
+            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle className="w-10 h-10" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-xl font-bold text-slate-900">Conectado!</h4>
+              <p className="text-sm text-slate-500">Seu WhatsApp está pronto para enviar notificações.</p>
+            </div>
+            <Button variant="outline" className="text-red-500 border-red-100 hover:bg-red-50" onClick={handleLogout} disabled={loading}>
+              Desconectar WhatsApp
+            </Button>
+          </div>
+        ) : statusData.qr ? (
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <h4 className="text-lg font-bold text-slate-900">Escaneie o QR Code</h4>
+              <p className="text-xs text-slate-500">Abra o WhatsApp no seu celular {'>'} Configurações {'>'} Dispositivos Conectados</p>
+            </div>
+            <div className="bg-slate-50 p-4 rounded-2xl inline-block border-2 border-slate-200">
+              <img src={statusData.qr} alt="WhatsApp QR Code" className="w-64 h-64 mx-auto" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-[10px] text-slate-400 animate-pulse font-bold uppercase tracking-wider">Aguardando leitura...</p>
+              <Button variant="ghost" className="text-slate-400 text-xs" onClick={fetchStatus}>Atualizar QR Code</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 py-8">
+            <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto animate-spin">
+              <RefreshCw className="w-8 h-8" />
+            </div>
+            <p className="text-sm text-slate-500">Iniciando conexão com o WhatsApp...</p>
+            <Button onClick={handleReconnect} disabled={loading}>Tentar Conectar</Button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <div className="grid gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase">Telefone do Administrador para Alertas</label>
+          <input 
+            type="text" 
+            value={formData.destinationPhone || ''} 
+            onBlur={handleUpdate}
+            onChange={(e) => setFormData({...formData, destinationPhone: e.target.value})}
+            placeholder="Ex: 5511999999999"
+            className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+          />
+          <p className="text-[10px] text-slate-500 italic px-1">Este número receberá avisos sobre novos pedidos de oração e visitas.</p>
+        </div>
+        
+        <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+          <div className="space-y-0.5">
+            <span className="text-sm font-bold text-slate-700">Status Geral</span>
+            <p className="text-[10px] text-slate-400 uppercase font-bold">Ativar serviço de avisos</p>
+          </div>
+          <button 
+            onClick={() => {
+              const newVal = !formData.isEnabled;
+              setFormData({...formData, isEnabled: newVal});
+              onUpdate({...formData, isEnabled: newVal});
+            }}
+            className={cn("w-12 h-6 rounded-full transition-colors relative", formData.isEnabled ? "bg-emerald-500" : "bg-slate-200")}
+          >
+            <div className={cn("absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm", formData.isEnabled ? "right-1" : "left-1")} />
+          </button>
+        </div>
+
+        <Button 
+          variant="outline" 
+          className="w-full border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+          onClick={() => {
+            if (!formData.destinationPhone) {
+              showMessage('Informe o número do administrador para testar.');
+              return;
+            }
+            if (statusData.status !== 'READY') {
+              showMessage('WhatsApp não está conectado.');
+              return;
+            }
+            api.sendWhatsApp(formData.destinationPhone, "✅ *Teste de Conexão WhatsApp*\nSeu sistema de notificações está funcionando perfeitamente!");
+            showMessage('Mensagem de teste enviada!');
+          }}
+        >
+          Enviar Mensagem de Teste
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastoralVisits, whatsappConfig, onUpdateWhatsApp, isAdmin, onSwitchToAdmin, onSwitchToMember, showMessage, onOpenNotifications }: { onLogout: () => void, user: UserType | null, onUpdateProfile: (data: Partial<UserType>) => Promise<void>, stats: { cells: number, prayers: number }, prayers?: PrayerRequest[], pastoralVisits?: PastoralVisit[], whatsappConfig?: WhatsAppConfig, onUpdateWhatsApp?: (data: WhatsAppConfig) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, onSwitchToMember?: () => void, showMessage: (msg: string) => void, onOpenNotifications?: () => void }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
   const [form, setForm] = useState({
     name: user?.name || '',
     birthDate: user?.birthDate || '',
+    phone: user?.phone || '',
     avatar: user?.avatar || ''
   });
   const [showMyPrayers, setShowMyPrayers] = useState(false);
+  const [showMyVisits, setShowMyVisits] = useState(false);
 
   const handleUpdate = async () => {
     try {
@@ -1616,6 +1808,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, isAdmi
       setForm({
         name: user.name || '',
         birthDate: user.birthDate || '',
+        phone: user.phone || '',
         avatar: user.avatar || ''
       });
     }
@@ -1662,6 +1855,80 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, isAdmi
     );
   }
 
+  if (showMyVisits) {
+    const myVisits = pastoralVisits?.filter(v => v.uid === user?.id) || [];
+    const getStatusColor = (status: PastoralVisit['status']) => {
+      switch (status) {
+        case 'pending': return 'bg-amber-50 text-amber-600';
+        case 'scheduled': return 'bg-blue-50 text-blue-600';
+        case 'completed': return 'bg-emerald-50 text-emerald-600';
+        case 'cancelled': return 'bg-red-50 text-red-600';
+        default: return 'bg-slate-50 text-slate-600';
+      }
+    };
+
+    return (
+      <div className="space-y-6 pb-24">
+        <header className="flex items-center gap-4">
+          <button onClick={() => setShowMyVisits(false)} className="p-2 hover:bg-slate-100 rounded-full">
+            <ArrowLeft className="w-6 h-6 text-slate-400" />
+          </button>
+          <h2 className="text-2xl font-bold text-slate-900">Minhas Visitas</h2>
+        </header>
+
+        <div className="space-y-4">
+          {myVisits.length > 0 ? (
+            myVisits.map(visit => (
+              <Card key={visit.id} className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-400">{new Date(visit.createdAt).toLocaleDateString('pt-BR')}</span>
+                  <span className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider", getStatusColor(visit.status))}>
+                    {visit.status === 'pending' ? 'Pendente' : 
+                     visit.status === 'scheduled' ? 'Agendada' :
+                     visit.status === 'completed' ? 'Concluída' : 'Cancelada'}
+                  </span>
+                </div>
+                <p className="text-slate-700 font-medium">{visit.reason}</p>
+                <div className="flex items-center gap-2 text-slate-500 text-xs">
+                  <Calendar className="w-4 h-4" />
+                  Sugerido para: {new Date(visit.preferredDate).toLocaleDateString('pt-BR')}
+                </div>
+              </Card>
+            ))
+          ) : (
+            <div className="text-center py-12 space-y-4">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300">
+                <Heart className="w-8 h-8" />
+              </div>
+              <p className="text-slate-500">Você ainda não solicitou nenhuma visita.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (showWhatsAppConfig && user?.role === 'superadmin') {
+    return (
+      <div className="space-y-6 pb-24">
+        <header className="flex items-center gap-4">
+          <button onClick={() => setShowWhatsAppConfig(false)} className="p-2 hover:bg-slate-100 rounded-full">
+            <ArrowLeft className="w-6 h-6 text-slate-400" />
+          </button>
+          <h2 className="text-2xl font-bold text-slate-900">Gestão WhatsApp</h2>
+        </header>
+
+        {whatsappConfig && onUpdateWhatsApp && (
+          <WhatsAppAdminConfig 
+            config={whatsappConfig} 
+            onUpdate={onUpdateWhatsApp} 
+            showMessage={showMessage} 
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 pb-24">
       <header className="text-center pt-8 space-y-4">
@@ -1690,6 +1957,16 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, isAdmi
                   type="date" 
                   value={form.birthDate} 
                   onChange={(e) => setForm({...form, birthDate: e.target.value})}
+                  className="w-full text-center text-sm font-medium text-slate-900 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div className="w-full space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase text-left block">WhatsApp / Telefone</label>
+                <input 
+                  type="tel" 
+                  value={form.phone} 
+                  onChange={(e) => setForm({...form, phone: e.target.value})}
+                  placeholder="Ex: 5511999999999"
                   className="w-full text-center text-sm font-medium text-slate-900 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
@@ -1733,7 +2010,9 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, isAdmi
           isAdmin && onSwitchToMember && { icon: Eye, label: 'Ver como Membro', action: onSwitchToMember },
           { icon: User, label: 'Dados Pessoais', action: () => setIsEditing(true) },
           { icon: Bell, label: 'Notificações', action: onOpenNotifications },
+          user?.role === 'superadmin' && { icon: MessageSquare, label: 'Configurar WhatsApp', action: () => setShowWhatsAppConfig(true) },
           { icon: Heart, label: 'Meus Pedidos de Oração', action: () => setShowMyPrayers(true) },
+          { icon: Heart, label: 'Minhas Solicitações de Visita', action: () => setShowMyVisits(true) },
           { icon: Settings, label: 'Privacidade', action: () => showMessage?.('Configurações de privacidade em breve') },
         ].filter(Boolean).map((item: any, i) => (
           <button key={i} onClick={item.action} className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:bg-slate-50 transition-all group">
@@ -2234,6 +2513,11 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
                     <Music className="w-3 h-3" /> Áudio disponível
                   </span>
                 )}
+                {sermon.pdfUrl && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase">
+                    <FileText className="w-3 h-3" /> PDF disponível
+                  </span>
+                )}
               </div>
             </div>
           </Card>
@@ -2297,6 +2581,17 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
                         <Music className="w-5 h-5" />
                       </a>
                     )}
+                    {selectedSermon.pdfUrl && (
+                      <a 
+                        href={selectedSermon.pdfUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-3 bg-red-500 text-white rounded-xl shadow-lg shadow-red-500/20 hover:scale-105 transition-transform"
+                        title="Baixar PDF de Estudo"
+                      >
+                        <FileText className="w-5 h-5" />
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -2327,6 +2622,7 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
     description: '',
     videoUrl: '',
     audioUrl: '',
+    pdfUrl: '',
     thumbnail: ''
   });
 
@@ -2334,7 +2630,7 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
     e.preventDefault();
     onAdd(formData);
     setShowAdd(false);
-    setFormData({ title: '', preacher: '', date: new Date().toISOString().split('T')[0], description: '', videoUrl: '', audioUrl: '', thumbnail: '' });
+    setFormData({ title: '', preacher: '', date: new Date().toISOString().split('T')[0], description: '', videoUrl: '', audioUrl: '', pdfUrl: '', thumbnail: '' });
   };
 
   return (
@@ -2383,6 +2679,10 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
                 <label className="text-[10px] font-bold text-slate-400 uppercase">URL do Áudio</label>
                 <input className="w-full p-3 bg-slate-50 rounded-xl border-none text-sm" value={formData.audioUrl} onChange={e => setFormData({...formData, audioUrl: e.target.value})} />
               </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">URL do PDF (Material de Estudo)</label>
+              <input className="w-full p-3 bg-slate-50 rounded-xl border-none text-sm" value={formData.pdfUrl} onChange={e => setFormData({...formData, pdfUrl: e.target.value})} />
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancelar</Button>
@@ -2488,6 +2788,7 @@ export default function App() {
   const [userReadingProgress, setUserReadingProgress] = useState<Record<string, string[]>>({});
   const [allUserProgress, setAllUserProgress] = useState<Record<string, Record<string, string[]>>>({});
   const [titheConfig, setTitheConfig] = useState<TitheConfig>({ pixKey: '', bankName: '', accountHolder: '' });
+  const [whatsappConfig, setWhatsappConfig] = useState<WhatsAppConfig>({ phoneNumberId: '', isEnabled: false });
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showAddCell, setShowAddCell] = useState(false);
@@ -2541,6 +2842,15 @@ export default function App() {
   const showWebNotification = (title: string, body: string) => {
     if (Notification.permission === "granted" && !currentUserData?.notificationSettings?.allMuted) {
       new Notification(title, { body, icon: "/favicon.ico" });
+    }
+  };
+
+  const notifyViaWhatsApp = async (to: string, message: string) => {
+    if (!whatsappConfig.isEnabled || !whatsappConfig.phoneNumberId) return;
+    try {
+      await api.sendWhatsApp(to, message);
+    } catch (err) {
+      console.error("Failed to send WhatsApp notification:", err);
     }
   };
 
@@ -2632,6 +2942,9 @@ export default function App() {
     unsubscribes.push(api.subscribe('config', (data) => {
       const tConfig = data.find((c: any) => c.id === 'tithes');
       if (tConfig) setTitheConfig(tConfig);
+      
+      const wConfig = data.find((c: any) => c.id === 'whatsapp');
+      if (wConfig) setWhatsappConfig(wConfig);
     }, 2000));
 
     if (userRole === 'admin' || userRole === 'superadmin') {
@@ -2777,6 +3090,18 @@ export default function App() {
         ...data,
       });
       handleApiSuccess('Sermão adicionado com sucesso!');
+
+      // WhatsApp Notification (to all users with phone)
+      if (whatsappConfig.isEnabled) {
+        users.forEach(u => {
+          if (u.phone && u.notificationSettings?.newSermonEnabled) {
+            notifyViaWhatsApp(
+              u.phone,
+              `✨ *Novo Sermão Disponível!*\n\n"${data.title}"\nPregador: ${data.preacher}\nAssista agora no App da Igreja Renovando Vidas!`
+            );
+          }
+        });
+      }
     } catch (err) {
       setSermons(prev => prev.filter(s => s.id !== tempSermon.id));
       handleApiError(err, 'addSermon');
@@ -2804,6 +3129,21 @@ export default function App() {
       showMessage('Configurações de dízimo atualizadas!');
     } catch (err) {
       handleApiError(err, 'updateTitheConfig');
+    }
+  };
+
+  const updateWhatsAppConfig = async (data: WhatsAppConfig) => {
+    try {
+      const configs = await api.list('config');
+      const whatsapp = configs.find((c: any) => c.id === 'whatsapp');
+      if (whatsapp) {
+        await api.update('config', whatsapp.id, data);
+      } else {
+        await api.create('config', { ...data, id: 'whatsapp' });
+      }
+      showMessage('Configurações do WhatsApp atualizadas!');
+    } catch (err) {
+      handleApiError(err, 'updateWhatsAppConfig');
     }
   };
 
@@ -2960,6 +3300,14 @@ export default function App() {
         createdAt: new Date().toISOString()
       });
       handleApiSuccess('Pedido de oração enviado!');
+
+      // WhatsApp Notification to Admin
+      if (whatsappConfig.isEnabled && whatsappConfig.destinationPhone) {
+        notifyViaWhatsApp(
+          whatsappConfig.destinationPhone,
+          `🙏 *Novo Pedido de Oração*\n\n*Membro:* ${currentUserData?.name}\n*Privacidade:* ${privacy}\n*Mensagem:* ${content}`
+        );
+      }
     } catch (err) {
       // Revert optimistic update
       setPrayers(prev => prev.filter(p => p.id !== tempPrayer.id));
@@ -3192,6 +3540,14 @@ const joinCell = async (cellId: string) => {
       });
       setShowAddPastoralVisit(false);
       handleApiSuccess('Solicitação de visita enviada com sucesso!');
+      
+      // WhatsApp Notification to Admin
+      if (whatsappConfig.isEnabled && whatsappConfig.destinationPhone) {
+        notifyViaWhatsApp(
+          whatsappConfig.destinationPhone,
+          `📖 *Nova Solicitação de Visita*\n\n*Membro:* ${data.userName}\n*Motivo:* ${data.reason}\n*Data Preferencial:* ${new Date(data.preferredDate).toLocaleDateString('pt-BR')}\n*Telefone:* ${data.userPhone || 'Não informado'}`
+        );
+      }
     } catch (err) {
       setPastoralVisits(prev => prev.filter(v => v.id !== tempVisit.id));
       handleApiError(err, 'handlePastoralVisitSubmit');
@@ -3263,6 +3619,9 @@ const joinCell = async (cellId: string) => {
               onUpdateProfile={updateUserProfile} 
               stats={{ cells: userCells.length, prayers: userPrayers.length }} 
               prayers={prayers} 
+              pastoralVisits={pastoralVisits}
+              whatsappConfig={whatsappConfig}
+              onUpdateWhatsApp={updateWhatsAppConfig}
               isAdmin={isAdmin} 
               onSwitchToMember={() => navigate('/')} 
               showMessage={showMessage} 
@@ -3300,6 +3659,9 @@ const joinCell = async (cellId: string) => {
             onUpdateProfile={updateUserProfile} 
             stats={{ cells: userCells.length, prayers: userPrayers.length }} 
             prayers={prayers} 
+            pastoralVisits={pastoralVisits}
+            whatsappConfig={whatsappConfig}
+            onUpdateWhatsApp={updateWhatsAppConfig}
             isAdmin={isAdmin} 
             onSwitchToAdmin={() => navigate('/admin')} 
             showMessage={showMessage} 
@@ -3320,7 +3682,6 @@ const joinCell = async (cellId: string) => {
     { id: 'prayer', icon: Heart, label: 'Mural' },
     { id: 'bible', icon: BookOpen, label: 'Bíblia' },
     { id: 'sermons', icon: Mic, label: 'Sermões' },
-    { id: 'pastoral', icon: Heart, label: 'Visitas' },
     { id: 'tithes', icon: DollarSign, label: 'Dízimos' },
     (userRole === 'admin' || userRole === 'superadmin') && { id: 'admin_switch', icon: LayoutDashboard, label: 'Gestão' },
     { id: 'profile', icon: User, label: 'Perfil' },

@@ -5,9 +5,74 @@ import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
-import * as storage from "./src/lib/storage.js";
+import * as storage from "./src/lib/storage.ts";
+import pkg from 'whatsapp-web.js';
+const { Client, LocalAuth } = pkg;
+import qrcode from 'qrcode';
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+
+// --- WhatsApp Global State ---
+let whatsappClient: Client | null = null;
+let lastQr: string | null = null;
+let whatsappStatus: 'DISCONNECTED' | 'INITIALIZING' | 'READY' | 'AUTHENTRICATING' = 'DISCONNECTED';
+
+async function initWhatsApp() {
+  if (whatsappClient) return;
+
+  console.log('Initializing WhatsApp Client...');
+  whatsappStatus = 'INITIALIZING';
+
+  whatsappClient = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+      headless: true,
+      executablePath: process.env.CHROME_PATH || undefined,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    }
+  });
+
+  whatsappClient.on('qr', async (qr) => {
+    console.log('WhatsApp QR Code generated');
+    lastQr = await qrcode.toDataURL(qr);
+    whatsappStatus = 'DISCONNECTED';
+  });
+
+  whatsappClient.on('ready', () => {
+    console.log('WhatsApp Client is ready!');
+    whatsappStatus = 'READY';
+    lastQr = null;
+  });
+
+  whatsappClient.on('authenticated', () => {
+    console.log('WhatsApp Authenticated');
+    whatsappStatus = 'AUTHENTRICATING';
+  });
+
+  whatsappClient.on('auth_failure', (msg) => {
+    console.error('WhatsApp Auth failure:', msg);
+    whatsappStatus = 'DISCONNECTED';
+  });
+
+  whatsappClient.on('disconnected', (reason) => {
+    console.log('WhatsApp Disconnected:', reason);
+    whatsappStatus = 'DISCONNECTED';
+    lastQr = null;
+    whatsappClient = null;
+    setTimeout(initWhatsApp, 5000);
+  });
+
+  try {
+    await whatsappClient.initialize();
+  } catch (err) {
+    console.error('Failed to initialize WhatsApp:', err);
+    whatsappStatus = 'DISCONNECTED';
+    whatsappClient = null;
+  }
+}
+
+// Start WhatsApp on boot
+initWhatsApp();
 
 async function startServer() {
   const app = express();
@@ -22,10 +87,24 @@ async function startServer() {
     next();
   });
 
+  // --- Middleware for Auth ---
+  const authenticateToken = (req: any, res: any, next: any) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ error: "Não autorizado" });
+
+    jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+      if (err) return res.status(403).json({ error: "Sessão expirada ou token inválido" });
+      req.user = user;
+      next();
+    });
+  };
+
   // --- Auth API ---
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { name, email, password, age, address } = req.body;
+      const { name, email, password, age, address, phone } = req.body;
       const users = await storage.readCollection<any>("users");
       
       if (users.find(u => u.email === email)) {
@@ -41,6 +120,7 @@ async function startServer() {
         role: users.length === 0 ? "superadmin" : "member",
         age: parseInt(age) || 0,
         address: address || "",
+        phone: phone || "",
         createdAt: new Date().toISOString()
       };
 
@@ -74,21 +154,7 @@ async function startServer() {
     }
   });
 
-  // --- Middleware for Auth ---
-  const authenticateToken = (req: any, res: any, next: any) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) return res.status(401).json({ error: "Não autorizado" });
-
-    jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-      if (err) return res.status(403).json({ error: "Sessão expirada ou token inválido" });
-      req.user = user;
-      next();
-    });
-  };
-
-  // --- Generic API Routes for all collections ---
+  // --- Generic Data API ---
   app.get("/api/collections/:name", authenticateToken, async (req, res) => {
     try {
       const data = await storage.readCollection(req.params.name);
@@ -100,7 +166,6 @@ async function startServer() {
 
   app.post("/api/collections/:name", authenticateToken, async (req, res) => {
     try {
-      console.log(`Saving to ${req.params.name}:`, req.body);
       const newItem = {
         ...req.body,
         id: req.body.id || uuidv4(),
@@ -109,22 +174,16 @@ async function startServer() {
       await storage.insert(req.params.name, newItem);
       res.json(newItem);
     } catch (error) {
-      console.error(`Error saving to ${req.params.name}:`, error);
       res.status(500).json({ error: "Erro ao salvar" });
     }
   });
 
   app.patch("/api/collections/:name/:id", authenticateToken, async (req, res) => {
     try {
-      console.log(`Updating ${req.params.name}/${req.params.id}:`, req.body);
       const updated = await storage.update(req.params.name, req.params.id, req.body);
-      if (!updated) {
-        console.warn(`Item ${req.params.id} not found in ${req.params.name}`);
-        return res.status(404).json({ error: "Não encontrado" });
-      }
+      if (!updated) return res.status(404).json({ error: "Não encontrado" });
       res.json(updated);
     } catch (error) {
-      console.error(`Error updating ${req.params.name}/${req.params.id}:`, error);
       res.status(500).json({ error: "Erro ao atualizar" });
     }
   });
@@ -139,19 +198,58 @@ async function startServer() {
     }
   });
 
+  // --- WhatsApp API Endpoints ---
+  app.get("/api/whatsapp/status", authenticateToken, (req, res) => {
+    res.json({ 
+      status: whatsappStatus,
+      hasQr: !!lastQr,
+      qr: lastQr 
+    });
+  });
+
+  app.post("/api/whatsapp/reconnect", authenticateToken, async (req, res) => {
+    await initWhatsApp();
+    res.json({ status: 'Initiated' });
+  });
+
+  app.post("/api/whatsapp/logout", authenticateToken, async (req, res) => {
+    if (whatsappClient) {
+      try {
+        await whatsappClient.logout();
+        whatsappStatus = 'DISCONNECTED';
+        lastQr = null;
+        res.json({ success: true });
+      } catch (err) {
+        res.status(500).json({ error: 'Erro ao deslogar' });
+      }
+    } else {
+      res.status(400).json({ error: 'Cliente não iniciado' });
+    }
+  });
+
+  app.post("/api/whatsapp/send", authenticateToken, async (req, res) => {
+    try {
+      const { to, message } = req.body;
+      if (!whatsappClient || whatsappStatus !== 'READY') {
+        return res.status(500).json({ error: "WhatsApp não está conectado. Escaneie o QR code no painel do administrador." });
+      }
+      const sanitizedNumber = to.replace(/\D/g, '');
+      const chatId = `${sanitizedNumber}@c.us`;
+      await whatsappClient.sendMessage(chatId, message);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao enviar: " + (error instanceof Error ? error.message : "Erro desconhecido") });
+    }
+  });
+
   // --- Vite / Static files ---
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
   app.listen(PORT, "0.0.0.0", () => {

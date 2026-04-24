@@ -42,6 +42,25 @@ class ApiService {
     }
   }
 
+  async sendWhatsApp(to: string, message: string) {
+    return this.request('/whatsapp/send', {
+      method: 'POST',
+      body: JSON.stringify({ to, message }),
+    });
+  }
+
+  async getWhatsAppStatus() {
+    return this.request('/whatsapp/status');
+  }
+
+  async reconnectWhatsApp() {
+    return this.request('/whatsapp/reconnect', { method: 'POST' });
+  }
+
+  async logoutWhatsApp() {
+    return this.request('/whatsapp/logout', { method: 'POST' });
+  }
+
   setToken(token: string | null) {
     this.token = token;
     if (token) {
