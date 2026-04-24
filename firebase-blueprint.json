@@ -10,6 +10,8 @@
         "role": { "type": "string", "enum": ["admin", "member", "superadmin", "leader"] },
         "avatar": { "type": "string", "format": "uri" },
         "birthDate": { "type": "string" },
+        "age": { "type": "integer" },
+        "address": { "type": "string" },
         "leaderOf": { "type": "string" },
         "cellIds": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string", "format": "date-time" },
@@ -23,7 +25,23 @@
           }
         }
       },
-      "required": ["name", "email", "role"]
+      "required": ["name", "email", "role", "age", "address"]
+    },
+    "PastoralVisit": {
+      "title": "PastoralVisit",
+      "description": "A request for a pastoral visit",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAddress": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "reason": { "type": "string" },
+        "preferredDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "scheduled", "completed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "userName", "userAddress", "reason", "preferredDate", "status", "createdAt"]
     },
     "Event": {
       "title": "Event",
@@ -170,6 +188,7 @@
     "/attendance/{attendanceId}": { "schema": "Attendance", "description": "Cell attendance records" },
     "/verseHighlights/{highlightId}": { "schema": "VerseHighlight", "description": "User Bible highlights" },
     "/sermons/{sermonId}": { "schema": "Sermon", "description": "Church sermons" },
-    "/announcements/{announcementId}": { "schema": "Announcement", "description": "Church announcements" }
+    "/announcements/{announcementId}": { "schema": "Announcement", "description": "Church announcements" },
+    "/pastoralVisits/{visitId}": { "schema": "PastoralVisit", "description": "Pastoral visit requests" }
   }
 }

@@ -133,10 +133,12 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['name', 'email', 'role', 'createdAt', 'avatar', 'birthDate', 'leaderOf', 'cellIds']) &&
+      return hasOnlyAllowedFields(['name', 'email', 'role', 'createdAt', 'avatar', 'birthDate', 'leaderOf', 'cellIds', 'age', 'address']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.email is string && isValidEmail(data.email) &&
              data.role in ['admin', 'member', 'superadmin', 'leader'] &&
+             (!('age' in data) || data.age is int) &&
+             (!('address' in data) || data.address is string) &&
              (data.createdAt is timestamp || isValidDateString(data.createdAt)) &&
              (!('avatar' in data) || isValidUrl(data.avatar)) &&
              (!('birthDate' in data) || data.birthDate is string) &&
@@ -188,6 +190,17 @@ service cloud.firestore {
              data.label is string && data.label.size() > 0 &&
              data.value is number && data.value >= 0 &&
              data.type in ['in', 'out'] &&
+             (data.createdAt is timestamp || isValidDateString(data.createdAt));
+    }
+
+    function isValidPastoralVisit(data) {
+      return hasOnlyAllowedFields(['uid', 'userName', 'userAddress', 'userPhone', 'reason', 'preferredDate', 'status', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.userName is string && data.userName.size() > 0 &&
+             data.userAddress is string && data.userAddress.size() > 0 &&
+             data.reason is string && data.reason.size() > 0 &&
+             data.preferredDate is string &&
+             data.status in ['pending', 'scheduled', 'completed', 'cancelled'] &&
              (data.createdAt is timestamp || isValidDateString(data.createdAt));
     }
 
@@ -298,6 +311,13 @@ service cloud.firestore {
     match /config/{configId} {
       allow read: if isAuthenticated();
       allow write: if isSuperAdmin();
+    }
+
+    match /pastoralVisits/{visitId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+      allow create: if isAuthenticated() && isValidPastoralVisit(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // Connection test path

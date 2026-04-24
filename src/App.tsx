@@ -45,102 +45,21 @@ import {
   Video,
   Music
 } from 'lucide-react';
-import { cn, UserRole, User as UserType, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon } from './types';
+import { cn, UserRole, User as UserType, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
-import { auth, db } from './firebase';
+import { api } from './services/apiService';
 import { ReadingPlansScreen } from './components/ReadingPlansScreen';
 import { TithesScreen } from './components/TithesScreen';
 import { TithesAdminScreen } from './components/TithesAdminScreen';
-import { 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  sendPasswordResetEmail, 
-  signOut,
-  updateProfile,
-  GoogleAuthProvider,
-  signInWithPopup
-} from 'firebase/auth';
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  collection, 
-  addDoc, 
-  deleteDoc, 
-  updateDoc, 
-  onSnapshot, 
-  query, 
-  orderBy,
-  serverTimestamp,
-  getDocFromServer,
-  where,
-  or,
-  arrayUnion,
-  arrayRemove,
-  increment
-} from 'firebase/firestore';
 
 // --- Error Handling ---
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
 let setGlobalErrorRef: (msg: string | null) => void = () => {};
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+function handleApiError(error: unknown, context: string) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`API Error [${context}]: `, message);
   
-  let userMessage = "Erro de permissão ou conexão com o banco de dados.";
-  if (errInfo.error.includes("permission-denied")) {
-    userMessage = "Você não tem permissão para realizar esta ação.";
-  } else if (errInfo.error.includes("unavailable")) {
-    userMessage = "O banco de dados está temporariamente indisponível. Verifique sua internet.";
-  }
-  
-  setGlobalErrorRef(`${userMessage} (${operationType} em ${path})`);
+  setGlobalErrorRef(`Erro: ${message} (em ${context})`);
   setTimeout(() => setGlobalErrorRef(null), 6000);
 }
 
@@ -272,27 +191,19 @@ export const Button = ({
 
 // --- Screens ---
 
-const LoginScreen = () => {
+const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => void }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [age, setAge] = useState('');
+  const [address, setAddress] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const handleGoogleLogin = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (err: any) {
-      console.error(err);
-      setError('Erro ao entrar com Google: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
+  const handleGoogleLogin = () => {
+    setError('O login com Google não está disponível nesta versão local.');
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -303,56 +214,27 @@ const LoginScreen = () => {
 
     try {
       if (mode === 'login') {
-        await signInWithEmailAndPassword(auth, email, password);
+        const { user: loggedUser } = await api.login(email, password);
+        console.log('Login successful:', loggedUser.email);
+        localStorage.setItem('auth_user', JSON.stringify(loggedUser));
+        onAuthSuccess(loggedUser);
       } else if (mode === 'signup') {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, { displayName: name });
-        
-        // Determine role based on email
-        let assignedRole = 'member';
-        if (email.endsWith('@igrejarenovar.com')) {
-          assignedRole = 'admin';
-        }
-
-        // Create user document in Firestore
-        try {
-          await setDoc(doc(db, 'users', userCredential.user.uid), {
-            name,
-            email,
-            role: assignedRole,
-            createdAt: new Date().toISOString()
-          });
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${userCredential.user.uid}`);
-        }
+        const { user: newUser } = await api.register({
+          name,
+          email,
+          password,
+          age,
+          address
+        });
+        console.log('Register successful:', newUser.email);
+        localStorage.setItem('auth_user', JSON.stringify(newUser));
+        onAuthSuccess(newUser);
       } else if (mode === 'reset') {
-        await sendPasswordResetEmail(auth, email);
-        setMessage('E-mail de recuperação enviado! Verifique sua caixa de entrada.');
+        setMessage('A funcionalidade de recuperação de senha não está disponível para arquivos locais.');
       }
     } catch (err: any) {
-      console.error(err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('E-mail ou senha incorretos.');
-      } else if (err.code === 'auth/email-already-in-use') {
-        setError('Este e-mail já está em uso.');
-      } else if (err.code === 'auth/weak-password') {
-        setError('A senha deve ter pelo menos 6 caracteres.');
-      } else if (err.code === 'auth/invalid-email') {
-        setError('E-mail inválido.');
-      } else {
-        let msg = err.message;
-        try {
-          const parsed = JSON.parse(err.message);
-          if (parsed.error && parsed.error.includes('Missing or insufficient permissions')) {
-            msg = "Você não tem permissão para realizar esta ação.";
-          } else if (parsed.error) {
-            msg = parsed.error;
-          }
-        } catch (e) {
-          // Not a JSON error
-        }
-        setError('Ocorreu um erro: ' + msg);
-      }
+      console.error('Authentication error:', err);
+      setError(err.message || 'Ocorreu um erro na autenticação.');
     } finally {
       setLoading(false);
     }
@@ -379,20 +261,52 @@ const LoginScreen = () => {
 
         <form onSubmit={handleAuth} className="space-y-4">
           {mode === 'signup' && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Nome Completo</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input 
-                  type="text" 
-                  required
-                  placeholder="Seu nome"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                />
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Nome Completo</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Seu nome"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                </div>
               </div>
-            </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Idade</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input 
+                    type="number" 
+                    required
+                    placeholder="Sua idade"
+                    value={age}
+                    onChange={e => setAge(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Endereço</label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Seu endereço completo"
+                    value={address}
+                    onChange={e => setAddress(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                </div>
+              </div>
+            </>
           )}
 
           <div className="space-y-2">
@@ -521,7 +435,7 @@ const DAILY_VERSES = [
   { text: "O meu Deus suprirá todas as necessidades de vocês, de acordo com as suas gloriosas riquezas em Cristo Jesus.", ref: "Filipenses 4:19" }
 ];
 
-const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, isAdmin, onSwitchToAdmin, showMessage }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void }) => {
+const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, isAdmin, onSwitchToAdmin, showMessage }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void }) => {
   const dailyVerse = React.useMemo(() => {
     const today = new Date();
     const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
@@ -555,6 +469,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
           { icon: Mic, label: 'Sermões', color: 'bg-orange-500', action: () => onTabChange('sermons') },
           { icon: Calendar, label: 'Agenda', color: 'bg-blue-500', action: () => onTabChange('events') },
           { icon: Home, label: 'PGs', color: 'bg-purple-500', action: () => onTabChange('groups') },
+          { icon: Heart, label: 'Visita', color: 'bg-rose-500', action: onRequestPastoralVisit },
           isAdmin && { icon: LayoutDashboard, label: 'Gerenciar', color: 'bg-slate-800', action: onSwitchToAdmin },
         ].filter(Boolean).map((action: any, i) => (
           <button key={i} onClick={action.action} className="flex flex-col items-center gap-2 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm hover:bg-slate-50 transition-all">
@@ -1589,7 +1504,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, isAdmi
   }, [user]);
 
   if (showMyPrayers) {
-    const myPrayers = prayers?.filter(p => p.uid === auth.currentUser?.uid) || [];
+    const myPrayers = prayers?.filter(p => p.uid === user?.id) || [];
     return (
       <div className="space-y-6 pb-24">
         <header className="flex items-center gap-4">
@@ -1917,7 +1832,7 @@ const GroupsScreen = ({ cells, users, isAdmin, currentUser, onAdd, onDelete, onE
               )}
 
               {!isAdmin && (
-                cell.membersList?.includes(auth.currentUser?.uid || '') ? (
+                cell.membersList?.includes(currentUser?.id || '') ? (
                   <Button 
                     variant="outline" 
                     className="w-full text-red-500 border-red-200 hover:bg-red-50"
@@ -2060,6 +1975,80 @@ const AttendanceForm = ({ cell, users, onSubmit, onCancel }: { cell: CellGroup, 
         <div className="flex gap-3 pt-4 sticky bottom-0 bg-white/80 backdrop-blur-md pb-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>Cancelar</Button>
           <Button type="submit" className="flex-1">Salvar Chamada</Button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const PastoralVisitForm = ({ user, onSubmit, onCancel }: { user: UserType | null, onSubmit: (visit: Omit<PastoralVisit, 'id' | 'createdAt'>) => void, onCancel: () => void }) => {
+  const [reason, setReason] = useState('');
+  const [preferredDate, setPreferredDate] = useState('');
+  const [phone, setPhone] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    onSubmit({
+      uid: user.id || '',
+      userName: user.name || '',
+      userAddress: user.address || '',
+      userPhone: phone,
+      reason,
+      preferredDate,
+      status: 'pending'
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h3 className="text-xl font-bold text-slate-900">Solicitar Visita Pastoral</h3>
+        <p className="text-sm text-slate-500">Preencha os dados abaixo para agendar</p>
+      </header>
+
+      <form onSubmit={handleSubmit} className="space-y-6 overflow-y-auto max-h-[70vh] px-1">
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase">Motivo da Visita</label>
+          <textarea 
+            required
+            rows={3}
+            placeholder="Ex: Aconselhamento, oração por enfermidade, etc."
+            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none transition-all resize-none"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase">Data Sugerida</label>
+          <input 
+            type="date" 
+            required
+            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            value={preferredDate}
+            onChange={(e) => setPreferredDate(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase">Telefone para Contato</label>
+          <input 
+            type="tel" 
+            placeholder="(00) 00000-0000"
+            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </div>
+
+        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-xs text-blue-700 leading-relaxed">
+          <p><strong>Atenção:</strong> A visita será realizada no endereço cadastrado no seu perfil: <span className="font-bold underline">{user?.address || 'Endereço não informado'}</span></p>
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <Button variant="outline" className="flex-1" onClick={onCancel}>Cancelar</Button>
+          <Button type="submit" className="flex-1">Enviar Solicitação</Button>
         </div>
       </form>
     </div>
@@ -2394,6 +2383,7 @@ export default function App() {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingCell, setEditingCell] = useState<CellGroup | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<Attendance | null>(null);
+  const [showAddPastoralVisit, setShowAddPastoralVisit] = useState(false);
 
   const showMessage = (msg: string) => {
     setGlobalMessage(msg);
@@ -2467,284 +2457,94 @@ export default function App() {
   }, [currentUserData]);
 
   useEffect(() => {
-    async function testConnection() {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration. ");
-        }
-      }
+    // Session restoration
+    const savedUser = localStorage.getItem('auth_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      setCurrentUserData(user);
+      setIsLoggedIn(true);
+      setUserRole(user.role);
     }
-    testConnection();
+    setLoading(false);
 
-    let unsubscribeUserDoc: () => void = () => {};
+    // Dynamic polling based on roles
+    const unsubscribes: (() => void)[] = [];
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // ... existing logic to determine role and initial data ...
-        const userRef = doc(db, 'users', user.uid);
-        
-        // Listen to current user's document for real-time updates
-        unsubscribeUserDoc = onSnapshot(userRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            setCurrentUserData({
-              id: user.uid,
-              name: data.name || user.displayName || 'Usuário',
-              email: data.email || user.email || '',
-              role: data.role as UserRole,
-              birthDate: data.birthDate,
-              leaderOf: data.leaderOf,
-              cellIds: data.cellIds || [],
-              avatar: data.avatar || `https://picsum.photos/seed/${user.uid}/100/100`,
-              notificationSettings: data.notificationSettings || {
-                wordOfDayEnabled: true,
-                wordOfDayTime: '08:00',
-                newSermonEnabled: true,
-                allMuted: false
-              }
-            });
-            const role = data.role as UserRole;
-            setUserRole(role);
-          }
-        });
+    unsubscribes.push(api.subscribe('events', setEvents));
+    unsubscribes.push(api.subscribe('prayers', (data) => {
+      data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setPrayers(data);
+    }));
+    unsubscribes.push(api.subscribe('cells', setCells));
+    unsubscribes.push(api.subscribe('users', setUsers));
+    unsubscribes.push(api.subscribe('announcements', setAnnouncements));
+    unsubscribes.push(api.subscribe('readingPlans', setReadingPlans));
+    unsubscribes.push(api.subscribe('sermons', setSermons));
+    unsubscribes.push(api.subscribe('verseHighlights', (data) => {
+      setVerseHighlights(data.filter((h: any) => h.uid === currentUserData?.id));
+    }));
+    unsubscribes.push(api.subscribe('attendance', setAttendanceHistory));
+    unsubscribes.push(api.subscribe('config', (data) => {
+      const tConfig = data.find((c: any) => c.id === 'tithes');
+      if (tConfig) setTitheConfig(tConfig);
+    }));
 
-        try {
-          const userDoc = await getDoc(userRef);
-          let role: UserRole = 'member';
-          let name = user.displayName || 'Usuário';
-
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            role = data.role as UserRole;
-            name = data.name || name;
-          } else {
-            // Create user document if it doesn't exist (e.g. Google Sign-In)
-            try {
-              const newUser = {
-                name,
-                email: user.email || '',
-                role: 'member',
-                createdAt: serverTimestamp()
-              };
-              await setDoc(userRef, newUser);
-            } catch (err) {
-              console.warn('Could not create user document on login:', err);
-            }
-          }
-
-          // Admin/Superadmin overrides
-          if (user.email?.endsWith('@igrejarenovar.com')) {
-            if (role !== 'admin' && role !== 'superadmin') {
-              role = 'admin';
-              try {
-                await setDoc(userRef, { role: 'admin' }, { merge: true });
-              } catch (err) {
-                console.warn('Could not update admin role:', err);
-              }
-            }
-          } else if (role === 'admin' || role === 'superadmin') {
-            // Downgrade if they somehow got admin but don't have the domain
-            role = 'member';
-            try {
-              await setDoc(userRef, { role: 'member' }, { merge: true });
-            } catch (err) {
-              console.warn('Could not downgrade role:', err);
-            }
-          }
-
-          setIsLoggedIn(true);
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, 'users');
-          setIsLoggedIn(true);
-        }
-      } else {
-        setIsLoggedIn(false);
-        setCurrentUserData(null);
-        setUserRole('member');
-        unsubscribeUserDoc();
-      }
-      setLoading(false);
-    });
-
-    // Real-time Listeners
-    const qEvents = query(collection(db, 'events'), orderBy('date', 'asc'));
-    const unsubscribeEvents = onSnapshot(qEvents, (snapshot) => {
-      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event)));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'events');
-    });
-
-    const qPrayers = userRole === 'superadmin' 
-      ? query(collection(db, 'prayers'), orderBy('createdAt', 'desc'))
-      : query(collection(db, 'prayers'), where('privacy', 'in', ['public', 'private']), orderBy('createdAt', 'desc')); // We can't query missing fields, so we'll just fetch all and let rules filter? No, rules don't filter.
-      // Wait, if we use where('privacy', '==', 'public'), we need an index for orderBy('createdAt', 'desc').
-      // Let's just fetch all without orderBy and sort on the client, or use orderBy and require an index.
-      // Actually, if we just fetch all, the rule will deny it.
-      // Let's use where('privacy', '==', 'public') and sort on the client.
-    
-    const qPrayersToUse = (userRole === 'admin' || userRole === 'superadmin')
-      ? query(collection(db, 'prayers'), orderBy('createdAt', 'desc'))
-      : (userRole === 'leader' && currentUserData?.leaderOf)
-        ? query(collection(db, 'prayers'), or(where('privacy', '==', 'public'), where('cellIds', 'array-contains', currentUserData.leaderOf)))
-        : query(collection(db, 'prayers'), or(where('privacy', '==', 'public'), where('uid', '==', auth.currentUser?.uid || '')));
-
-    const unsubscribePrayers = onSnapshot(qPrayersToUse, (snapshot) => {
-      const fetchedPrayers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PrayerRequest));
-      // Sort on client since some queries don't have orderBy to avoid index requirements
-      fetchedPrayers.sort((a, b) => {
-        const dateA = a.createdAt?.toMillis?.() || 0;
-        const dateB = b.createdAt?.toMillis?.() || 0;
-        return dateB - dateA;
-      });
-      setPrayers(fetchedPrayers);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'prayers');
-    });
-
-    const qCells = query(collection(db, 'cells'), orderBy('name', 'asc'));
-    const unsubscribeCells = onSnapshot(qCells, (snapshot) => {
-      setCells(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CellGroup)));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'cells');
-    });
-
-    let unsubscribeTransactions = () => {};
     if (userRole === 'admin' || userRole === 'superadmin') {
-      const qTransactions = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
-      unsubscribeTransactions = onSnapshot(qTransactions, (snapshot) => {
-        setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'transactions');
-      });
+      unsubscribes.push(api.subscribe('transactions', setTransactions));
     }
 
-    const qUsers = query(collection(db, 'users'), orderBy('name', 'asc'));
-    const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
-      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserType)));
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'users');
-    });
-
-    const unsubscribeAnnouncements = onSnapshot(query(collection(db, 'announcements'), orderBy('date', 'desc')), (snapshot) => {
-      setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'announcements'));
-
-    const unsubscribeReadingPlans = onSnapshot(collection(db, 'readingPlans'), (snapshot) => {
-      setReadingPlans(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ReadingPlan)));
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'readingPlans'));
-
-    const unsubscribeSermons = onSnapshot(query(collection(db, 'sermons'), orderBy('date', 'desc')), (snapshot) => {
-      setSermons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sermon)));
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'sermons'));
-
-    const qHighlights = query(collection(db, 'verseHighlights'), where('uid', '==', auth.currentUser?.uid || ''));
-    const unsubscribeHighlights = onSnapshot(qHighlights, (snapshot) => {
-      setVerseHighlights(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VerseHighlight)));
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'verseHighlights'));
-
-    const qAttendance = (userRole === 'admin' || userRole === 'superadmin')
-      ? query(collection(db, 'attendance'), orderBy('createdAt', 'desc'))
-      : (userRole === 'leader' && currentUserData?.leaderOf)
-        ? query(collection(db, 'attendance'), where('cellId', '==', currentUserData.leaderOf), orderBy('createdAt', 'desc'))
-        : null;
-
-    let unsubscribeAttendance = () => {};
-    if (qAttendance) {
-      unsubscribeAttendance = onSnapshot(qAttendance, (snapshot) => {
-        setAttendanceHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Attendance)));
-      }, (err) => handleFirestoreError(err, OperationType.GET, 'attendance'));
-    }
-
-    const unsubscribeTitheConfig = onSnapshot(doc(db, 'config', 'tithes'), (snapshot) => {
-      if (snapshot.exists()) {
-        setTitheConfig(snapshot.data() as TitheConfig);
-      }
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'config/tithes'));
-
-    let unsubscribeAllProgress = () => {};
-    if (userRole === 'admin' || userRole === 'superadmin') {
-      unsubscribeAllProgress = onSnapshot(collection(db, 'userProgress'), (snapshot) => {
-        const progressMap: Record<string, Record<string, string[]>> = {};
-        snapshot.docs.forEach(doc => {
-          progressMap[doc.id] = doc.data().readingPlans || {};
-        });
-        setAllUserProgress(progressMap);
-      }, (err) => handleFirestoreError(err, OperationType.GET, 'userProgress'));
-    }
-
-    return () => {
-      unsubscribeAuth();
-      unsubscribeEvents();
-      unsubscribePrayers();
-      unsubscribeCells();
-      unsubscribeTransactions();
-      unsubscribeUsers();
-      unsubscribeAnnouncements();
-      unsubscribeReadingPlans();
-      unsubscribeSermons();
-      unsubscribeHighlights();
-      unsubscribeAttendance();
-      unsubscribeTitheConfig();
-      unsubscribeAllProgress();
-      unsubscribeUserDoc();
-    };
-  }, [userRole, isLoggedIn]);
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, [userRole, isLoggedIn, currentUserData?.id]);
 
   const deleteReadingPlan = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'readingPlans', id));
+      await api.delete('readingPlans', id);
       showMessage('Plano excluído com sucesso!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'readingPlans');
+      handleApiError(err, 'deleteReadingPlan');
     }
   };
 
   const toggleVerseHighlight = async (book: string, chapter: number, verse: number, text: string, color: string) => {
-    if (!auth.currentUser) return;
+    if (!currentUserData) return;
     
     const existing = verseHighlights.find(h => h.book === book && h.chapter === chapter && h.verse === verse);
     
     try {
       if (existing) {
         if (existing.color === color) {
-          await deleteDoc(doc(db, 'verseHighlights', existing.id));
+          await api.delete('verseHighlights', existing.id);
         } else {
-          await updateDoc(doc(db, 'verseHighlights', existing.id), { color });
+          await api.update('verseHighlights', existing.id, { color });
         }
       } else {
-        await addDoc(collection(db, 'verseHighlights'), {
-          uid: auth.currentUser.uid,
+        await api.create('verseHighlights', {
+          uid: currentUserData.id,
           book,
           chapter,
           verse,
           text,
-          color,
-          createdAt: serverTimestamp()
+          color
         });
       }
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'verseHighlights');
+      handleApiError(err, 'toggleVerseHighlight');
     }
   };
 
   const updateUserProfile = async (data: Partial<UserType>) => {
-    if (!auth.currentUser) return;
+    if (!currentUserData) return;
     try {
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), data);
-      if (data.name) {
-        await updateProfile(auth.currentUser, { displayName: data.name });
-      }
+      await api.update('users', currentUserData.id, data);
       showMessage('Perfil atualizado com sucesso!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'users');
+      handleApiError(err, 'updateUserProfile');
     }
   };
 
   const addAnnouncement = async (data: Omit<Announcement, 'id' | 'date' | 'author'>) => {
     try {
-      await addDoc(collection(db, 'announcements'), {
+      await api.create('announcements', {
         ...data,
         date: new Date().toISOString(),
         author: currentUserData?.name || 'Admin'
@@ -2752,62 +2552,68 @@ export default function App() {
       setShowAddAnnouncement(false);
       showMessage('Aviso criado com sucesso!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'announcements');
+      handleApiError(err, 'addAnnouncement');
     }
   };
 
   const deleteAnnouncement = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'announcements', id));
+      await api.delete('announcements', id);
       showMessage('Aviso removido com sucesso!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'announcements');
+      handleApiError(err, 'deleteAnnouncement');
     }
   };
 
   const addReadingPlan = async (data: Omit<ReadingPlan, 'id'>) => {
     try {
-      await addDoc(collection(db, 'readingPlans'), data);
+      await api.create('readingPlans', data);
       setShowAddReadingPlan(false);
       showMessage('Plano de leitura criado com sucesso!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'readingPlans');
+      handleApiError(err, 'addReadingPlan');
     }
   };
 
   const addSermon = async (data: Omit<Sermon, 'id' | 'createdAt'>) => {
     try {
-      await addDoc(collection(db, 'sermons'), {
+      await api.create('sermons', {
         ...data,
-        createdAt: serverTimestamp()
       });
       showMessage('Sermão adicionado com sucesso!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'sermons');
+      handleApiError(err, 'addSermon');
     }
   };
 
   const deleteSermon = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'sermons', id));
+      await api.delete('sermons', id);
       showMessage('Sermão excluído!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'sermons');
+      handleApiError(err, 'deleteSermon');
     }
   };
 
   const updateTitheConfig = async (data: TitheConfig) => {
     try {
-      await setDoc(doc(db, 'config', 'tithes'), data);
+      const config = await api.list('config');
+      const tithes = config.find((c: any) => c.id === 'tithes');
+      if (tithes) {
+        await api.update('config', tithes.id, data);
+      } else {
+        await api.create('config', { ...data, id: 'tithes' });
+      }
       showMessage('Configurações de dízimo atualizadas!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'config/tithes');
+      handleApiError(err, 'updateTitheConfig');
     }
   };
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      api.logout();
+      window.location.reload();
     } catch (err) {
       console.error("Erro ao sair:", err);
     }
@@ -2816,214 +2622,220 @@ export default function App() {
   const addEvent = async (newEvent: Omit<Event, 'id'>) => {
     try {
       if (editingEvent) {
-        await updateDoc(doc(db, 'events', editingEvent.id), newEvent);
+        await api.update('events', editingEvent.id, newEvent);
         setEditingEvent(null);
       } else {
-        await addDoc(collection(db, 'events'), {
+        await api.create('events', {
           ...newEvent,
-          createdAt: serverTimestamp()
         });
       }
       setShowAddEvent(false);
     } catch (err) {
-      handleFirestoreError(err, editingEvent ? OperationType.UPDATE : OperationType.CREATE, 'events');
+      handleApiError(err, 'addEvent');
     }
   };
 
   const deleteEvent = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'events', id));
+      await api.delete('events', id);
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'events');
+      handleApiError(err, 'deleteEvent');
     }
   };
 
   const addTransaction = async (t: { label: string, value: number, type: 'in' | 'out' }) => {
     try {
-      await addDoc(collection(db, 'transactions'), {
+      await api.create('transactions', {
         ...t,
         date: new Date().toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
-        createdAt: serverTimestamp()
       });
       setShowAddTransaction(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'transactions');
+      handleApiError(err, 'addTransaction');
     }
   };
 
   const deleteTransaction = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'transactions', id));
+      await api.delete('transactions', id);
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'transactions');
+      handleApiError(err, 'deleteTransaction');
     }
   };
 
   const addCell = async (newCell: Omit<CellGroup, 'id'>) => {
     try {
       if (editingCell) {
-        await updateDoc(doc(db, 'cells', editingCell.id), {
-          ...newCell
-        });
+        await api.update('cells', editingCell.id, newCell);
         setEditingCell(null);
       } else {
-        await addDoc(collection(db, 'cells'), {
+        await api.create('cells', {
           ...newCell,
-          createdAt: serverTimestamp()
         });
       }
       setShowAddCell(false);
     } catch (err) {
-      handleFirestoreError(err, editingCell ? OperationType.UPDATE : OperationType.CREATE, 'cells');
+      handleApiError(err, 'addCell');
     }
   };
 
   const deleteCell = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'cells', id));
+      await api.delete('cells', id);
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'cells');
+      handleApiError(err, 'deleteCell');
     }
   };
 
   const addPrayer = async (content: string, privacy: 'public' | 'private') => {
-    if (!auth.currentUser) {
+    if (!currentUserData) {
       setGlobalError('Você precisa estar logado para publicar um pedido.');
       return;
     }
     try {
-      await addDoc(collection(db, 'prayers'), {
-        uid: auth.currentUser.uid,
-        user: currentUserData?.name || auth.currentUser.displayName || 'Usuário',
+      await api.create('prayers', {
+        uid: currentUserData.id,
+        user: currentUserData.name || 'Usuário',
         content,
         privacy,
-        cellIds: currentUserData?.cellIds || [],
+        cellIds: currentUserData.cellIds || [],
         date: new Date().toLocaleDateString('pt-BR'),
         likes: 0,
         comments: 0,
-        createdAt: serverTimestamp()
       });
       setShowAddPrayer(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'prayers');
+      handleApiError(err, 'addPrayer');
     }
   };
 
   const deletePrayer = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'prayers', id));
+      await api.delete('prayers', id);
       showMessage('Pedido de oração removido!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `prayers/${id}`);
+      handleApiError(err, 'deletePrayer');
     }
   };
 
   const togglePrayed = async (prayerId: string) => {
-    if (!auth.currentUser) return;
+    if (!currentUserData) return;
     const prayer = prayers.find(p => p.id === prayerId);
     if (!prayer) return;
 
     const prayedBy = prayer.prayedBy || [];
-    const userId = auth.currentUser.uid;
+    const userId = currentUserData.id;
     const isPraying = prayedBy.includes(userId);
+    const newPrayedBy = isPraying ? prayedBy.filter(id => id !== userId) : [...prayedBy, userId];
 
     try {
-      await updateDoc(doc(db, 'prayers', prayerId), {
-        prayedBy: isPraying ? arrayRemove(userId) : arrayUnion(userId),
+      await api.update('prayers', prayerId, {
+        prayedBy: newPrayedBy,
         likes: isPraying ? Math.max(0, (prayer.likes || 0) - 1) : (prayer.likes || 0) + 1
       });
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'prayers');
+      handleApiError(err, 'togglePrayed');
     }
   };
 
   const addComment = async (prayerId: string, content: string) => {
-    if (!auth.currentUser || !content.trim()) return;
+    if (!currentUserData || !content.trim()) return;
     const prayer = prayers.find(p => p.id === prayerId);
     if (!prayer) return;
 
     const newComment: PrayerComment = {
       id: Math.random().toString(36).substr(2, 9),
-      uid: auth.currentUser.uid,
-      userName: currentUserData?.name || auth.currentUser.displayName || 'Usuário',
+      uid: currentUserData.id,
+      userName: currentUserData.name || 'Usuário',
       content,
       date: new Date().toLocaleDateString('pt-BR'),
       createdAt: new Date().toISOString()
     };
 
     try {
-      await updateDoc(doc(db, 'prayers', prayerId), {
-        commentsList: arrayUnion(newComment),
+      await api.update('prayers', prayerId, {
+        commentsList: [...(prayer.commentsList || []), newComment],
         comments: (prayer.comments || 0) + 1
       });
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'prayers');
+      handleApiError(err, 'addComment');
     }
   };
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    if (!currentUserData) return;
 
-    const unsubProgress = onSnapshot(doc(db, 'userProgress', auth.currentUser.uid), (doc) => {
-      if (doc.exists()) {
-        setUserReadingProgress(doc.data().readingPlans || {});
+    return api.subscribe('userProgress', (history) => {
+      const myProgress = history.find((h: any) => h.id === currentUserData.id);
+      if (myProgress) {
+        setUserReadingProgress(myProgress.readingPlans || {});
       }
     });
-
-    return () => {
-      unsubProgress();
-    };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, currentUserData]);
 
   const toggleChapter = async (planId: string, chapter: string) => {
-    if (!auth.currentUser) return;
+    if (!currentUserData) return;
     const currentProgress = userReadingProgress[planId] || [];
     const newProgress = currentProgress.includes(chapter)
       ? currentProgress.filter(c => c !== chapter)
       : [...currentProgress, chapter];
     
     try {
-      await setDoc(doc(db, 'userProgress', auth.currentUser.uid), {
-        readingPlans: {
-          ...userReadingProgress,
-          [planId]: newProgress
-        }
-      }, { merge: true });
+      const allProgress = await api.list('userProgress');
+      const myProgress = allProgress.find((p: any) => p.id === currentUserData.id);
+      
+      const newReadingPlans = {
+        ...userReadingProgress,
+        [planId]: newProgress
+      };
+
+      if (myProgress) {
+        await api.update('userProgress', myProgress.id, { readingPlans: newReadingPlans });
+      } else {
+        await api.create('userProgress', { id: currentUserData.id, readingPlans: newReadingPlans });
+      }
+      
       showMessage(currentProgress.includes(chapter) ? 'Capítulo desmarcado' : 'Capítulo concluído!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'userProgress');
+      handleApiError(err, 'toggleChapter');
     }
   };
 
 const joinCell = async (cellId: string) => {
-    if (!auth.currentUser) return;
+    if (!currentUserData) return;
     try {
-      await updateDoc(doc(db, 'cells', cellId), {
-        membersList: arrayUnion(auth.currentUser.uid),
-        members: increment(1)
+      const cell = cells.find(c => c.id === cellId);
+      if (!cell) return;
+      
+      await api.update('cells', cellId, {
+        membersList: [...(cell.membersList || []), currentUserData.id],
+        members: (cell.members || 0) + 1
       });
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-        cellIds: arrayUnion(cellId)
+      await api.update('users', currentUserData.id, {
+        cellIds: [...(currentUserData.cellIds || []), cellId]
       });
       showMessage('Você agora faz parte deste PG!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'cells/users');
+      handleApiError(err, 'joinCell');
     }
   };
 
   const leaveCell = async (cellId: string) => {
-    if (!auth.currentUser) return;
+    if (!currentUserData) return;
     try {
-      await updateDoc(doc(db, 'cells', cellId), {
-        membersList: arrayRemove(auth.currentUser.uid),
-        members: increment(-1)
+      const cell = cells.find(c => c.id === cellId);
+      if (!cell) return;
+
+      await api.update('cells', cellId, {
+        membersList: (cell.membersList || []).filter(uid => uid !== currentUserData.id),
+        members: Math.max(0, (cell.members || 0) - 1)
       });
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-        cellIds: arrayRemove(cellId)
+      await api.update('users', currentUserData.id, {
+        cellIds: (currentUserData.cellIds || []).filter(id => id !== cellId)
       });
       showMessage('Você saiu deste PG.');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'cells/users');
+      handleApiError(err, 'leaveCell');
     }
   };
 
@@ -3034,27 +2846,38 @@ const joinCell = async (cellId: string) => {
         setGlobalError('Apenas usuários com e-mail @igrejarenovar.com podem ser promovidos a Admin.');
         return;
       }
-      await updateDoc(doc(db, 'users', userId), { 
+      await api.update('users', userId, { 
         role: newRole,
         leaderOf: newRole === 'leader' ? (leaderOf || null) : null
       });
       showMessage('Cargo atualizado com sucesso!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'users');
+      handleApiError(err, 'updateMemberRole');
     }
   };
 
   const handleAttendanceSubmit = async (data: Omit<Attendance, 'id' | 'createdAt'>) => {
     try {
-      await addDoc(collection(db, 'attendance'), {
+      await api.create('attendance', {
         ...data,
-        createdAt: serverTimestamp()
       });
       setShowAttendance(false);
       setSelectedAttendanceCell(null);
       showMessage('Chamada salva com sucesso!');
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'attendance');
+      handleApiError(err, 'handleAttendanceSubmit');
+    }
+  };
+
+  const handlePastoralVisitSubmit = async (data: Omit<PastoralVisit, 'id' | 'createdAt'>) => {
+    try {
+      await api.create('pastoralVisits', {
+        ...data,
+      });
+      setShowAddPastoralVisit(false);
+      showMessage('Solicitação de visita enviada com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'handlePastoralVisitSubmit');
     }
   };
 
@@ -3067,7 +2890,11 @@ const joinCell = async (cellId: string) => {
   }
 
   if (!isLoggedIn) {
-    return <LoginScreen />;
+    return <LoginScreen onAuthSuccess={(u) => {
+      setCurrentUserData(u);
+      setIsLoggedIn(true);
+      setUserRole(u.role);
+    }} />;
   }
 
   const renderContent = () => {
@@ -3092,13 +2919,13 @@ const joinCell = async (cellId: string) => {
         case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} showMessage={showMessage} />;
         case 'groups': return <GroupsScreen cells={cells} users={users} isAdmin currentUser={currentUserData} onAdd={() => setShowAddCell(true)} onDelete={deleteCell} onEdit={(c) => { setEditingCell(c); setShowAddCell(true); }} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
         case 'members': return <MembersScreen users={users} cells={cells} currentUserRole={userRole} onUpdateRole={updateMemberRole} showMessage={showMessage} />;
-        case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={auth.currentUser?.uid} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
+        case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
         case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} />;
         case 'profile': {
-          const userCells = cells.filter(c => c.membersList?.includes(auth.currentUser?.uid || ''));
-          const userPrayers = prayers.filter(p => p.uid === auth.currentUser?.uid);
+          const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
+          const userPrayers = prayers.filter(p => p.uid === currentUserData?.id);
           return (
             <ProfileScreen 
               onLogout={handleLogout} 
@@ -3122,19 +2949,19 @@ const joinCell = async (cellId: string) => {
     }
 
     switch (currentTab) {
-      case 'home': return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setShowDonationModal(true)} onShowReadingPlans={() => setCurrentTab('readingPlans')} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} showMessage={showMessage} />;
+      case 'home': return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setShowDonationModal(true)} onShowReadingPlans={() => setCurrentTab('readingPlans')} onRequestPastoralVisit={() => setShowAddPastoralVisit(true)} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} showMessage={showMessage} />;
       case 'events': return <EventsScreen events={events} onShowMural={() => setCurrentTab('prayer')} showMessage={showMessage} />;
-      case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={auth.currentUser?.uid} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
+      case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
       case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onDelete={deleteAnnouncement} showMessage={showMessage} />;
       case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} progress={userReadingProgress} onToggleChapter={toggleChapter} isAdmin={false} showMessage={showMessage} />;
       case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} />;
       case 'sermons': return <SermonsScreen sermons={sermons} />;
-      case 'tithes': return <TithesScreen config={titheConfig} onConfirmDonation={(val, label) => addTransaction({ label, value: val, type: 'in' })} showMessage={showMessage} />;
+      case 'tithes': return <TithesScreen config={titheConfig} onConfirmDonation={(val, label) => addTransaction({ label, value: val, type: 'in' })} showMessage={showMessage} currentUserData={currentUserData} />;
       case 'groups': return <GroupsScreen cells={cells} users={users} currentUser={currentUserData} onJoin={joinCell} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
       case 'media': return <MediaScreen showMessage={showMessage} />;
       case 'profile': {
-        const userCells = cells.filter(c => c.membersList?.includes(auth.currentUser?.uid || ''));
-        const userPrayers = prayers.filter(p => p.uid === auth.currentUser?.uid);
+        const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
+        const userPrayers = prayers.filter(p => p.uid === currentUserData?.id);
         return (
           <ProfileScreen 
             onLogout={handleLogout} 
@@ -3153,7 +2980,7 @@ const joinCell = async (cellId: string) => {
           />
         );
       }
-      default: return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setCurrentTab('tithes')} onShowReadingPlans={() => setCurrentTab('readingPlans')} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} />;
+      default: return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setCurrentTab('tithes')} onShowReadingPlans={() => setCurrentTab('readingPlans')} onRequestPastoralVisit={() => setShowAddPastoralVisit(true)} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} showMessage={showMessage} />;
     }
   };
 
@@ -3252,9 +3079,14 @@ const joinCell = async (cellId: string) => {
               <ReadingPlanForm onSubmit={addReadingPlan} />
             </Modal>
           )}
+          {showAddPastoralVisit && (
+            <Modal title="Agendamento Pastoral" onClose={() => setShowAddPastoralVisit(false)}>
+              <PastoralVisitForm user={currentUserData} onSubmit={handlePastoralVisitSubmit} onCancel={() => setShowAddPastoralVisit(false)} />
+            </Modal>
+          )}
           {showDonationModal && (
             <Modal title="Dízimos e Ofertas" onClose={() => setShowDonationModal(false)}>
-              <TithesScreen config={titheConfig} showMessage={showMessage} />
+              <TithesScreen config={titheConfig} showMessage={showMessage} currentUserData={currentUserData} />
             </Modal>
           )}
           {showAttendance && selectedAttendanceCell && (

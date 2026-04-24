@@ -14,6 +14,8 @@ export interface User {
   role: UserRole;
   avatar?: string;
   birthDate?: string; // ISO format or YYYY-MM-DD
+  age?: number;
+  address?: string;
   leaderOf?: string; // ID of the CellGroup they lead
   cellIds?: string[]; // IDs of the CellGroups they belong to
   notificationSettings?: {
@@ -22,6 +24,18 @@ export interface User {
     newSermonEnabled: boolean;
     allMuted: boolean;
   };
+}
+
+export interface PastoralVisit {
+  id: string;
+  uid: string;
+  userName: string;
+  userAddress: string;
+  userPhone?: string;
+  reason: string;
+  preferredDate: string;
+  status: 'pending' | 'scheduled' | 'completed' | 'cancelled';
+  createdAt: any;
 }
 
 export interface Attendance {

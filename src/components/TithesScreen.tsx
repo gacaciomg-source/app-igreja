@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { Card, Button } from '../App';
 import { DollarSign, Copy, CheckCircle2, ChevronRight, Info, CreditCard, QrCode, Heart } from 'lucide-react';
 import { TitheConfig, cn } from '../types';
-import { auth } from '../firebase';
 
-export const TithesScreen = ({ config, onConfirmDonation, showMessage }: { config: TitheConfig | null, onConfirmDonation?: (value: number, label: string) => void, showMessage: (msg: string) => void }) => {
+export const TithesScreen = ({ config, onConfirmDonation, showMessage, currentUserData }: { config: TitheConfig | null, onConfirmDonation?: (value: number, label: string) => void, showMessage: (msg: string) => void, currentUserData: any }) => {
   const [copied, setCopied] = useState(false);
   const [donationValue, setDonationValue] = useState('');
   const [donationType, setDonationType] = useState<'Dízimo' | 'Oferta' | 'Oferta de Amor'>('Dízimo');
@@ -24,7 +23,7 @@ export const TithesScreen = ({ config, onConfirmDonation, showMessage }: { confi
       showMessage('Por favor, insira um valor válido.');
       return;
     }
-    onConfirmDonation?.(val, `${donationType} - ${auth.currentUser?.displayName || 'Membro'}`);
+    onConfirmDonation?.(val, `${donationType} - ${currentUserData?.name || 'Membro'}`);
     setDonationValue('');
     showMessage('Contribuição registrada com sucesso!');
   };
