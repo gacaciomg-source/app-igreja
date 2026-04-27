@@ -19,27 +19,34 @@ let lastQr: string | null = null;
 let whatsappStatus: 'DISCONNECTED' | 'INITIALIZING' | 'READY' | 'AUTHENTRICATING' = 'DISCONNECTED';
 let whatsappError: string | null = null;
 
-function formatPhone(phone: string): string {
+async function getWhatsAppChatId(phone: string) {
+    if (!whatsappClient) return null;
+    
     let clean = phone.replace(/\D/g, '');
-    
-    // Check if it already starts with 55 (Brazil)
-    if (clean.startsWith('55')) {
-        // Drop the 55 just to format the rest easily
-        clean = clean.substring(2);
+    if (!clean.startsWith('55')) {
+        clean = '55' + clean;
     }
     
-    // If we have 10 digits (DDD + 8 digits), add the '9'
-    if (clean.length === 10) {
-        clean = clean.substring(0, 2) + '9' + clean.substring(2);
+    try {
+        // Try exactly as provided
+        let numberId = await whatsappClient.getNumberId(clean);
+        
+        if (!numberId && clean.length === 12) {
+            // Usually 12 digits means 55 + 2 (DDD) + 8 digits (missing the 9)
+            const with9 = clean.substring(0, 4) + '9' + clean.substring(4);
+            numberId = await whatsappClient.getNumberId(with9);
+        } else if (!numberId && clean.length === 13) {
+            // Usually 13 digits means 55 + 2 (DDD) + 9 digits (has the 9)
+            // Some regions don't use the 9 in Whatsapp even if it is a mobile phone
+            const without9 = clean.substring(0, 4) + clean.substring(5);
+            numberId = await whatsappClient.getNumberId(without9);
+        }
+        
+        return numberId ? numberId._serialized : `${clean}@c.us`;
+    } catch (e) {
+        console.error("Error getting number id", e);
+        return `${clean}@c.us`; // Fallback
     }
-    
-    // Now it should be 11 digits (DDD + 9 digits). Add '55' back.
-    if (clean.length === 11) {
-        return '55' + clean;
-    }
-    
-    // If it's something else, just add 55 and hope for the best, or return what we got
-    return '55' + clean;
 }
 
 async function sendWhatsAppNotifications(message: string) {
@@ -58,7 +65,8 @@ async function sendWhatsAppNotifications(message: string) {
 
         if (Array.isArray(phones)) {
             for (const phone of phones) {
-                 const chatId = `${formatPhone(phone)}@c.us`;
+                 const chatId = await getWhatsAppChatId(phone);
+                 if (!chatId) continue;
                  console.log(`Enviando mensagem WhatsApp para: ${chatId}`);
                  await whatsappClient.sendMessage(chatId, message);
             }
@@ -303,10 +311,11 @@ async function startServer() {
       const { to, message } = req.body;
       if (!to || !message) return res.status(400).json({ error: 'Telefone e mensagem são obrigatórios' });
       
-      const chatId = `${formatPhone(to)}@c.us`;
+      const chatId = await getWhatsAppChatId(to);
       if (!whatsappClient || whatsappStatus !== 'READY') {
           return res.status(503).json({ error: 'WhatsApp não está conectado' });
       }
+      if (!chatId) return res.status(400).json({ error: 'Telefone inválido' });
       await whatsappClient.sendMessage(chatId, message);
       res.json({ success: true });
     } catch (error) {

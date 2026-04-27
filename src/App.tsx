@@ -1724,10 +1724,10 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
                     const input = document.getElementById('new-phone-input') as HTMLInputElement;
                     const phone = input.value.trim();
                     if (phone) {
-                        setFormData({...formData, adminPhones: [...(formData.adminPhones || []), phone]});
+                        const newFormData = {...formData, adminPhones: [...(formData.adminPhones || []), phone]};
+                        setFormData(newFormData);
                         input.value = '';
-                        // Explicitly trigger update for the state change
-                        setTimeout(() => handleUpdate(), 0);
+                        onUpdate(newFormData);
                     }
                 }}
             >
@@ -1740,8 +1740,9 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
                     {phone}
                     <button 
                         onClick={() => {
-                            setFormData({...formData, adminPhones: formData.adminPhones?.filter((_, i) => i !== index)});
-                            setTimeout(() => handleUpdate(), 0);
+                        const newFormData = {...formData, adminPhones: formData.adminPhones?.filter((_, i) => i !== index)};
+                        setFormData(newFormData);
+                        onUpdate(newFormData);
                         }}
                         className="text-slate-400 hover:text-red-500"
                     >
