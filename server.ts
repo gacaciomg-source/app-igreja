@@ -84,12 +84,12 @@ async function initWhatsApp() {
   whatsappStatus = 'INITIALIZING';
 
   const lockFile = path.join(process.cwd(), '.wwebjs_auth', 'session', 'SingletonLock');
+  const cookieFile = path.join(process.cwd(), '.wwebjs_auth', 'session', 'SingletonCookie');
   try {
-    if (fs.existsSync(lockFile)) {
-      fs.unlinkSync(lockFile);
-    }
+    if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
+    if (fs.existsSync(cookieFile)) fs.unlinkSync(cookieFile);
   } catch (e) {
-    console.error('Failed to remove SingletonLock', e);
+    console.error('Failed to remove Singleton files', e);
   }
 
   whatsappClient = new Client({
@@ -97,7 +97,7 @@ async function initWhatsApp() {
     puppeteer: {
       headless: true,
       executablePath: process.env.CHROME_PATH || undefined,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--disable-extensions']
     }
   });
 
@@ -136,10 +136,33 @@ async function initWhatsApp() {
   } catch (err: any) {
     console.error('Failed to initialize WhatsApp:', err);
     whatsappError = err.message || String(err);
+    if (whatsappError.includes('Execution context was destroyed') || whatsappError.includes('browser is already running')) {
+        whatsappError += ' (Dica: Encerre processos "chrome.exe" / "node.exe" perdidos no Gerenciador de Tarefas do Windows ou apague a pasta .wwebjs_auth)';
+    }
     whatsappStatus = 'DISCONNECTED';
+    if (whatsappClient) {
+        try { await whatsappClient.destroy(); } catch(e) {}
+    }
     whatsappClient = null;
   }
 }
+
+// Process cleanup
+async function cleanupAndExit() {
+  if (whatsappClient) {
+    try {
+      console.log('Destroying WhatsApp client...');
+      await whatsappClient.destroy();
+    } catch (e) {
+      console.error('Error destroying WhatsApp client:', e);
+    }
+  }
+  process.exit(0);
+}
+
+process.on('SIGINT', cleanupAndExit);
+process.on('SIGTERM', cleanupAndExit);
+process.on('SIGUSR2', cleanupAndExit); // for nodemon/tsx restarts
 
 // Start WhatsApp on boot
 initWhatsApp();
