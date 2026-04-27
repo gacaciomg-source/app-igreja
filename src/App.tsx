@@ -1773,17 +1773,25 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
         <Button 
           variant="outline" 
           className="w-full border-emerald-200 text-emerald-600 hover:bg-emerald-50"
-          onClick={() => {
-            if (!formData.destinationPhone) {
-              showMessage('Informe o número do administrador para testar.');
+          onClick={async () => {
+            if (!formData.adminPhones || formData.adminPhones.length === 0) {
+              showMessage('Informe pelo menos um número de administrador para testar.');
               return;
             }
             if (statusData.status !== 'READY') {
               showMessage('WhatsApp não está conectado.');
               return;
             }
-            api.request('/whatsapp/test', { method: 'POST' });
-            showMessage('Mensagem de teste enviada para todos os administradores!');
+            try {
+              const res = await api.request('/whatsapp/test', { method: 'POST' });
+              if (res.error) {
+                  showMessage(`Erro: ${res.error}`);
+              } else {
+                  showMessage('Mensagem de teste enviada para todos os administradores!');
+              }
+            } catch (err: any) {
+              showMessage(`Erro ao enviar: ${err.message}`);
+            }
           }}
         >
           Enviar Mensagem de Teste

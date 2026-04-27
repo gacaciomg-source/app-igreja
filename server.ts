@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import * as storage from "./src/lib/storage.ts";
 import pkg from 'whatsapp-web.js';
-const { Client, NoAuth } = pkg;
+const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode';
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
@@ -19,33 +19,51 @@ let whatsappStatus: 'DISCONNECTED' | 'INITIALIZING' | 'READY' | 'AUTHENTRICATING
 
 function formatPhone(phone: string): string {
     let clean = phone.replace(/\D/g, '');
-    // If length is 10 (Area + 8 digits), add '9' to make it 11 (Area + 9 digits)
+    
+    // Check if it already starts with 55 (Brazil)
+    if (clean.startsWith('55')) {
+        // Drop the 55 just to format the rest easily
+        clean = clean.substring(2);
+    }
+    
+    // If we have 10 digits (DDD + 8 digits), add the '9'
     if (clean.length === 10) {
         clean = clean.substring(0, 2) + '9' + clean.substring(2);
     }
-    // Now ensure it has 11 digits (Are + 9 digits) and add country code 55
+    
+    // Now it should be 11 digits (DDD + 9 digits). Add '55' back.
     if (clean.length === 11) {
         return '55' + clean;
     }
-    return clean;
+    
+    // If it's something else, just add 55 and hope for the best, or return what we got
+    return '55' + clean;
 }
 
 async function sendWhatsAppNotifications(message: string) {
-    if (!whatsappClient || whatsappStatus !== 'READY') return;
+    if (!whatsappClient || whatsappStatus !== 'READY') {
+        throw new Error('WhatsApp não está conectado. Escaneie o QR Code no painel.');
+    }
 
     try {
         const configs = await storage.readCollection<any>("config");
-        const whatsappConfig = configs.find(c => c.id === "whatsapp");                
+        const whatsappConfig = configs.find((c: any) => c.id === "whatsapp");                
         
         const phones = whatsappConfig?.adminPhones || [];
+        if (!phones || phones.length === 0) {
+             throw new Error('Nenhum telefone de administrador configurado.');
+        }
+
         if (Array.isArray(phones)) {
             for (const phone of phones) {
                  const chatId = `${formatPhone(phone)}@c.us`;
+                 console.log(`Enviando mensagem WhatsApp para: ${chatId}`);
                  await whatsappClient.sendMessage(chatId, message);
             }
         }
     } catch (err) {
         console.error('Failed to notify admins via WhatsApp:', err);
+        throw err;
     }
 }
 
@@ -56,7 +74,7 @@ async function initWhatsApp() {
   whatsappStatus = 'INITIALIZING';
 
   whatsappClient = new Client({
-    authStrategy: new NoAuth(),
+    authStrategy: new LocalAuth(),
     puppeteer: {
       headless: true,
       executablePath: process.env.CHROME_PATH || undefined,
