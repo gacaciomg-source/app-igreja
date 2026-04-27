@@ -1711,15 +1711,45 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
 
       <div className="space-y-4">
         <div className="grid gap-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase">Telefones dos Administradores (separados por vírgula)</label>
-          <input 
-            type="text" 
-            value={formData.adminPhones?.join(', ') || ''} 
-            onBlur={handleUpdate}
-            onChange={(e) => setFormData({...formData, adminPhones: e.target.value.split(',').map(s => s.trim()).filter(s => s)})}
-            placeholder="Ex: 5511999999999, 5511888888888"
-            className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
-          />
+          <label className="text-[10px] font-bold text-slate-400 uppercase">Gerenciar Telefones de Administradores</label>
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              id="new-phone-input"
+              placeholder="Ex: 5511999999999"
+              className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+            />
+            <Button 
+                onClick={() => {
+                    const input = document.getElementById('new-phone-input') as HTMLInputElement;
+                    const phone = input.value.trim();
+                    if (phone) {
+                        setFormData({...formData, adminPhones: [...(formData.adminPhones || []), phone]});
+                        input.value = '';
+                        // Explicitly trigger update for the state change
+                        setTimeout(() => handleUpdate(), 0);
+                    }
+                }}
+            >
+                Adicionar
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {formData.adminPhones?.map((phone, index) => (
+                <div key={index} className="flex items-center gap-1 bg-slate-100 px-3 py-1 rounded-full text-xs text-slate-700">
+                    {phone}
+                    <button 
+                        onClick={() => {
+                            setFormData({...formData, adminPhones: formData.adminPhones?.filter((_, i) => i !== index)});
+                            setTimeout(() => handleUpdate(), 0);
+                        }}
+                        className="text-slate-400 hover:text-red-500"
+                    >
+                        &times;
+                    </button>
+                </div>
+            ))}
+          </div>
           <p className="text-[10px] text-slate-500 italic px-1">Números que receberão avisos sobre novos pedidos de oração e visitas.</p>
         </div>
         

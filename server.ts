@@ -19,8 +19,14 @@ let whatsappStatus: 'DISCONNECTED' | 'INITIALIZING' | 'READY' | 'AUTHENTRICATING
 
 function formatPhone(phone: string): string {
     let clean = phone.replace(/\D/g, '');
-    if (clean.length === 10) return '55' + clean; // Add 55 if missing and 10 digits
-    if (clean.length === 11) return '55' + clean; // Add 55 if missing and 11 digits
+    // If length is 10 (Area + 8 digits), add '9' to make it 11 (Area + 9 digits)
+    if (clean.length === 10) {
+        clean = clean.substring(0, 2) + '9' + clean.substring(2);
+    }
+    // Now ensure it has 11 digits (Are + 9 digits) and add country code 55
+    if (clean.length === 11) {
+        return '55' + clean;
+    }
     return clean;
 }
 
@@ -54,7 +60,8 @@ async function initWhatsApp() {
     puppeteer: {
       headless: true,
       executablePath: process.env.CHROME_PATH || undefined,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      userDataDir: '/tmp/.puppeteer_cache'
     }
   });
 
