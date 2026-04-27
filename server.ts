@@ -49,12 +49,44 @@ async function getWhatsAppChatId(phone: string) {
     }
 }
 
+async function getTodayBirthdaysMessage(): Promise<string> {
+    try {
+        const users = await storage.readCollection<any>("users");
+        const today = new Date();
+        const currentMonth = today.getMonth() + 1;
+        const currentDay = today.getDate();
+
+        const todayBirthdays = users.filter(u => {
+            if (!u.birthDate) return false;
+            const parts = u.birthDate.split('-');
+            if (parts.length !== 3) return false;
+            const month = parseInt(parts[1], 10);
+            const day = parseInt(parts[2], 10);
+            return month === currentMonth && day === currentDay;
+        });
+
+        if (todayBirthdays.length === 0) return "";
+
+        let msg = "\n\n🎂 *Aniversariantes de Hoje:*\n";
+        todayBirthdays.forEach(u => {
+            msg += `• ${u.name}\n`;
+        });
+        return msg;
+    } catch (e) {
+        console.error("Error getting birthdays for notification", e);
+        return "";
+    }
+}
+
 async function sendWhatsAppNotifications(message: string) {
     if (!whatsappClient || whatsappStatus !== 'READY') {
         throw new Error('WhatsApp não está conectado. Escaneie o QR Code no painel.');
     }
 
     try {
+        const birthdayMsg = await getTodayBirthdaysMessage();
+        const finalMessage = message + birthdayMsg;
+
         const configs = await storage.readCollection<any>("config");
         const whatsappConfig = configs.find((c: any) => c.id === "whatsapp");                
         
@@ -68,7 +100,7 @@ async function sendWhatsAppNotifications(message: string) {
                  const chatId = await getWhatsAppChatId(phone);
                  if (!chatId) continue;
                  console.log(`Enviando mensagem WhatsApp para: ${chatId}`);
-                 await whatsappClient.sendMessage(chatId, message);
+                 await whatsappClient.sendMessage(chatId, finalMessage);
             }
         }
     } catch (err) {
@@ -268,7 +300,8 @@ async function startServer() {
       
       // WhatsApp Notification Trigger
       if (req.params.name === 'prayers') {
-        sendWhatsAppNotifications(`🙏 *Novo Pedido de Oração*\n\n*Membro:* ${(req as any).user.name || 'Desconhecido'}\n*Mensagem:* ${newItem.content}`).catch(e => console.error("WhatsApp notification failed:", e));
+        const privacy = newItem.privacy === 'private' ? 'Privado' : 'Público';
+        sendWhatsAppNotifications(`🙏 *Novo Pedido de Oração*\n\n*Membro:* ${(req as any).user.name || 'Desconhecido'}\n*Privacidade:* ${privacy}\n*Mensagem:* ${newItem.content}`).catch(e => console.error("WhatsApp notification failed:", e));
       } else if (req.params.name === 'pastoralVisits') {
         sendWhatsAppNotifications(`🏡 *Nova Visita Pastoral*\n\n*Solicitante:* ${(req as any).user.name || 'Desconhecido'}\n*Motivo:* ${newItem.reason || 'Não informado'}`).catch(e => console.error("WhatsApp notification failed:", e));
       }
