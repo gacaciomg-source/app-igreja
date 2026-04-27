@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -16,6 +17,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 let whatsappClient: any | null = null;
 let lastQr: string | null = null;
 let whatsappStatus: 'DISCONNECTED' | 'INITIALIZING' | 'READY' | 'AUTHENTRICATING' = 'DISCONNECTED';
+let whatsappError: string | null = null;
 
 function formatPhone(phone: string): string {
     let clean = phone.replace(/\D/g, '');
@@ -73,13 +75,21 @@ async function initWhatsApp() {
   console.log('Initializing WhatsApp Client...');
   whatsappStatus = 'INITIALIZING';
 
+  const lockFile = path.join(process.cwd(), '.wwebjs_auth', 'session', 'SingletonLock');
+  try {
+    if (fs.existsSync(lockFile)) {
+      fs.unlinkSync(lockFile);
+    }
+  } catch (e) {
+    console.error('Failed to remove SingletonLock', e);
+  }
+
   whatsappClient = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
       headless: true,
       executablePath: process.env.CHROME_PATH || undefined,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      userDataDir: '/tmp/.puppeteer_cache'
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     }
   });
 
@@ -115,8 +125,9 @@ async function initWhatsApp() {
 
   try {
     await whatsappClient.initialize();
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to initialize WhatsApp:', err);
+    whatsappError = err.message || String(err);
     whatsappStatus = 'DISCONNECTED';
     whatsappClient = null;
   }
@@ -226,9 +237,9 @@ async function startServer() {
       
       // WhatsApp Notification Trigger
       if (req.params.name === 'prayers') {
-        sendWhatsAppNotifications(`🙏 *Novo Pedido de Oração*\n\n*Membro:* ${(req as any).user.name || 'Desconhecido'}\n*Mensagem:* ${newItem.content}`);
+        sendWhatsAppNotifications(`🙏 *Novo Pedido de Oração*\n\n*Membro:* ${(req as any).user.name || 'Desconhecido'}\n*Mensagem:* ${newItem.content}`).catch(e => console.error("WhatsApp notification failed:", e));
       } else if (req.params.name === 'pastoralVisits') {
-        sendWhatsAppNotifications(`🏡 *Nova Visita Pastoral*\n\n*Solicitante:* ${(req as any).user.name || 'Desconhecido'}\n*Motivo:* ${newItem.reason || 'Não informado'}`);
+        sendWhatsAppNotifications(`🏡 *Nova Visita Pastoral*\n\n*Solicitante:* ${(req as any).user.name || 'Desconhecido'}\n*Motivo:* ${newItem.reason || 'Não informado'}`).catch(e => console.error("WhatsApp notification failed:", e));
       }
       
       res.json(newItem);
@@ -262,7 +273,8 @@ async function startServer() {
     res.json({ 
       status: whatsappStatus,
       hasQr: !!lastQr,
-      qr: lastQr 
+      qr: lastQr,
+      error: whatsappError
     });
   });
 
@@ -283,6 +295,22 @@ async function startServer() {
       }
     } else {
       res.status(400).json({ error: 'Cliente não iniciado' });
+    }
+  });
+
+  app.post("/api/whatsapp/send", authenticateToken, async (req, res) => {
+    try {
+      const { to, message } = req.body;
+      if (!to || !message) return res.status(400).json({ error: 'Telefone e mensagem são obrigatórios' });
+      
+      const chatId = `${formatPhone(to)}@c.us`;
+      if (!whatsappClient || whatsappStatus !== 'READY') {
+          return res.status(503).json({ error: 'WhatsApp não está conectado' });
+      }
+      await whatsappClient.sendMessage(chatId, message);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao enviar: " + (error instanceof Error ? error.message : "Erro desconhecido") });
     }
   });
 

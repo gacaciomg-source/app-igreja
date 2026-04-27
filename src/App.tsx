@@ -3720,10 +3720,8 @@ const joinCell = async (cellId: string) => {
     { id: 'prayer', icon: Heart, label: 'Mural' },
     { id: 'bible', icon: BookOpen, label: 'Bíblia' },
     { id: 'sermons', icon: Mic, label: 'Sermões' },
-    { id: 'tithes', icon: DollarSign, label: 'Dízimos' },
-    (userRole === 'admin' || userRole === 'superadmin') && { id: 'admin_switch', icon: LayoutDashboard, label: 'Gestão' },
     { id: 'profile', icon: User, label: 'Perfil' },
-  ].filter(Boolean) as { id: string, icon: any, label: string }[];
+  ];
 
   const adminTabs = [
     { id: 'home', icon: PieChart, label: 'Dashboard' },
