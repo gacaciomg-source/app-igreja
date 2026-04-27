@@ -156,5 +156,5 @@ export interface TitheTransaction {
 export interface WhatsAppConfig {
   phoneNumberId: string;
   isEnabled: boolean;
-  destinationPhone?: string; // Number to receive admin alerts (e.g. new pastoral visit)
+  adminPhones?: string[];
 }

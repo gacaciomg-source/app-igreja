@@ -1711,16 +1711,16 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
 
       <div className="space-y-4">
         <div className="grid gap-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase">Telefone do Administrador para Alertas</label>
+          <label className="text-[10px] font-bold text-slate-400 uppercase">Telefones dos Administradores (separados por vírgula)</label>
           <input 
             type="text" 
-            value={formData.destinationPhone || ''} 
+            value={formData.adminPhones?.join(', ') || ''} 
             onBlur={handleUpdate}
-            onChange={(e) => setFormData({...formData, destinationPhone: e.target.value})}
-            placeholder="Ex: 5511999999999"
+            onChange={(e) => setFormData({...formData, adminPhones: e.target.value.split(',').map(s => s.trim()).filter(s => s)})}
+            placeholder="Ex: 5511999999999, 5511888888888"
             className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
           />
-          <p className="text-[10px] text-slate-500 italic px-1">Este número receberá avisos sobre novos pedidos de oração e visitas.</p>
+          <p className="text-[10px] text-slate-500 italic px-1">Números que receberão avisos sobre novos pedidos de oração e visitas.</p>
         </div>
         
         <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
@@ -1752,8 +1752,8 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
               showMessage('WhatsApp não está conectado.');
               return;
             }
-            api.sendWhatsApp(formData.destinationPhone, "✅ *Teste de Conexão WhatsApp*\nSeu sistema de notificações está funcionando perfeitamente!");
-            showMessage('Mensagem de teste enviada!');
+            api.request('/whatsapp/test', { method: 'POST' });
+            showMessage('Mensagem de teste enviada para todos os administradores!');
           }}
         >
           Enviar Mensagem de Teste

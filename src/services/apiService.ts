@@ -10,7 +10,7 @@ interface AuthResponse {
 class ApiService {
   private token: string | null = localStorage.getItem('auth_token');
 
-  private async request(path: string, options: RequestInit = {}) {
+  async request(path: string, options: RequestInit = {}) {
     const headers = {
       'Content-Type': 'application/json',
       ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),

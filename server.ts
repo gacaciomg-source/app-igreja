@@ -7,15 +7,41 @@ import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import * as storage from "./src/lib/storage.ts";
 import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
+const { Client, NoAuth } = pkg;
 import qrcode from 'qrcode';
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 // --- WhatsApp Global State ---
-let whatsappClient: Client | null = null;
+let whatsappClient: any | null = null;
 let lastQr: string | null = null;
 let whatsappStatus: 'DISCONNECTED' | 'INITIALIZING' | 'READY' | 'AUTHENTRICATING' = 'DISCONNECTED';
+
+function formatPhone(phone: string): string {
+    let clean = phone.replace(/\D/g, '');
+    if (clean.length === 10) return '55' + clean; // Add 55 if missing and 10 digits
+    if (clean.length === 11) return '55' + clean; // Add 55 if missing and 11 digits
+    return clean;
+}
+
+async function sendWhatsAppNotifications(message: string) {
+    if (!whatsappClient || whatsappStatus !== 'READY') return;
+
+    try {
+        const configs = await storage.readCollection<any>("config");
+        const whatsappConfig = configs.find(c => c.id === "whatsapp");                
+        
+        const phones = whatsappConfig?.adminPhones || [];
+        if (Array.isArray(phones)) {
+            for (const phone of phones) {
+                 const chatId = `${formatPhone(phone)}@c.us`;
+                 await whatsappClient.sendMessage(chatId, message);
+            }
+        }
+    } catch (err) {
+        console.error('Failed to notify admins via WhatsApp:', err);
+    }
+}
 
 async function initWhatsApp() {
   if (whatsappClient) return;
@@ -24,7 +50,7 @@ async function initWhatsApp() {
   whatsappStatus = 'INITIALIZING';
 
   whatsappClient = new Client({
-    authStrategy: new LocalAuth(),
+    authStrategy: new NoAuth(),
     puppeteer: {
       headless: true,
       executablePath: process.env.CHROME_PATH || undefined,
@@ -127,7 +153,7 @@ async function startServer() {
       await storage.insert("users", newUser);
       
       const { password: _, ...userWithoutPassword } = newUser;
-      const token = jwt.sign({ id: newUser.id, role: newUser.role }, JWT_SECRET);
+      const token = jwt.sign({ id: newUser.id, role: newUser.role, name: newUser.name }, JWT_SECRET);
       
       res.json({ user: userWithoutPassword, token });
     } catch (error) {
@@ -146,7 +172,7 @@ async function startServer() {
       }
 
       const { password: _, ...userWithoutPassword } = user;
-      const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET);
+      const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET);
       
       res.json({ user: userWithoutPassword, token });
     } catch (error) {
@@ -172,6 +198,14 @@ async function startServer() {
         createdAt: req.body.createdAt || new Date().toISOString()
       };
       await storage.insert(req.params.name, newItem);
+      
+      // WhatsApp Notification Trigger
+      if (req.params.name === 'prayers') {
+        sendWhatsAppNotifications(`🙏 *Novo Pedido de Oração*\n\n*Membro:* ${(req as any).user.name || 'Desconhecido'}\n*Mensagem:* ${newItem.content}`);
+      } else if (req.params.name === 'pastoralVisits') {
+        sendWhatsAppNotifications(`🏡 *Nova Visita Pastoral*\n\n*Solicitante:* ${(req as any).user.name || 'Desconhecido'}\n*Motivo:* ${newItem.reason || 'Não informado'}`);
+      }
+      
       res.json(newItem);
     } catch (error) {
       res.status(500).json({ error: "Erro ao salvar" });
@@ -227,18 +261,12 @@ async function startServer() {
     }
   });
 
-  app.post("/api/whatsapp/send", authenticateToken, async (req, res) => {
+  app.post("/api/whatsapp/test", authenticateToken, async (req, res) => {
     try {
-      const { to, message } = req.body;
-      if (!whatsappClient || whatsappStatus !== 'READY') {
-        return res.status(500).json({ error: "WhatsApp não está conectado. Escaneie o QR code no painel do administrador." });
-      }
-      const sanitizedNumber = to.replace(/\D/g, '');
-      const chatId = `${sanitizedNumber}@c.us`;
-      await whatsappClient.sendMessage(chatId, message);
+      await sendWhatsAppNotifications("✅ *Teste de Conexão WhatsApp*\nSeu sistema de notificações está funcionando perfeitamente!");
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Erro ao enviar: " + (error instanceof Error ? error.message : "Erro desconhecido") });
+      res.status(500).json({ error: "Erro ao enviar teste: " + (error instanceof Error ? error.message : "Erro desconhecido") });
     }
   });
 
