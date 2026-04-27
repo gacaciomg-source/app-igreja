@@ -10,6 +10,7 @@ import * as storage from "./src/lib/storage.ts";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode';
+import cron from 'node-cron';
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -67,9 +68,12 @@ async function getTodayBirthdaysMessage(): Promise<string> {
 
         if (todayBirthdays.length === 0) return "";
 
-        let msg = "\n\n🎂 *Aniversariantes de Hoje:*\n";
+        let msg = "🎂 *Aniversariantes de Hoje:*\n\n";
         todayBirthdays.forEach(u => {
-            msg += `• ${u.name}\n`;
+            const parts = u.birthDate.split('-');
+            const birthYear = parseInt(parts[0], 10);
+            const age = today.getFullYear() - birthYear;
+            msg += `• *${u.name}*\n  📱 Contato: ${u.phone || 'Desconhecido'}\n  🎈 Completando: ${age} anos\n\n`;
         });
         return msg;
     } catch (e) {
@@ -84,9 +88,6 @@ async function sendWhatsAppNotifications(message: string) {
     }
 
     try {
-        const birthdayMsg = await getTodayBirthdaysMessage();
-        const finalMessage = message + birthdayMsg;
-
         const configs = await storage.readCollection<any>("config");
         const whatsappConfig = configs.find((c: any) => c.id === "whatsapp");                
         
@@ -100,7 +101,7 @@ async function sendWhatsAppNotifications(message: string) {
                  const chatId = await getWhatsAppChatId(phone);
                  if (!chatId) continue;
                  console.log(`Enviando mensagem WhatsApp para: ${chatId}`);
-                 await whatsappClient.sendMessage(chatId, finalMessage);
+                 await whatsappClient.sendMessage(chatId, message);
             }
         }
     } catch (err) {
@@ -198,6 +199,24 @@ process.on('SIGUSR2', cleanupAndExit); // for nodemon/tsx restarts
 
 // Start WhatsApp on boot
 initWhatsApp();
+
+// Schedule birthday notifications at 00:00 every day
+cron.schedule('0 0 * * *', async () => {
+    console.log('Running daily birthday check...');
+    try {
+        const message = await getTodayBirthdaysMessage();
+        if (message) {
+            await sendWhatsAppNotifications(message);
+            console.log('Daily birthday notification sent.');
+        } else {
+            console.log('No birthdays today.');
+        }
+    } catch (e) {
+        console.error('Failed to send scheduled birthday notification:', e);
+    }
+}, {
+    timezone: "America/Sao_Paulo"
+});
 
 async function startServer() {
   const app = express();
