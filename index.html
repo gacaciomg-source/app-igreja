@@ -5,25 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0ea5e9" />
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status_bar_style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Igreja">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Igreja Renovando Vidas">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3306/3306613.png">
     <link rel="manifest" href="/manifest.json" />
     <title>App Igreja</title>
   </head>
-  <body>
+  <body class="bg-secondary">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then(reg => {
-            console.log('SW registrado com sucesso:', reg);
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(reg => {
+            console.log('SW registrado com sucesso:', reg.scope);
           }).catch(err => {
             console.log('Falha ao registrar SW:', err);
           });
         });
       }
+
+      // Handle install prompt
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        console.log('PWA está pronto para ser instalado');
+      });
     </script>
   </body>
 </html>

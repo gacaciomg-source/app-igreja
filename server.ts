@@ -83,11 +83,12 @@ async function getTodayBirthdaysMessage(): Promise<string> {
 }
 
 async function sendWhatsAppNotifications(message: string) {
-    if (!whatsappClient || whatsappStatus !== 'READY') {
-        throw new Error('WhatsApp não está conectado. Escaneie o QR Code no painel.');
-    }
-
     try {
+        if (!whatsappClient || whatsappStatus !== 'READY') {
+            console.log('WhatsApp notification skipped: Client not ready');
+            return;
+        }
+
         const configs = await storage.readCollection<any>("config");
         const whatsappConfig = configs.find((c: any) => c.id === "whatsapp");                
         
@@ -225,6 +226,33 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  // --- Helper to ensure Super Admin exists ---
+  const ensureSuperAdmin = async () => {
+    try {
+      const users = await storage.readCollection<any>("users");
+      const hasSuperAdmin = users.find(u => u.role === "superadmin" || u.email === "admin");
+      
+      if (!hasSuperAdmin) {
+        console.log("Criando Super Admin padrão...");
+        const hashedPassword = await bcrypt.hash("admin", 10);
+        const superAdmin = {
+          id: uuidv4(),
+          name: "Super Administrador",
+          email: "admin",
+          password: hashedPassword,
+          role: "superadmin",
+          createdAt: new Date().toISOString()
+        };
+        await storage.insert("users", superAdmin);
+        console.log("Super Admin criado com sucesso (login: admin / senha: admin)");
+      }
+    } catch (e) {
+      console.error("Erro ao garantir Super Admin:", e);
+    }
+  };
+
+  await ensureSuperAdmin();
+
   // Logging middleware
   app.use((req, res, next) => {
     console.log(`${req.method} ${req.url}`);
@@ -251,8 +279,8 @@ async function startServer() {
       const { name, email, password, age, address, phone } = req.body;
       const users = await storage.readCollection<any>("users");
       
-      if (users.find(u => u.email === email)) {
-        return res.status(400).json({ error: "E-mail já cadastrado" });
+      if (email === "admin" || users.find(u => u.email === email)) {
+        return res.status(400).json({ error: "E-mail já cadastrado ou reservado" });
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -261,7 +289,7 @@ async function startServer() {
         name,
         email,
         password: hashedPassword,
-        role: users.length === 0 ? "superadmin" : "member",
+        role: "member", // Everyone starts as member now
         age: parseInt(age) || 0,
         address: address || "",
         phone: phone || "",
@@ -333,6 +361,31 @@ async function startServer() {
 
   app.patch("/api/collections/:name/:id", authenticateToken, async (req, res) => {
     try {
+      // Role Validation for Users collection
+      if (req.params.name === 'users') {
+        const targetId = req.params.id;
+        const requester = (req as any).user;
+        const updates = req.body;
+
+        if (updates.role) {
+          // Only superadmin can set someone as admin
+          if (updates.role === 'admin' && requester.role !== 'superadmin') {
+            return res.status(403).json({ error: "Apenas o Super Admin pode promover usuários a Administrador" });
+          }
+          
+          // Only admin or superadmin can change roles
+          if (requester.role !== 'superadmin' && requester.role !== 'admin') {
+            return res.status(403).json({ error: "Você não tem permissão para alterar funções" });
+          }
+
+          // No one can change their own role to prevent self-promotion accidents/security bypass
+          // (unless it's superadmin changing others, but here we prevent any user from changing their OWN role field)
+          if (targetId === requester.id && updates.role !== requester.role) {
+             return res.status(403).json({ error: "Você não pode alterar sua própria função" });
+          }
+        }
+      }
+
       const updated = await storage.update(req.params.name, req.params.id, req.body);
       if (!updated) return res.status(404).json({ error: "Não encontrado" });
       res.json(updated);

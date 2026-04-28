@@ -342,13 +342,15 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
           )}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">E-mail</label>
+            <label className="text-sm font-medium text-slate-700">
+              {mode === 'login' ? "E-mail ou Usuário" : "E-mail"}
+            </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input 
-                type="email" 
+                type="text" 
                 required
-                placeholder="seu@email.com"
+                placeholder={mode === 'login' ? "E-mail ou usuário" : "seu@email.com"}
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
@@ -2125,8 +2127,12 @@ const MembersScreen = ({ users, cells, currentUserRole, onUpdateRole, showMessag
                   >
                     <option value="member">Membro</option>
                     <option value="leader">Líder de PG</option>
-                    <option value="admin">Admin</option>
-                    {currentUserRole === 'superadmin' && <option value="superadmin">Super Admin</option>}
+                    {currentUserRole === 'superadmin' && (
+                      <>
+                        <option value="admin">Admin</option>
+                        <option value="superadmin">Super Admin</option>
+                      </>
+                    )}
                   </select>
                   {user.role === 'leader' && (
                     <select
@@ -3309,7 +3315,6 @@ export default function App() {
       return;
     }
     
-    setLoading(true);
     const tempPrayer: PrayerRequest = {
       id: 'temp-' + Date.now(),
       uid: currentUserData.id,
@@ -3344,15 +3349,17 @@ export default function App() {
       if (whatsappConfig.isEnabled && whatsappConfig.destinationPhone) {
         notifyViaWhatsApp(
           whatsappConfig.destinationPhone,
-          `🙏 *Novo Pedido de Oração*\n\n*Membro:* ${currentUserData?.name}\n*Privacidade:* ${privacy}\n*Mensagem:* ${content}`
+          `🙏 *Novo Pedido de Oração*
+
+*Membro:* ${currentUserData?.name}
+*Privacidade:* ${privacy}
+*Mensagem:* ${content}`
         );
       }
     } catch (err) {
       // Revert optimistic update
       setPrayers(prev => prev.filter(p => p.id !== tempPrayer.id));
       handleApiError(err, 'addPrayer');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -3535,11 +3542,16 @@ const joinCell = async (cellId: string) => {
 
   const updateMemberRole = async (userId: string, newRole: UserRole, leaderOf?: string) => {
     try {
-      const userToUpdate = users.find(u => u.id === userId);
-      if ((newRole === 'admin' || newRole === 'superadmin') && userToUpdate && !userToUpdate.email.endsWith('@igrejarenovar.com')) {
-        setGlobalError('Apenas usuários com e-mail @igrejarenovar.com podem ser promovidos a Admin.');
+      if (newRole === 'admin' && userRole !== 'superadmin') {
+        setGlobalError('Apenas o Super Administrador pode promover usuários a Admin.');
         return;
       }
+
+      if (newRole === 'superadmin' && userRole !== 'superadmin') {
+        setGlobalError('Apenas um Super Administrador pode criar outro Super Administrador.');
+        return;
+      }
+
       await api.update('users', userId, { 
         role: newRole,
         leaderOf: newRole === 'leader' ? (leaderOf || null) : null
