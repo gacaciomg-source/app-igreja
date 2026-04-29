@@ -8,6 +8,7 @@ import {
   useNavigate,
   useLocation
 } from 'react-router-dom';
+import { toPng } from 'html-to-image';
 import { 
   Home, 
   Calendar, 
@@ -446,7 +447,148 @@ const DAILY_VERSES = [
   { text: "O meu Deus suprirá todas as necessidades de vocês, de acordo com as suas gloriosas riquezas em Cristo Jesus.", ref: "Filipenses 4:19" }
 ];
 
-const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, isAdmin, onSwitchToAdmin, showMessage }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void }) => {
+const SHARE_BACKGROUNDS = [
+  { id: 'gradient-blue', class: 'bg-linear-to-br from-blue-500 to-indigo-600', name: 'Azul Moderno' },
+  { id: 'gradient-purple', class: 'bg-linear-to-br from-purple-500 to-pink-600', name: 'Roxo Vibrante' },
+  { id: 'gradient-orange', class: 'bg-linear-to-br from-orange-400 to-rose-500', name: 'Pôr do Sol' },
+  { id: 'nature-1', url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=1000', name: 'Floresta' },
+  { id: 'nature-2', url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=1000', name: 'Montanha' },
+  { id: 'abstract-1', url: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80&w=1000', name: 'Abstrato' },
+];
+
+const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: string }, onClose: () => void }) => {
+  const [selectedBg, setSelectedBg] = useState(SHARE_BACKGROUNDS[0]);
+  const verseCardRef = useRef<HTMLDivElement>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleShare = async () => {
+    if (!verseCardRef.current) return;
+    setIsGenerating(true);
+    try {
+      // Small delay to ensure styles are applied
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const dataUrl = await toPng(verseCardRef.current, { 
+        quality: 0.95, 
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], 'versiculo-dia.png', { type: 'image/png' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Versículo do Dia',
+          text: `"${verse.text}" - ${verse.ref}`
+        });
+      } else {
+        const link = document.createElement('a');
+        link.download = `versiculo-${verse.ref.replace(/[:\s]/g, '-')}.png`;
+        link.href = dataUrl;
+        link.click();
+      }
+    } catch (err) {
+      console.error('Failed to generate image:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col items-center">
+        {/* Preview Container - Optimized for 9:16 aspect ratio in a smaller preview for generation */}
+        <div className="bg-slate-50 p-4 rounded-3xl border-2 border-slate-100 shadow-inner">
+          <div 
+            ref={verseCardRef}
+            className={cn(
+              "w-[280px] h-[497px] rounded-2xl flex flex-col items-center justify-center p-8 text-center relative overflow-hidden shadow-2xl",
+              selectedBg.class || ""
+            )}
+            style={selectedBg.url ? { 
+              backgroundImage: `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${selectedBg.url})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            } : {}}
+          >
+            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center">
+              <Home className="text-white w-6 h-6" />
+            </div>
+            
+            <div className="space-y-6 z-10">
+              <p className="text-white text-xl font-medium italic leading-relaxed drop-shadow-lg">
+                "{verse.text}"
+              </p>
+              <div className="h-0.5 w-12 bg-white/40 mx-auto rounded-full"></div>
+              <p className="text-white font-bold text-lg drop-shadow-md">
+                {verse.ref}
+              </p>
+            </div>
+
+            <div className="absolute bottom-8 left-0 right-0 text-center">
+              <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">Igreja Renovar</p>
+            </div>
+
+            {/* Decorative Elements */}
+            <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Escolha o Fundo</label>
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+          {SHARE_BACKGROUNDS.map((bg) => (
+            <button
+              key={bg.id}
+              onClick={() => setSelectedBg(bg)}
+              className={cn(
+                "min-w-16 h-16 rounded-xl border-2 transition-all overflow-hidden relative",
+                selectedBg.id === bg.id ? "border-primary scale-105" : "border-transparent opacity-70 hover:opacity-100"
+              )}
+            >
+              <div 
+                className={cn("w-full h-full", bg.class || "")}
+                style={bg.url ? { backgroundImage: `url(${bg.url})`, backgroundSize: 'cover' } : {}}
+              />
+              <div className="absolute inset-0 flex items-end p-1">
+                <span className="text-[8px] font-bold text-white leading-none whitespace-nowrap bg-black/40 px-1 rounded truncate w-full">
+                  {bg.name}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Button variant="outline" onClick={onClose} className="flex-1 py-4">Cancelar</Button>
+        <Button 
+          onClick={handleShare} 
+          className="flex-3 py-4 text-lg font-bold" 
+          disabled={isGenerating}
+        >
+          {isGenerating ? (
+            <>
+              <RefreshCw className="w-5 h-5 animate-spin" />
+              Gerando...
+            </>
+          ) : (
+            <>
+              <Share2 className="w-5 h-5" />
+              Compartilhar
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, isAdmin, onSwitchToAdmin, showMessage }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void }) => {
+
   const dailyVerse = React.useMemo(() => {
     const today = new Date();
     const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
@@ -522,7 +664,11 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
           </p>
           <div className="flex justify-between items-center">
             <span className="font-bold">{dailyVerse.ref}</span>
-            <Button variant="secondary" className="bg-white/20 text-white hover:bg-white/30 border-none">
+            <Button 
+              variant="secondary" 
+              className="bg-white/20 text-white hover:bg-white/30 border-none"
+              onClick={() => onShareVerse(dailyVerse)}
+            >
               <Share2 className="w-4 h-4" />
               Compartilhar
             </Button>
@@ -2849,6 +2995,7 @@ export default function App() {
   const [editingCell, setEditingCell] = useState<CellGroup | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<Attendance | null>(null);
   const [showAddPastoralVisit, setShowAddPastoralVisit] = useState(false);
+  const [selectedShareVerse, setSelectedShareVerse] = useState<{ text: string, ref: string } | null>(null);
 
   const showMessage = (msg: string) => {
     setGlobalMessage(msg);
@@ -3142,7 +3289,7 @@ export default function App() {
           if (u.phone && u.notificationSettings?.newSermonEnabled) {
             notifyViaWhatsApp(
               u.phone,
-              `✨ *Novo Sermão Disponível!*\n\n"${data.title}"\nPregador: ${data.preacher}\nAssista agora no App da Igreja Renovando Vidas!`
+              `✨ *Novo Sermão Disponível!*\n\n"${data.title}"\nPregador: ${data.preacher}\nAssista agora no App da Igreja Renovar!`
             );
           }
         });
@@ -3689,7 +3836,7 @@ const joinCell = async (cellId: string) => {
     }
 
     switch (currentTab) {
-      case 'home': return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setShowDonationModal(true)} onShowReadingPlans={() => setCurrentTab('readingPlans')} onRequestPastoralVisit={() => setShowAddPastoralVisit(true)} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} showMessage={showMessage} />;
+      case 'home': return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setShowDonationModal(true)} onShowReadingPlans={() => setCurrentTab('readingPlans')} onRequestPastoralVisit={() => setShowAddPastoralVisit(true)} onShareVerse={setSelectedShareVerse} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} showMessage={showMessage} />;
       case 'events': return <EventsScreen events={events} onShowMural={() => setCurrentTab('prayer')} showMessage={showMessage} />;
       case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
       case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onDelete={deleteAnnouncement} showMessage={showMessage} />;
@@ -3724,7 +3871,7 @@ const joinCell = async (cellId: string) => {
           />
         );
       }
-      default: return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setCurrentTab('tithes')} onShowReadingPlans={() => setCurrentTab('readingPlans')} onRequestPastoralVisit={() => setShowAddPastoralVisit(true)} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} showMessage={showMessage} />;
+      default: return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setCurrentTab('tithes')} onShowReadingPlans={() => setCurrentTab('readingPlans')} onRequestPastoralVisit={() => setShowAddPastoralVisit(true)} onShareVerse={setSelectedShareVerse} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} showMessage={showMessage} />;
     }
   };
 
@@ -3835,6 +3982,11 @@ const joinCell = async (cellId: string) => {
           {showAttendance && selectedAttendanceCell && (
             <Modal title="Chamada do PG" onClose={() => { setShowAttendance(false); setSelectedAttendanceCell(null); }}>
               <AttendanceForm cell={selectedAttendanceCell} users={users} onSubmit={handleAttendanceSubmit} onCancel={() => { setShowAttendance(false); setSelectedAttendanceCell(null); }} />
+            </Modal>
+          )}
+          {selectedShareVerse && (
+            <Modal title="Compartilhar Versículo" onClose={() => setSelectedShareVerse(null)}>
+              <VerseShareModal verse={selectedShareVerse} onClose={() => setSelectedShareVerse(null)} />
             </Modal>
           )}
           {selectedRecord && (

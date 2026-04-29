@@ -299,7 +299,7 @@ async function startServer() {
       await storage.insert("users", newUser);
       
       const { password: _, ...userWithoutPassword } = newUser;
-      const token = jwt.sign({ id: newUser.id, role: newUser.role, name: newUser.name }, JWT_SECRET);
+      const token = jwt.sign({ id: newUser.id, role: newUser.role, name: newUser.name }, JWT_SECRET, { expiresIn: '30d' });
       
       res.json({ user: userWithoutPassword, token });
     } catch (error) {
@@ -318,7 +318,7 @@ async function startServer() {
       }
 
       const { password: _, ...userWithoutPassword } = user;
-      const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET);
+      const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
       
       res.json({ user: userWithoutPassword, token });
     } catch (error) {
