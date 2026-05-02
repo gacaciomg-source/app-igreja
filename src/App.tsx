@@ -50,7 +50,7 @@ import {
   CheckCircle,
   RefreshCw
 } from 'lucide-react';
-import { cn, UserRole, User as UserType, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig } from './types';
+import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
 import { api } from './services/apiService';
 import { ReadingPlansScreen } from './components/ReadingPlansScreen';
@@ -213,9 +213,11 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
     setMessage('');
     setLoading(true);
 
+    const normalizedEmail = email.toLowerCase().trim();
+    
     try {
       if (mode === 'login') {
-        const { user: loggedUser } = await api.login(email, password);
+        const { user: loggedUser } = await api.login(normalizedEmail, password);
         console.log('Login successful:', loggedUser.email);
         localStorage.setItem('auth_user', JSON.stringify(loggedUser));
         onAuthSuccess(loggedUser);
@@ -223,7 +225,7 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
         if (!phone) throw new Error("O número de WhatsApp é obrigatório.");
         const { user: newUser } = await api.register({
           name,
-          email,
+          email: normalizedEmail,
           password,
           age,
           address,
@@ -311,21 +313,6 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">WhatsApp (Obrigatório)</label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input 
-                    type="tel" 
-                    required
-                    placeholder="Ex: 5511999999999"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Endereço</label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -349,7 +336,9 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input 
-                type="text" 
+                type="email" 
+                autoCapitalize="none"
+                autoCorrect="off"
                 required
                 placeholder={mode === 'login' ? "E-mail ou usuário" : "seu@email.com"}
                 value={email}
@@ -453,6 +442,10 @@ const SHARE_BACKGROUNDS = [
   { id: 'gradient-orange', class: 'bg-linear-to-br from-orange-400 to-rose-500', name: 'Pôr do Sol' },
   { id: 'nature-1', url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=1000', name: 'Floresta' },
   { id: 'nature-2', url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=1000', name: 'Montanha' },
+  { id: 'nature-3', url: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&q=80&w=1000', name: 'Lago' },
+  { id: 'nature-4', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=1000', name: 'Praia' },
+  { id: 'nature-5', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=1000', name: 'Pico' },
+  { id: 'nature-6', url: 'https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?auto=format&fit=crop&q=80&w=1000', name: 'Céu' },
   { id: 'abstract-1', url: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80&w=1000', name: 'Abstrato' },
 ];
 
@@ -465,34 +458,57 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
     if (!verseCardRef.current) return;
     setIsGenerating(true);
     try {
-      // Small delay to ensure styles are applied
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Deeper delay for style application and image loading
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       const dataUrl = await toPng(verseCardRef.current, { 
-        quality: 0.95, 
-        pixelRatio: 2,
+        quality: 1, 
+        pixelRatio: 2, // Higher resolution for better quality
         cacheBust: true,
+        skipFonts: false,
+        style: {
+          borderRadius: '0', // Ensure it's square/full frame for the image itself
+        }
       });
       
       const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], 'versiculo-dia.png', { type: 'image/png' });
+      const fileName = `versiculo-${verse.ref.replace(/[:\s]/g, '-')}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
 
+      // Check for native sharing capability (especially for iOS)
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'Versículo do Dia',
-          text: `"${verse.text}" - ${verse.ref}`
-        });
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Versículo do Dia',
+            text: `"${verse.text}" - ${verse.ref}`
+          });
+        } catch (shareErr) {
+          // If the user cancelled or sharing failed, don't necessarily error out
+          console.warn('Share cancelled or failed:', shareErr);
+          // Fallback to direct download if it wasn't a manual cancel
+          if ((shareErr as any).name !== 'AbortError') {
+            downloadImage(dataUrl, fileName);
+          }
+        }
       } else {
-        const link = document.createElement('a');
-        link.download = `versiculo-${verse.ref.replace(/[:\s]/g, '-')}.png`;
-        link.href = dataUrl;
-        link.click();
+        // Fallback for browsers that don't support file sharing
+        downloadImage(dataUrl, fileName);
       }
     } catch (err) {
       console.error('Failed to generate image:', err);
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const downloadImage = (dataUrl: string, fileName: string) => {
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -587,6 +603,505 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
   );
 };
 
+const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onManageRequest, onAddSchedule, schedules, onAdd, onUpdate, isAdmin, showMessage }: { 
+  ministries: Ministry[], 
+  users: UserType[], 
+  currentUser: UserType | null, 
+  onJoinRequest: (ministryId: string) => void,
+  onManageRequest: (ministryId: string, userId: string, action: 'approve' | 'reject') => void,
+  onAddSchedule: (schedule: Partial<MinistrySchedule>) => void,
+  schedules: MinistrySchedule[],
+  onAdd: (data: Partial<Ministry>) => void,
+  onUpdate: (id: string, data: Partial<Ministry>) => void,
+  isAdmin: boolean,
+  showMessage?: (msg: string) => void 
+}) => {
+  const [selectedMinistry, setSelectedMinistry] = useState<Ministry | null>(null);
+  const [showAddSchedule, setShowAddSchedule] = useState(false);
+  const [showMinistryForm, setShowMinistryForm] = useState(false);
+  const [editingMinistry, setEditingMinistry] = useState<Ministry | null>(null);
+  
+  const [newMinistry, setNewMinistry] = useState<Partial<Ministry>>({
+    name: '', description: '', category: 'Geral', imageUrl: ''
+  });
+
+  const [newSchedule, setNewSchedule] = useState<Partial<MinistrySchedule>>({
+    title: '', date: '', time: '', location: '', assignedUserIds: []
+  });
+
+  const isLeader = (m: Ministry) => currentUser?.id && (m.leaderIds.includes(currentUser.id) || isAdmin);
+  const isMember = (m: Ministry) => currentUser?.id && m.memberIds.includes(currentUser.id);
+  const isPending = (m: Ministry) => currentUser?.id && m.pendingRequestIds.includes(currentUser.id);
+
+  const handleEditMinistry = (m: Ministry) => {
+    setEditingMinistry(m);
+    setNewMinistry(m);
+    setShowMinistryForm(true);
+  };
+
+  const handleSaveMinistry = () => {
+    if (!newMinistry.name || !newMinistry.description) {
+      showMessage?.('Nome e descrição são obrigatórios');
+      return;
+    }
+
+    if (editingMinistry) {
+      onUpdate(editingMinistry.id, newMinistry);
+    } else {
+      onAdd(newMinistry);
+    }
+    
+    setShowMinistryForm(false);
+    setEditingMinistry(null);
+    setNewMinistry({ name: '', description: '', category: 'Geral', imageUrl: '' });
+  };
+
+  if (selectedMinistry) {
+    const ministrySchedules = schedules.filter(s => s.ministryId === selectedMinistry.id);
+    const ministryMembers = users.filter(u => selectedMinistry.memberIds.includes(u.id));
+    const pendingUsers = users.filter(u => selectedMinistry.pendingRequestIds.includes(u.id));
+
+    return (
+      <div className="space-y-6 pb-24">
+        <header className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSelectedMinistry(null)} className="p-2 hover:bg-slate-100 rounded-full">
+              <ArrowLeft className="w-6 h-6 text-slate-400" />
+            </button>
+            <h2 className="text-xl font-bold text-slate-900">{selectedMinistry.name}</h2>
+          </div>
+          {isAdmin && (
+            <button onClick={() => handleEditMinistry(selectedMinistry)} className="p-2 bg-slate-50 text-slate-400 rounded-full">
+              <Settings className="w-5 h-5" />
+            </button>
+          )}
+        </header>
+
+        <div className="relative h-48 rounded-3xl overflow-hidden">
+          <img src={selectedMinistry.imageUrl || 'https://picsum.photos/seed/ministry/800/400'} className="w-full h-full object-cover" alt={selectedMinistry.name} />
+          <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent flex items-end p-6">
+            <p className="text-white text-sm leading-relaxed">{selectedMinistry.description}</p>
+          </div>
+        </div>
+
+        {isLeader(selectedMinistry) && pendingUsers.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-500" />
+              Solicitações Pendentes
+            </h3>
+            {pendingUsers.map(user => (
+              <Card key={user.id} className="flex items-center gap-4">
+                <img src={user.avatar || `https://picsum.photos/seed/${user.id}/100/100`} className="w-10 h-10 rounded-full" alt={user.name} />
+                <div className="flex-1">
+                  <p className="font-bold text-sm">{user.name}</p>
+                  <p className="text-xs text-slate-400">{user.email}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => onManageRequest(selectedMinistry.id, user.id, 'approve')} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle className="w-4 h-4" /></button>
+                  <button onClick={() => onManageRequest(selectedMinistry.id, user.id, 'reject')} className="p-2 bg-red-50 text-red-600 rounded-lg"><LogOut className="w-4 h-4 rotate-180" /></button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900">Escalas e Atividades</h3>
+            {isLeader(selectedMinistry) && (
+              <button onClick={() => setShowAddSchedule(true)} className="text-primary text-sm font-bold flex items-center gap-1">
+                <Plus className="w-4 h-4" /> Nova Escala
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {ministrySchedules.length > 0 ? (
+              ministrySchedules.map(sch => (
+                <Card key={sch.id} className="border-l-4 border-l-primary">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-bold text-slate-900">{sch.title}</h4>
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                        <Calendar className="w-3 h-3" /> {new Date(sch.date).toLocaleDateString('pt-BR')} às {sch.time}
+                      </p>
+                      <p className="text-xs text-slate-500 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {sch.location}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex -space-x-2">
+                    {sch.assignedUserIds.map(uid => {
+                      const u = users.find(user => user.id === uid);
+                      return (
+                        <img key={uid} src={u?.avatar || `https://picsum.photos/seed/${uid}/100/100`} className="w-6 h-6 rounded-full border-2 border-white" title={u?.name} />
+                      );
+                    })}
+                  </div>
+                </Card>
+              ))
+            ) : (
+              <p className="text-center text-slate-400 py-6 text-sm">Nenhuma escala agendada.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="font-bold text-slate-900">Equipe ({ministryMembers.length})</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {ministryMembers.map(member => (
+              <div key={member.id} className="flex items-center gap-2 p-2 bg-white border border-slate-100 rounded-xl">
+                <img src={member.avatar || `https://picsum.photos/seed/${member.id}/100/100`} className="w-8 h-8 rounded-full" alt={member.name} />
+                <span className="text-xs font-medium truncate">{member.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {showAddSchedule && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-end animate-in fade-in">
+            <Card className="w-full rounded-t-3xl rounded-b-none p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+              <header className="flex justify-between items-center">
+                <h3 className="text-xl font-bold">Nova Escala</h3>
+                <button onClick={() => setShowAddSchedule(false)} className="p-2 bg-slate-100 rounded-full"><LogOut className="w-5 h-5 rotate-180" /></button>
+              </header>
+              <div className="space-y-3">
+                <input type="text" placeholder="Título da Atividade" value={newSchedule.title} onChange={e => setNewSchedule({...newSchedule, title: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="date" value={newSchedule.date} onChange={e => setNewSchedule({...newSchedule, date: e.target.value})} className="p-3 bg-slate-50 rounded-xl" />
+                  <input type="time" value={newSchedule.time} onChange={e => setNewSchedule({...newSchedule, time: e.target.value})} className="p-3 bg-slate-50 rounded-xl" />
+                </div>
+                <input type="text" placeholder="Local" value={newSchedule.location} onChange={e => setNewSchedule({...newSchedule, location: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+                
+                <p className="text-xs font-bold text-slate-400 mt-4 uppercase">Escalar Membros</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {ministryMembers.map(m => (
+                    <button 
+                      key={m.id} 
+                      onClick={() => {
+                        const current = newSchedule.assignedUserIds || [];
+                        const next = current.includes(m.id) ? current.filter(id => id !== m.id) : [...current, m.id];
+                        setNewSchedule({...newSchedule, assignedUserIds: next});
+                      }}
+                      className={cn("p-2 rounded-xl text-xs flex items-center gap-2 border transition-all", newSchedule.assignedUserIds?.includes(m.id) ? "bg-primary text-white border-primary" : "bg-slate-50 text-slate-600 border-slate-100")}
+                    >
+                      <img src={m.avatar || `https://picsum.photos/seed/${m.id}/100/100`} className="w-5 h-5 rounded-full" />
+                      <span className="truncate">{m.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Button className="w-full" onClick={() => { 
+                onAddSchedule({...newSchedule, ministryId: selectedMinistry.id}); 
+                setShowAddSchedule(false);
+                setNewSchedule({ title: '', date: '', time: '', location: '', assignedUserIds: [] });
+              }}>Salvar Escala</Button>
+            </Card>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-24">
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Ministérios</h2>
+          <p className="text-slate-500">Descubra onde você pode servir.</p>
+        </div>
+        {isAdmin && (
+          <button onClick={() => { setEditingMinistry(null); setNewMinistry({ name: '', description: '', category: 'Geral', imageUrl: '' }); setShowMinistryForm(true); }} className="p-2 bg-primary text-white rounded-full shadow-lg">
+            <Plus className="w-6 h-6" />
+          </button>
+        )}
+      </header>
+
+      <div className="grid gap-4">
+        {ministries.map(m => (
+          <Card key={m.id} className="overflow-hidden p-0 group" onClick={() => setSelectedMinistry(m)}>
+            <div className="flex h-32">
+              <div className="w-1/3 h-full overflow-hidden relative">
+                <img src={m.imageUrl || 'https://picsum.photos/seed/ministry/200/200'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={m.name} />
+                {isAdmin && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleEditMinistry(m); }}
+                    className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Settings className="w-3 h-3 text-slate-600" />
+                  </button>
+                )}
+              </div>
+              <div className="w-2/3 p-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-slate-900 leading-tight">{m.name}</h4>
+                    <span className="bg-primary/10 text-primary text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">{m.category}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 line-clamp-2 mt-1">{m.description}</p>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                    <Users className="w-3 h-3" />
+                    <span>{m.memberIds.length} membros</span>
+                  </div>
+                  {isMember(m) ? (
+                    <span className="text-emerald-500 text-[10px] font-bold flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" /> Já faz parte
+                    </span>
+                  ) : isPending(m) ? (
+                    <span className="text-amber-500 text-[10px] font-bold">Solicitado</span>
+                  ) : (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onJoinRequest(m.id); }}
+                      className="text-primary text-[10px] font-bold hover:underline"
+                    >
+                      Quero Participar
+                    </button>
+                  ) }
+                </div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {showMinistryForm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end animate-in fade-in">
+          <Card className="w-full rounded-t-3xl rounded-b-none p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <header className="flex justify-between items-center">
+              <h3 className="text-xl font-bold">{editingMinistry ? 'Editar Ministério' : 'Novo Ministério'}</h3>
+              <button onClick={() => setShowMinistryForm(false)} className="p-2 bg-slate-100 rounded-full"><LogOut className="w-5 h-5 rotate-180" /></button>
+            </header>
+            
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase">Nome do Ministério</label>
+                <input 
+                  type="text" 
+                  value={newMinistry.name} 
+                  onChange={e => setNewMinistry({...newMinistry, name: e.target.value})} 
+                  placeholder="Ex: Louvor, Mídia, etc"
+                  className="w-full p-3 bg-slate-50 rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase">Categoria</label>
+                <select 
+                  value={newMinistry.category} 
+                  onChange={e => setNewMinistry({...newMinistry, category: e.target.value})}
+                  className="w-full p-3 bg-slate-50 rounded-xl"
+                >
+                  <option value="Celebração">Celebração</option>
+                  <option value="Suporte">Suporte</option>
+                  <option value="Espiritual">Espiritual</option>
+                  <option value="Social">Social</option>
+                  <option value="Geral">Geral</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase">Descrição</label>
+                <textarea 
+                  value={newMinistry.description} 
+                  onChange={e => setNewMinistry({...newMinistry, description: e.target.value})} 
+                  placeholder="O que este ministério faz?"
+                  className="w-full p-3 bg-slate-50 rounded-xl h-24 resize-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase">URL da Imagem</label>
+                <input 
+                  type="text" 
+                  value={newMinistry.imageUrl} 
+                  onChange={e => setNewMinistry({...newMinistry, imageUrl: e.target.value})} 
+                  placeholder="https://exemplo.com/foto.jpg"
+                  className="w-full p-3 bg-slate-50 rounded-xl"
+                />
+                {newMinistry.imageUrl && (
+                  <div className="mt-2 h-32 rounded-xl overflow-hidden shadow-inner">
+                    <img src={newMinistry.imageUrl} className="w-full h-full object-cover" alt="Preview" onError={(e) => { (e.target as any).src = 'https://picsum.photos/seed/error/400/200'; }} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Button className="w-full" onClick={handleSaveMinistry}>
+              {editingMinistry ? 'Salvar Alterações' : 'Criar Ministério'}
+            </Button>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const IntegrationScreen = ({ users, onUpdateUser, showMessage }: { users: UserType[], onUpdateUser: (userId: string, updates: Partial<UserType>) => void, showMessage?: (msg: string) => void }) => {
+  const newMembers = users.filter(u => u.memberStatus === 'new_member' || u.memberStatus === 'visitor');
+  const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
+  const [newNote, setNewNote] = useState('');
+
+  const handleUpdateStatus = (userId: string, status: MemberStatus) => {
+    onUpdateUser(userId, { memberStatus: status });
+    if (selectedUser?.id === userId) {
+      setSelectedUser({ ...selectedUser, memberStatus: status });
+    }
+    showMessage?.(`Status atualizado para ${status}`);
+  };
+
+  const handleAddNote = () => {
+    if (!selectedUser || !newNote.trim()) return;
+    const notes = [...(selectedUser.integrationNotes || []), `${new Date().toLocaleDateString('pt-BR')}: ${newNote}`];
+    onUpdateUser(selectedUser.id, { integrationNotes: notes });
+    setSelectedUser({ ...selectedUser, integrationNotes: notes });
+    setNewNote('');
+    showMessage?.('Observação adicionada');
+  };
+
+  const getStatusColor = (status?: MemberStatus) => {
+    switch (status) {
+      case 'new_member': return 'bg-amber-50 text-amber-600';
+      case 'visitor': return 'bg-blue-50 text-blue-600';
+      case 'integrated': return 'bg-emerald-50 text-emerald-600';
+      case 'active': return 'bg-primary-light text-primary';
+      case 'inactive': return 'bg-slate-50 text-slate-400';
+      default: return 'bg-slate-50 text-slate-600';
+    }
+  };
+
+  if (selectedUser) {
+    return (
+      <div className="space-y-6 pb-24">
+        <header className="flex items-center gap-4">
+          <button onClick={() => setSelectedUser(null)} className="p-2 hover:bg-slate-100 rounded-full">
+            <ArrowLeft className="w-6 h-6 text-slate-400" />
+          </button>
+          <h2 className="text-xl font-bold text-slate-900">Acompanhamento: {selectedUser.name}</h2>
+        </header>
+
+        <Card className="space-y-4">
+          <div className="flex justify-between items-center">
+            <span className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider", getStatusColor(selectedUser.memberStatus))}>
+              {selectedUser.memberStatus === 'new_member' ? 'Novo Membro' : 
+               selectedUser.memberStatus === 'visitor' ? 'Visitante' :
+               selectedUser.memberStatus === 'integrated' ? 'Integrado' : 
+               selectedUser.memberStatus === 'active' ? 'Ativo' : 'Inativo'}
+            </span>
+            <span className="text-xs text-slate-400">Entrou em: {selectedUser.joinedAt ? new Date(selectedUser.joinedAt).toLocaleDateString('pt-BR') : 'N/A'}</span>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs font-bold text-slate-400 uppercase">Contato</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-700 font-medium">{selectedUser.phone || 'N/A'}</p>
+                <p className="text-slate-500 text-sm">{selectedUser.email}</p>
+              </div>
+              {selectedUser.phone && (
+                <a 
+                  href={`https://wa.me/${selectedUser.phone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-3 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 transition-colors"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-4 border-t border-slate-50">
+            <p className="text-xs font-bold text-slate-400 uppercase">Ações de Integração</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button 
+                onClick={() => handleUpdateStatus(selectedUser.id, 'integrated')}
+                className="py-2 px-3 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold border border-emerald-100"
+              >
+                Marcar como Integrado
+              </button>
+              <button 
+                onClick={() => handleUpdateStatus(selectedUser.id, 'active')}
+                className="py-2 px-3 bg-primary-light text-primary rounded-xl text-xs font-bold border border-primary/10"
+              >
+                Marcar como Ativo
+              </button>
+            </div>
+          </div>
+        </Card>
+
+        <div className="space-y-4">
+          <h3 className="font-bold text-slate-900">Observações de Acompanhamento</h3>
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              value={newNote}
+              onChange={e => setNewNote(e.target.value)}
+              placeholder="Adicionar nota..."
+              className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <button 
+              onClick={handleAddNote}
+              className="p-2 bg-primary text-white rounded-xl"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {selectedUser.integrationNotes?.slice().reverse().map((note, i) => (
+              <div key={i} className="p-3 bg-white border border-slate-100 rounded-xl text-sm text-slate-600 leading-relaxed shadow-sm">
+                {note}
+              </div>
+            )) || <p className="text-center text-slate-400 text-sm py-4">Nenhuma observação ainda.</p>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-24">
+      <header className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-slate-900">Consolidação</h2>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-full">
+          <Users className="w-4 h-4" />
+          <span className="text-xs font-bold">{newMembers.length} Novos</span>
+        </div>
+      </header>
+
+      <div className="space-y-4">
+        {newMembers.length > 0 ? (
+          newMembers.map(user => (
+            <Card key={user.id} className="flex items-center gap-4 p-3 hover:border-primary cursor-pointer transition-all" onClick={() => setSelectedUser(user)}>
+              <img src={user.avatar || `https://picsum.photos/seed/${user.id}/100/100`} className="w-12 h-12 rounded-full object-cover" alt={user.name} />
+              <div className="flex-1">
+                <h4 className="font-bold text-slate-900 text-sm">{user.name}</h4>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold uppercase", getStatusColor(user.memberStatus))}>
+                    {user.memberStatus === 'new_member' ? 'Novo' : 'Visitante'}
+                  </span>
+                  <span className="text-[10px] text-slate-400">{user.joinedAt ? new Date(user.joinedAt).toLocaleDateString('pt-BR') : ''}</span>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-300" />
+            </Card>
+          ))
+        ) : (
+          <div className="text-center py-20 space-y-4">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300">
+              <Users className="w-8 h-8" />
+            </div>
+            <p className="text-slate-500">Nenhum novo membro para consolidação.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, isAdmin, onSwitchToAdmin, showMessage }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void }) => {
 
   const dailyVerse = React.useMemo(() => {
@@ -611,6 +1126,27 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
       </div>
     </header>
 
+    {user?.memberStatus === 'new_member' && (
+      <Card className="bg-amber-50 border-amber-200 border-2 relative overflow-hidden group">
+        <div className="relative z-10 flex gap-4">
+          <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 shrink-0">
+            <Heart className="w-6 h-6 animate-pulse" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="font-bold text-amber-900">Seja bem-vindo à Renovar!</h4>
+            <p className="text-sm text-amber-700 leading-tight">Ficamos muito felizes em ter você aqui. Queremos te conhecer melhor!</p>
+            <button 
+              onClick={() => onTabChange('profile')}
+              className="text-[10px] font-bold text-amber-800 bg-white px-3 py-1.5 rounded-lg border border-amber-200 mt-2 shadow-sm hover:bg-amber-50 transition-colors uppercase tracking-wider"
+            >
+              Completar Cadastro
+            </button>
+          </div>
+        </div>
+        <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-amber-100/50 rounded-full blur-2xl group-hover:bg-amber-100 transition-all"></div>
+      </Card>
+    )}
+
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-slate-900">Ações Rápidas</h3>
@@ -620,6 +1156,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
         {[
           { icon: BookOpen, label: 'Planos', color: 'bg-emerald-500', action: onShowReadingPlans },
           { icon: Mic, label: 'Sermões', color: 'bg-orange-500', action: () => onTabChange('sermons') },
+          { icon: Music, label: 'Ministérios', color: 'bg-teal-500', action: () => onTabChange('ministries') },
           { icon: Calendar, label: 'Agenda', color: 'bg-blue-500', action: () => onTabChange('events') },
           { icon: Home, label: 'PGs', color: 'bg-purple-500', action: () => onTabChange('groups') },
           { icon: Heart, label: 'Visita', color: 'bg-rose-500', action: onRequestPastoralVisit },
@@ -1391,7 +1928,7 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
     </header>
 
     <div className="grid grid-cols-2 gap-4">
-      <Card className="bg-emerald-50 border-emerald-100 p-4 space-y-2">
+      <Card className="bg-emerald-50 border-emerald-100 p-4 space-y-2 cursor-pointer hover:bg-emerald-100 transition-colors" onClick={() => onTabChange?.('members')}>
         <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white">
           <Users className="w-6 h-6" />
         </div>
@@ -1399,37 +1936,38 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
           <p className="text-xs text-emerald-600 font-bold uppercase tracking-wider">Membros</p>
           <p className="text-2xl font-bold text-slate-900">{stats.members}</p>
         </div>
-        <p className="text-[10px] text-emerald-600 font-medium">+12 este mês</p>
       </Card>
-      <Card className="bg-blue-50 border-blue-100 p-4 space-y-2">
-        <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center text-white">
-          <Home className="w-6 h-6" />
+      <Card className="bg-amber-50 border-amber-100 p-4 space-y-2 cursor-pointer hover:bg-amber-100 transition-colors" onClick={() => onTabChange?.('integration')}>
+        <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white relative">
+          <Users className="w-6 h-6" />
+          {users.filter(u => u.memberStatus === 'new_member').length > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-white animate-bounce">
+              {users.filter(u => u.memberStatus === 'new_member').length}
+            </span>
+          )}
         </div>
         <div>
-          <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">PGs</p>
-          <p className="text-2xl font-bold text-slate-900">{stats.cells}</p>
+          <p className="text-xs text-amber-600 font-bold uppercase tracking-wider">Consolidação</p>
+          <p className="text-2xl font-bold text-slate-900">{users.filter(u => u.memberStatus === 'new_member' || u.memberStatus === 'visitor').length}</p>
         </div>
-        <p className="text-[10px] text-blue-600 font-medium">Ativas</p>
       </Card>
-      <Card className="bg-amber-50 border-amber-100 p-4 space-y-2">
-        <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white">
+      <Card className="bg-blue-50 border-blue-100 p-4 space-y-2 cursor-pointer hover:bg-blue-100 transition-colors" onClick={() => onTabChange?.('financial')}>
+        <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center text-white">
           <DollarSign className="w-6 h-6" />
         </div>
         <div>
-          <p className="text-xs text-amber-600 font-bold uppercase tracking-wider">Caixa</p>
+          <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Financeiro</p>
           <p className="text-xl font-bold text-slate-900">R$ {stats.balance.toLocaleString()}</p>
         </div>
-        <p className="text-[10px] text-amber-600 font-medium">Saldo Real</p>
       </Card>
-      <Card className="bg-purple-50 border-purple-100 p-4 space-y-2">
+      <Card className="bg-purple-50 border-purple-100 p-4 space-y-2 cursor-pointer hover:bg-purple-100 transition-colors" onClick={() => onTabChange?.('events')}>
         <div className="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center text-white">
           <Calendar className="w-6 h-6" />
         </div>
         <div>
-          <p className="text-xs text-purple-600 font-bold uppercase tracking-wider">Eventos</p>
+          <p className="text-xs text-purple-600 font-bold uppercase tracking-wider">Agenda</p>
           <p className="text-2xl font-bold text-slate-900">{stats.events}</p>
         </div>
-        <p className="text-[10px] text-purple-600 font-medium">Agendados</p>
       </Card>
     </div>
 
@@ -1567,6 +2105,8 @@ const AdminAllScreens = ({ onTabChange }: { onTabChange: (tab: string) => void }
     { id: 'financial', label: 'Gestão Financeira', icon: DollarSign, color: 'bg-amber-500' },
     { id: 'prayer', label: 'Mural de Orações', icon: Heart, color: 'bg-red-500' },
     { id: 'members', label: 'Gestão de Membros', icon: Users, color: 'bg-blue-500' },
+    { id: 'integration', label: 'Consolidação de Membros', icon: Users, color: 'bg-emerald-500' },
+    { id: 'ministries', label: 'Ministérios e Escalas', icon: Music, color: 'bg-teal-500' },
     { id: 'readingPlans', label: 'Planos de Leitura', icon: TrendingUp, color: 'bg-emerald-500' },
     { id: 'events', label: 'Agenda de Eventos', icon: Calendar, color: 'bg-purple-500' },
     { id: 'announcements', label: 'Avisos e Notícias', icon: Bell, color: 'bg-orange-500' },
@@ -2976,6 +3516,8 @@ export default function App() {
   const [verseHighlights, setVerseHighlights] = useState<VerseHighlight[]>([]);
   const [attendanceHistory, setAttendanceHistory] = useState<Attendance[]>([]);
   const [pastoralVisits, setPastoralVisits] = useState<PastoralVisit[]>([]);
+  const [ministries, setMinistries] = useState<Ministry[]>([]);
+  const [ministrySchedules, setMinistrySchedules] = useState<MinistrySchedule[]>([]);
   const [userReadingProgress, setUserReadingProgress] = useState<Record<string, string[]>>({});
   const [allUserProgress, setAllUserProgress] = useState<Record<string, Record<string, string[]>>>({});
   const [titheConfig, setTitheConfig] = useState<TitheConfig>({ pixKey: '', bankName: '', accountHolder: '' });
@@ -3131,6 +3673,8 @@ export default function App() {
     }, 2000));
     unsubscribes.push(api.subscribe('attendance', setAttendanceHistory, 2000));
     unsubscribes.push(api.subscribe('pastoralVisits', setPastoralVisits, 2000));
+    unsubscribes.push(api.subscribe('ministries', setMinistries, 2000));
+    unsubscribes.push(api.subscribe('ministrySchedules', setMinistrySchedules, 2000));
     unsubscribes.push(api.subscribe('config', (data) => {
       const tConfig = data.find((c: any) => c.id === 'tithes');
       if (tConfig) setTitheConfig(tConfig);
@@ -3205,6 +3749,93 @@ export default function App() {
       const highlights = await api.list('verseHighlights');
       setVerseHighlights(highlights.filter((h: any) => h.uid === currentUserData.id));
       handleApiError(err, 'toggleVerseHighlight');
+    }
+  };
+
+  const updateAnyUser = async (userId: string, data: Partial<UserType>) => {
+    try {
+      const userToUpdate = users.find(u => u.id === userId);
+      if (!userToUpdate) return;
+      
+      const originalUsers = [...users];
+      const updatedUser = { ...userToUpdate, ...data };
+      setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+      
+      if (currentUserData?.id === userId) {
+        setCurrentUserData(updatedUser);
+      }
+
+      await api.update('users', userId, data);
+    } catch (err) {
+      handleApiError(err, 'updateAnyUser');
+    }
+  };
+
+  const addMinistry = async (data: Partial<Ministry>) => {
+    try {
+      await api.create('ministries', {
+        ...data,
+        leaderIds: data.leaderIds || [],
+        memberIds: data.memberIds || [],
+        pendingRequestIds: data.pendingRequestIds || [],
+      });
+      handleApiSuccess('Ministério criado com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'addMinistry');
+    }
+  };
+
+  const updateMinistry = async (id: string, data: Partial<Ministry>) => {
+    try {
+      await api.update('ministries', id, data);
+      handleApiSuccess('Ministério atualizado!');
+    } catch (err) {
+      handleApiError(err, 'updateMinistry');
+    }
+  };
+
+  const requestJoinMinistry = async (ministryId: string) => {
+    if (!currentUserData) return;
+    const ministry = ministries.find(m => m.id === ministryId);
+    if (!ministry) return;
+    if (ministry.pendingRequestIds.includes(currentUserData.id) || ministry.memberIds.includes(currentUserData.id)) return;
+    
+    try {
+      await api.update('ministries', ministryId, {
+        pendingRequestIds: [...ministry.pendingRequestIds, currentUserData.id]
+      });
+      handleApiSuccess('Solicitação enviada com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'requestJoinMinistry');
+    }
+  };
+
+  const manageMinistryRequest = async (ministryId: string, userId: string, action: 'approve' | 'reject') => {
+    const ministry = ministries.find(m => m.id === ministryId);
+    if (!ministry) return;
+    
+    try {
+      const pending = ministry.pendingRequestIds.filter(id => id !== userId);
+      const members = action === 'approve' 
+        ? [...new Set([...ministry.memberIds, userId])] 
+        : ministry.memberIds;
+        
+      await api.update('ministries', ministryId, {
+        pendingRequestIds: pending,
+        memberIds: members
+      });
+      handleApiSuccess(`Solicitação ${action === 'approve' ? 'aprovada' : 'rejeitada'}!`);
+    } catch (err) {
+      handleApiError(err, 'manageMinistryRequest');
+    }
+  };
+
+  const addMinistrySchedule = async (schedule: Partial<MinistrySchedule>) => {
+    try {
+      await api.create('ministrySchedules', schedule);
+      handleApiSuccess('Escala criada com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'addMinistrySchedule');
     }
   };
 
@@ -3802,6 +4433,8 @@ const joinCell = async (cellId: string) => {
         case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} showMessage={showMessage} />;
         case 'groups': return <GroupsScreen cells={cells} users={users} isAdmin currentUser={currentUserData} onAdd={() => setShowAddCell(true)} onDelete={deleteCell} onEdit={(c) => { setEditingCell(c); setShowAddCell(true); }} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
         case 'members': return <MembersScreen users={users} cells={cells} currentUserRole={userRole} onUpdateRole={updateMemberRole} showMessage={showMessage} />;
+        case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
+        case 'integration': return <IntegrationScreen users={users} onUpdateUser={updateAnyUser} showMessage={showMessage} />;
         case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
@@ -3844,6 +4477,7 @@ const joinCell = async (cellId: string) => {
       case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} />;
       case 'sermons': return <SermonsScreen sermons={sermons} />;
       case 'tithes': return <TithesScreen config={titheConfig} onConfirmDonation={(val, label) => addTransaction({ label, value: val, type: 'in' })} showMessage={showMessage} currentUserData={currentUserData} />;
+      case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
       case 'groups': return <GroupsScreen cells={cells} users={users} currentUser={currentUserData} onJoin={joinCell} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
       case 'media': return <MediaScreen showMessage={showMessage} />;
       case 'pastoral': return <UserPastoralVisitsScreen visits={pastoralVisits.filter(v => v.uid === currentUserData?.id)} onAddRequest={() => setShowAddPastoralVisit(true)} />;
@@ -3890,7 +4524,6 @@ const joinCell = async (cellId: string) => {
     { id: 'pastoral', icon: Heart, label: 'Visitas' },
     { id: 'sermons', icon: Mic, label: 'Sermões' },
     { id: 'prayer', icon: Heart, label: 'Mural' },
-    { id: 'members', icon: Users, label: 'Membros' },
     { id: 'profile', icon: Settings, label: 'Perfil' },
   ];
 

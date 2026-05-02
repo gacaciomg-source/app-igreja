@@ -252,6 +252,57 @@ async function startServer() {
   };
 
   await ensureSuperAdmin();
+  
+  const ensureMinistries = async () => {
+    try {
+      const ministries = await storage.readCollection<any>("ministries");
+      if (ministries.length === 0) {
+        console.log("Criando ministérios padrão...");
+        const defaultMinistries = [
+          {
+            id: uuidv4(),
+            name: "Louvor e Adoração",
+            description: "Ministério responsável pela música e direção do louvor nos cultos.",
+            category: "Celebração",
+            leaderIds: [],
+            memberIds: [],
+            pendingRequestIds: [],
+            imageUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=1000",
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: uuidv4(),
+            name: "Mídia e Tecnologia",
+            description: "Responsável pela transmissão ao vivo, projeção, redes sociais e site.",
+            category: "Suporte",
+            leaderIds: [],
+            memberIds: [],
+            pendingRequestIds: [],
+            imageUrl: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000",
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: uuidv4(),
+            name: "Intercessão",
+            description: "Grupo dedicado à oração e cobertura espiritual da igreja e membros.",
+            category: "Espiritual",
+            leaderIds: [],
+            memberIds: [],
+            pendingRequestIds: [],
+            imageUrl: "https://images.unsplash.com/photo-1499209974431-9014009774a7?q=80&w=1000",
+            createdAt: new Date().toISOString()
+          }
+        ];
+        for (const m of defaultMinistries) {
+          await storage.insert("ministries", m);
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao garantir ministérios:", e);
+    }
+  };
+
+  await ensureMinistries();
 
   // Logging middleware
   app.use((req, res, next) => {
@@ -277,9 +328,10 @@ async function startServer() {
   app.post("/api/auth/register", async (req, res) => {
     try {
       const { name, email, password, age, address, phone } = req.body;
+      const normalizedEmail = email.toLowerCase();
       const users = await storage.readCollection<any>("users");
       
-      if (email === "admin" || users.find(u => u.email === email)) {
+      if (normalizedEmail === "admin" || users.find(u => u.email && u.email.toLowerCase() === normalizedEmail)) {
         return res.status(400).json({ error: "E-mail já cadastrado ou reservado" });
       }
 
@@ -287,12 +339,14 @@ async function startServer() {
       const newUser = {
         id: uuidv4(),
         name,
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         role: "member", // Everyone starts as member now
         age: parseInt(age) || 0,
         address: address || "",
         phone: phone || "",
+        memberStatus: "new_member",
+        joinedAt: new Date().toISOString(),
         createdAt: new Date().toISOString()
       };
 
@@ -310,8 +364,9 @@ async function startServer() {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
+      const normalizedEmail = email.toLowerCase();
       const users = await storage.readCollection<any>("users");
-      const user = users.find(u => u.email === email);
+      const user = users.find(u => u.email && u.email.toLowerCase() === normalizedEmail);
 
       if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ error: "Credenciais inválidas" });
@@ -469,6 +524,8 @@ async function startServer() {
     app.use(express.static(distPath));
     app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
+
+  await ensureMinistries();
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

@@ -6,6 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export type UserRole = 'member' | 'leader' | 'admin' | 'superadmin';
+export type MemberStatus = 'visitor' | 'new_member' | 'integrated' | 'active' | 'inactive';
 
 export interface User {
   id: string;
@@ -19,6 +20,9 @@ export interface User {
   address?: string;
   leaderOf?: string; // ID of the CellGroup they lead
   cellIds?: string[]; // IDs of the CellGroups they belong to
+  memberStatus?: MemberStatus;
+  integrationNotes?: string[];
+  joinedAt?: string;
   notificationSettings?: {
     wordOfDayEnabled: boolean;
     wordOfDayTime: string; // HH:mm
@@ -151,6 +155,28 @@ export interface TitheTransaction {
   date: string;
   type: 'tithe' | 'offering' | 'love_offering';
   status: 'pending' | 'completed';
+}
+
+export interface Ministry {
+  id: string;
+  name: string;
+  description: string;
+  leaderIds: string[];
+  memberIds: string[];
+  pendingRequestIds: string[];
+  imageUrl?: string;
+  category: string;
+}
+
+export interface MinistrySchedule {
+  id: string;
+  ministryId: string;
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  assignedUserIds: string[];
+  notes?: string;
 }
 
 export interface WhatsAppConfig {

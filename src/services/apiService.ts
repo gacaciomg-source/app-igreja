@@ -27,7 +27,10 @@ class ApiService {
         if (response.status === 401 || response.status === 403) {
           this.logout();
           // Force reload to clear app state if not handled by components
-          if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth')) {
+          // But only if we're not already at root and not in a login attempt
+          if (typeof window !== 'undefined' && 
+              window.location.pathname !== '/' && 
+              !path.includes('/auth/login')) {
             window.location.href = '/';
           }
         }
