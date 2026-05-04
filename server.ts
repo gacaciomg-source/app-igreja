@@ -6,7 +6,7 @@ import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
-import * as storage from "./src/lib/storage.ts";
+import * as storage from "./src/lib/storage";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode';
@@ -219,6 +219,39 @@ cron.schedule('0 0 * * *', async () => {
     timezone: "America/Sao_Paulo"
 });
 
+// Schedule ministry notifications (3 days before)
+cron.schedule('30 8 * * *', async () => {
+    console.log('Running ministry schedule reminder check...');
+    try {
+        const schedules = await storage.readCollection<any>("ministrySchedules");
+        const users = await storage.readCollection<any>("users");
+        const today = new Date();
+        const targetDate = new Date();
+        targetDate.setDate(today.getDate() + 3);
+        
+        const targetDateStr = targetDate.toISOString().split('T')[0];
+
+        const upcomingSchedules = schedules.filter(s => s.date === targetDateStr);
+        
+        for (const schedule of upcomingSchedules) {
+            for (const userId of schedule.assignedUserIds) {
+                const user = users.find(u => u.id === userId);
+                if (user && user.phone) {
+                    const chatId = await getWhatsAppChatId(user.phone);
+                    if (chatId) {
+                        const message = `📢 *Lembrete de Escala*\n\nOlá *${user.name}*, você está escalado para o ministério no dia *${new Date(schedule.date).toLocaleDateString('pt-BR')}* às *${schedule.time}*.\n\n📍 Local: ${schedule.location}\n📝 Evento: ${schedule.title}\n\n*Por favor, confirme sua presença no aplicativo ou responda aqui.*`;
+                        await whatsappClient.sendMessage(chatId, message);
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to run ministry reminders:', e);
+    }
+}, {
+    timezone: "America/Sao_Paulo"
+});
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -324,6 +357,10 @@ async function startServer() {
     });
   };
 
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", time: new Date().toISOString() });
+  });
+
   // --- Auth API ---
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -331,8 +368,40 @@ async function startServer() {
       const normalizedEmail = email.toLowerCase();
       const users = await storage.readCollection<any>("users");
       
-      if (normalizedEmail === "admin" || users.find(u => u.email && u.email.toLowerCase() === normalizedEmail)) {
-        return res.status(400).json({ error: "E-mail já cadastrado ou reservado" });
+      // Check if user already exists (by email or phone)
+      const existingUser = users.find(u => 
+        (u.email && u.email.toLowerCase() === normalizedEmail) || 
+        (phone && u.phone && u.phone.replace(/\D/g, '') === phone.replace(/\D/g, ''))
+      );
+
+      if (existingUser) {
+        // If it was a pre-registration (visitor) and doesn't have a password yet
+        if (existingUser.isPreRegistered && !existingUser.password) {
+          const hashedPassword = await bcrypt.hash(password, 10);
+          const updatedUser = {
+            ...existingUser,
+            name: name || existingUser.name,
+            email: normalizedEmail,
+            password: hashedPassword,
+            age: parseInt(age) || existingUser.age || 0,
+            address: address || existingUser.address || "",
+            phone: phone || existingUser.phone || "",
+            memberStatus: "new_member", // Advance status from visitor to new_member
+            joinedAt: existingUser.joinedAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            isPreRegistered: false // No longer just a placeholder
+          };
+
+          await storage.update("users", existingUser.id, updatedUser);
+          
+          const { password: _, ...userWithoutPassword } = updatedUser;
+          const token = jwt.sign({ id: updatedUser.id, role: updatedUser.role, name: updatedUser.name }, JWT_SECRET, { expiresIn: '30d' });
+          return res.json({ user: userWithoutPassword, token });
+        } else if (normalizedEmail === "admin") {
+           return res.status(400).json({ error: "E-mail reservado" });
+        } else {
+          return res.status(400).json({ error: "E-mail ou telefone já cadastrado" });
+        }
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -341,7 +410,7 @@ async function startServer() {
         name,
         email: normalizedEmail,
         password: hashedPassword,
-        role: "member", // Everyone starts as member now
+        role: "member",
         age: parseInt(age) || 0,
         address: address || "",
         phone: phone || "",
@@ -357,6 +426,7 @@ async function startServer() {
       
       res.json({ user: userWithoutPassword, token });
     } catch (error) {
+      console.error("Registration error:", error);
       res.status(500).json({ error: "Erro ao registrar" });
     }
   });
@@ -515,6 +585,50 @@ async function startServer() {
     }
   });
 
+  // --- Ministry Confirmation API ---
+  app.post("/api/ministries/confirm", authenticateToken, async (req: any, res) => {
+    try {
+      const { scheduleId, status } = req.body; // status: 'confirmed' | 'declined'
+      const userId = req.user.id;
+      
+      const schedules = await storage.readCollection<any>("ministrySchedules");
+      const schedule = schedules.find(s => s.id === scheduleId);
+      
+      if (!schedule) return res.status(404).json({ error: "Escala não encontrada" });
+      
+      const confirmations = schedule.confirmations || {};
+      confirmations[userId] = status;
+      
+      await storage.update<any>("ministrySchedules", scheduleId, { confirmations });
+      
+      // Notify Ministry Leader
+      const ministries = await storage.readCollection<any>("ministries");
+      const ministry = ministries.find(m => m.id === schedule.ministryId);
+      const users = await storage.readCollection<any>("users");
+      const user = users.find(u => u.id === userId);
+      
+      if (ministry && ministry.leaderIds && ministry.leaderIds.length > 0) {
+        const leaders = users.filter(u => ministry.leaderIds.includes(u.id));
+        const statusText = status === 'confirmed' ? 'CONFIRMOU' : 'DESMARCOU';
+        const message = `🔔 *Notificação de Escala*\n\nO membro *${user?.name || 'Desconhecido'}* ${statusText} a presença para a escala:\n\n📅 Data: ${new Date(schedule.date).toLocaleDateString('pt-BR')}\n⏰ Hora: ${schedule.time}\n📝 Evento: ${schedule.title}`;
+        
+        for (const leader of leaders) {
+          if (leader.phone) {
+            const chatId = await getWhatsAppChatId(leader.phone);
+            if (chatId) {
+              await whatsappClient.sendMessage(chatId, message);
+            }
+          }
+        }
+      }
+      
+      res.json({ success: true, scheduleId, status });
+    } catch (e) {
+      console.error("Error confirming ministry schedule:", e);
+      res.status(500).json({ error: "Erro ao processar confirmação" });
+    }
+  });
+
   // --- Vite / Static files ---
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
@@ -532,4 +646,15 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("CRITICAL ERROR STARTING SERVER:", err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});

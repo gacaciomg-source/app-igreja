@@ -48,6 +48,7 @@ import {
   Phone,
   FileText,
   CheckCircle,
+  XCircle,
   RefreshCw
 } from 'lucide-react';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig } from './types';
@@ -336,7 +337,7 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input 
-                type="email" 
+                type={mode === 'login' ? "text" : "email"}
                 autoCapitalize="none"
                 autoCorrect="off"
                 required
@@ -437,9 +438,9 @@ const DAILY_VERSES = [
 ];
 
 const SHARE_BACKGROUNDS = [
-  { id: 'gradient-blue', class: 'bg-linear-to-br from-blue-500 to-indigo-600', name: 'Azul Moderno' },
-  { id: 'gradient-purple', class: 'bg-linear-to-br from-purple-500 to-pink-600', name: 'Roxo Vibrante' },
-  { id: 'gradient-orange', class: 'bg-linear-to-br from-orange-400 to-rose-500', name: 'Pôr do Sol' },
+  { id: 'gradient-blue', gradient: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)', name: 'Azul Moderno' },
+  { id: 'gradient-purple', gradient: 'linear-gradient(135deg, #a855f7 0%, #db2777 100%)', name: 'Roxo Vibrante' },
+  { id: 'gradient-orange', gradient: 'linear-gradient(135deg, #fb923c 0%, #f43f5e 100%)', name: 'Pôr do Sol' },
   { id: 'nature-1', url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=1000', name: 'Floresta' },
   { id: 'nature-2', url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=1000', name: 'Montanha' },
   { id: 'nature-3', url: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&q=80&w=1000', name: 'Lago' },
@@ -463,11 +464,12 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
       
       const dataUrl = await toPng(verseCardRef.current, { 
         quality: 1, 
-        pixelRatio: 2, // Higher resolution for better quality
+        pixelRatio: 2, 
         cacheBust: true,
         skipFonts: false,
+        backgroundColor: '#1e293b',
         style: {
-          borderRadius: '0', // Ensure it's square/full frame for the image itself
+          borderRadius: '0',
         }
       });
       
@@ -518,17 +520,15 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
         <div className="bg-slate-50 p-4 rounded-3xl border-2 border-slate-100 shadow-inner">
           <div 
             ref={verseCardRef}
-            className={cn(
-              "w-[280px] h-[497px] rounded-2xl flex flex-col items-center justify-center p-8 text-center relative overflow-hidden shadow-2xl",
-              selectedBg.class || ""
-            )}
-            style={selectedBg.url ? { 
-              backgroundImage: `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${selectedBg.url})`,
+            className="w-[280px] h-[497px] rounded-2xl flex flex-col items-center justify-center p-8 text-center relative overflow-hidden shadow-2xl"
+            style={{
+              background: (selectedBg as any).gradient || ((selectedBg as any).url ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${(selectedBg as any).url})` : '#1e293b'),
+              backgroundColor: '#1e293b',
               backgroundSize: 'cover',
-              backgroundPosition: 'center'
-            } : {}}
+              backgroundPosition: 'center',
+            }}
           >
-            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center">
+            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-12 h-12 bg-white/30 rounded-full flex items-center justify-center">
               <Home className="text-white w-6 h-6" />
             </div>
             
@@ -544,6 +544,7 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
 
             <div className="absolute bottom-8 left-0 right-0 text-center">
               <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">Igreja Renovar</p>
+              <p className="text-white/40 text-[9px] font-medium tracking-[0.1em] mt-0.5">@igrejarenovaroficial</p>
             </div>
 
             {/* Decorative Elements */}
@@ -566,8 +567,11 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
               )}
             >
               <div 
-                className={cn("w-full h-full", bg.class || "")}
-                style={bg.url ? { backgroundImage: `url(${bg.url})`, backgroundSize: 'cover' } : {}}
+                className="w-full h-full"
+                style={{ 
+                  background: (bg as any).gradient || (bg.url ? `url(${bg.url})` : undefined),
+                  backgroundSize: 'cover'
+                }}
               />
               <div className="absolute inset-0 flex items-end p-1">
                 <span className="text-[8px] font-bold text-white leading-none whitespace-nowrap bg-black/40 px-1 rounded truncate w-full">
@@ -731,11 +735,22 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
                       </p>
                     </div>
                   </div>
-                  <div className="mt-3 flex -space-x-2">
+            <div className="mt-3 flex -space-x-2">
                     {sch.assignedUserIds.map(uid => {
                       const u = users.find(user => user.id === uid);
+                      const status = sch.confirmations?.[uid];
                       return (
-                        <img key={uid} src={u?.avatar || `https://picsum.photos/seed/${uid}/100/100`} className="w-6 h-6 rounded-full border-2 border-white" title={u?.name} />
+                        <div key={uid} className="relative">
+                          <img src={u?.avatar || `https://picsum.photos/seed/${uid}/100/100`} className="w-8 h-8 rounded-full border-2 border-white object-cover" title={u?.name} />
+                          {status && (
+                            <div className={cn(
+                              "absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center",
+                              status === 'confirmed' ? "bg-emerald-500" : "bg-red-500"
+                            )}>
+                              {status === 'confirmed' ? <CheckCircle className="w-2 h-2 text-white" /> : <XCircle className="w-2 h-2 text-white" />}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -939,10 +954,38 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
   );
 };
 
-const IntegrationScreen = ({ users, onUpdateUser, showMessage }: { users: UserType[], onUpdateUser: (userId: string, updates: Partial<UserType>) => void, showMessage?: (msg: string) => void }) => {
+const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { users: UserType[], onUpdateUser: (userId: string, updates: Partial<UserType>) => void, onAddUser: (user: Partial<UserType>) => void, showMessage?: (msg: string) => void }) => {
   const newMembers = users.filter(u => u.memberStatus === 'new_member' || u.memberStatus === 'visitor');
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [newNote, setNewNote] = useState('');
+  const [showAddVisitor, setShowAddVisitor] = useState(false);
+  const [visitorForm, setVisitorForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    age: '',
+    address: ''
+  });
+
+  const handleAddVisitor = () => {
+    if (!visitorForm.name || (!visitorForm.email && !visitorForm.phone)) {
+      showMessage?.('Nome e e-mail/telefone são obrigatórios');
+      return;
+    }
+
+    onAddUser({
+      ...visitorForm,
+      age: parseInt(visitorForm.age) || 0,
+      memberStatus: 'visitor',
+      joinedAt: new Date().toISOString(),
+      role: 'member',
+      isPreRegistered: true, // Flag to identify admin-created accounts
+      integrationNotes: [`${new Date().toLocaleDateString('pt-BR')}: Visitante criado pelo administrador.`]
+    });
+
+    setShowAddVisitor(false);
+    setVisitorForm({ name: '', email: '', phone: '', age: '', address: '' });
+  };
 
   const handleUpdateStatus = (userId: string, status: MemberStatus) => {
     onUpdateUser(userId, { memberStatus: status });
@@ -972,17 +1015,80 @@ const IntegrationScreen = ({ users, onUpdateUser, showMessage }: { users: UserTy
     }
   };
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<UserType>>({});
+
+  const handleStartEdit = () => {
+    if (!selectedUser) return;
+    setEditForm(selectedUser);
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!selectedUser) return;
+    onUpdateUser(selectedUser.id, editForm);
+    setSelectedUser({ ...selectedUser, ...editForm });
+    setIsEditing(false);
+    showMessage?.('Dados atualizados');
+  };
+
   if (selectedUser) {
     return (
       <div className="space-y-6 pb-24">
-        <header className="flex items-center gap-4">
-          <button onClick={() => setSelectedUser(null)} className="p-2 hover:bg-slate-100 rounded-full">
-            <ArrowLeft className="w-6 h-6 text-slate-400" />
-          </button>
-          <h2 className="text-xl font-bold text-slate-900">Acompanhamento: {selectedUser.name}</h2>
+        <header className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => { setSelectedUser(null); setIsEditing(false); }} className="p-2 hover:bg-slate-100 rounded-full">
+              <ArrowLeft className="w-6 h-6 text-slate-400" />
+            </button>
+            <h2 className="text-xl font-bold text-slate-900">Acompanhamento: {selectedUser.name}</h2>
+          </div>
+          {!isEditing && (
+            <button onClick={handleStartEdit} className="p-2 bg-slate-100 text-slate-500 rounded-full">
+              <Settings className="w-5 h-5" />
+            </button>
+          )}
         </header>
 
-        <Card className="space-y-4">
+        {isEditing ? (
+          <Card className="space-y-4">
+            <h3 className="font-bold text-sm text-slate-400 uppercase">Editar Dados</h3>
+            <div className="space-y-3">
+              <input 
+                type="text" 
+                value={editForm.name || ''} 
+                onChange={e => setEditForm({...editForm, name: e.target.value})}
+                placeholder="Nome"
+                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+              />
+              <input 
+                type="email" 
+                value={editForm.email || ''} 
+                onChange={e => setEditForm({...editForm, email: e.target.value})}
+                placeholder="E-mail"
+                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+              />
+              <input 
+                type="tel" 
+                value={editForm.phone || ''} 
+                onChange={e => setEditForm({...editForm, phone: e.target.value})}
+                placeholder="Telefone"
+                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+              />
+              <input 
+                type="text" 
+                value={editForm.address || ''} 
+                onChange={e => setEditForm({...editForm, address: e.target.value})}
+                placeholder="Endereço"
+                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={handleSaveEdit}>Salvar</Button>
+              <button onClick={() => setIsEditing(false)} className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold">Cancelar</button>
+            </div>
+          </Card>
+        ) : (
+          <Card className="space-y-4">
           <div className="flex justify-between items-center">
             <span className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider", getStatusColor(selectedUser.memberStatus))}>
               {selectedUser.memberStatus === 'new_member' ? 'Novo Membro' : 
@@ -1031,8 +1137,9 @@ const IntegrationScreen = ({ users, onUpdateUser, showMessage }: { users: UserTy
             </div>
           </div>
         </Card>
+      )}
 
-        <div className="space-y-4">
+      <div className="space-y-4">
           <h3 className="font-bold text-slate-900">Observações de Acompanhamento</h3>
           <div className="flex gap-2">
             <input 
@@ -1066,9 +1173,17 @@ const IntegrationScreen = ({ users, onUpdateUser, showMessage }: { users: UserTy
     <div className="space-y-6 pb-24">
       <header className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-900">Consolidação</h2>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-full">
-          <Users className="w-4 h-4" />
-          <span className="text-xs font-bold">{newMembers.length} Novos</span>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setShowAddVisitor(true)}
+            className="p-2 bg-primary text-white rounded-full shadow-lg"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-full">
+            <Users className="w-4 h-4" />
+            <span className="text-xs font-bold">{newMembers.length} Novos</span>
+          </div>
         </div>
       </header>
 
@@ -1098,6 +1213,79 @@ const IntegrationScreen = ({ users, onUpdateUser, showMessage }: { users: UserTy
           </div>
         )}
       </div>
+
+      {showAddVisitor && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center animate-in fade-in p-4">
+          <Card className="w-full max-w-md rounded-3xl p-6 space-y-4">
+            <header className="flex justify-between items-center">
+              <h3 className="text-xl font-bold">Criar Visitante</h3>
+              <button onClick={() => setShowAddVisitor(false)} className="p-2 bg-slate-100 rounded-full"><LogOut className="w-5 h-5 rotate-180" /></button>
+            </header>
+            
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase">Nome Completo</label>
+                <input 
+                  type="text" 
+                  value={visitorForm.name} 
+                  onChange={e => setVisitorForm({...visitorForm, name: e.target.value})} 
+                  placeholder="Nome do visitante"
+                  className="w-full p-3 bg-slate-50 rounded-xl text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase">Telefone</label>
+                  <input 
+                    type="tel" 
+                    value={visitorForm.phone} 
+                    onChange={e => setVisitorForm({...visitorForm, phone: e.target.value})} 
+                    placeholder="(00) 00000-0000"
+                    className="w-full p-3 bg-slate-50 rounded-xl text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase">Idade</label>
+                  <input 
+                    type="number" 
+                    value={visitorForm.age} 
+                    onChange={e => setVisitorForm({...visitorForm, age: e.target.value})} 
+                    placeholder="Opcional"
+                    className="w-full p-3 bg-slate-50 rounded-xl text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase">E-mail</label>
+                <input 
+                  type="email" 
+                  value={visitorForm.email} 
+                  onChange={e => setVisitorForm({...visitorForm, email: e.target.value})} 
+                  placeholder="exemplo@email.com"
+                  className="w-full p-3 bg-slate-50 rounded-xl text-sm"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400 uppercase">Endereço</label>
+                <input 
+                  type="text" 
+                  value={visitorForm.address} 
+                  onChange={e => setVisitorForm({...visitorForm, address: e.target.value})} 
+                  placeholder="Rua, número, bairro"
+                  className="w-full p-3 bg-slate-50 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <Button className="w-full" onClick={handleAddVisitor}>
+              Salvar Visitante
+            </Button>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
@@ -2490,7 +2678,74 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
   );
 };
 
-const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastoralVisits, whatsappConfig, onUpdateWhatsApp, isAdmin, onSwitchToAdmin, onSwitchToMember, showMessage, onOpenNotifications }: { onLogout: () => void, user: UserType | null, onUpdateProfile: (data: Partial<UserType>) => Promise<void>, stats: { cells: number, prayers: number }, prayers?: PrayerRequest[], pastoralVisits?: PastoralVisit[], whatsappConfig?: WhatsAppConfig, onUpdateWhatsApp?: (data: WhatsAppConfig) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, onSwitchToMember?: () => void, showMessage: (msg: string) => void, onOpenNotifications?: () => void }) => {
+const MySchedulesScreen = ({ schedules, ministries, currentUser, onConfirm, onDecline, onClose }: { schedules: MinistrySchedule[], ministries: Ministry[], currentUser: UserType | null, onConfirm: (id: string) => void, onDecline: (id: string) => void, onClose: () => void }) => {
+  return (
+    <div className="space-y-6 pb-24">
+      <header className="flex items-center gap-4">
+        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
+          <ArrowLeft className="w-6 h-6 text-slate-400" />
+        </button>
+        <h2 className="text-2xl font-bold text-slate-900">Minhas Escalas</h2>
+      </header>
+
+      <div className="space-y-4">
+        {schedules.map(sch => {
+          const ministry = ministries.find(m => m.id === sch.ministryId);
+          const confirmation = currentUser ? sch.confirmations?.[currentUser.id] : undefined;
+
+          return (
+            <Card key={sch.id} className="space-y-4 border-l-4 border-l-primary">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-wider">{ministry?.name}</p>
+                  <h4 className="font-bold text-slate-900">{sch.title}</h4>
+                  <div className="space-y-1 mt-2">
+                    <p className="text-xs text-slate-500 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" /> {new Date(sch.date).toLocaleDateString('pt-BR')} às {sch.time}
+                    </p>
+                    <p className="text-xs text-slate-500 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" /> {sch.location}
+                    </p>
+                  </div>
+                </div>
+                {confirmation && (
+                  <span className={cn(
+                    "px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider",
+                    confirmation === 'confirmed' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                  )}>
+                    {confirmation === 'confirmed' ? 'Confirmado' : 'Recusado'}
+                  </span>
+                )}
+              </div>
+
+              {!confirmation && (
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" className="flex-1 text-red-500 border-red-100 hover:bg-red-50" onClick={() => onDecline(sch.id)}>
+                    <XCircle className="w-4 h-4" /> Não posso ir
+                  </Button>
+                  <Button className="flex-1" onClick={() => onConfirm(sch.id)}>
+                    <CheckCircle className="w-4 h-4" /> Confirmar Presença
+                  </Button>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+
+        {schedules.length === 0 && (
+          <div className="text-center py-12 space-y-4">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300">
+              <Calendar className="w-8 h-8" />
+            </div>
+            <p className="text-slate-500">Você não tem escalas agendadas.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastoralVisits, schedules, ministries, whatsappConfig, onUpdateWhatsApp, isAdmin, onSwitchToAdmin, onSwitchToMember, showMessage, onOpenNotifications }: { onLogout: () => void, user: UserType | null, onUpdateProfile: (data: Partial<UserType>) => Promise<void>, stats: { cells: number, prayers: number }, prayers?: PrayerRequest[], pastoralVisits?: PastoralVisit[], schedules?: MinistrySchedule[], ministries?: Ministry[], whatsappConfig?: WhatsAppConfig, onUpdateWhatsApp?: (data: WhatsAppConfig) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, onSwitchToMember?: () => void, showMessage: (msg: string) => void, onOpenNotifications?: () => void }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
   const [form, setForm] = useState({
@@ -2501,6 +2756,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
   });
   const [showMyPrayers, setShowMyPrayers] = useState(false);
   const [showMyVisits, setShowMyVisits] = useState(false);
+  const [showMySchedules, setShowMySchedules] = useState(false);
 
   const handleUpdate = async () => {
     try {
@@ -2530,6 +2786,15 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
     }
   };
 
+  const confirmSchedule = async (id: string, status: 'confirmed' | 'declined') => {
+    try {
+      await api.confirmMinistrySchedule(id, status);
+      showMessage(status === 'confirmed' ? 'Presença confirmada!' : 'Você recusou esta escala.');
+    } catch (err) {
+      showMessage('Erro ao processar confirmação.');
+    }
+  };
+
   useEffect(() => {
     if (user) {
       setForm({
@@ -2540,6 +2805,11 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
       });
     }
   }, [user]);
+
+  if (showMySchedules) {
+    const mySchedules = schedules?.filter(s => s.assignedUserIds.includes(user?.id || '')) || [];
+    return <MySchedulesScreen schedules={mySchedules} ministries={ministries || []} currentUser={user} onConfirm={(id) => confirmSchedule(id, 'confirmed')} onDecline={(id) => confirmSchedule(id, 'declined')} onClose={() => setShowMySchedules(false)} />;
+  }
 
   if (showMyPrayers) {
     const myPrayers = prayers?.filter(p => p.uid === user?.id) || [];
@@ -2737,6 +3007,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
           isAdmin && onSwitchToMember && { icon: Eye, label: 'Ver como Membro', action: onSwitchToMember },
           { icon: User, label: 'Dados Pessoais', action: () => setIsEditing(true) },
           { icon: Bell, label: 'Notificações', action: onOpenNotifications },
+          { icon: Calendar, label: 'Minhas Escalas', action: () => setShowMySchedules(true) },
           user?.role === 'superadmin' && { icon: MessageSquare, label: 'Configurar WhatsApp', action: () => setShowWhatsAppConfig(true) },
           { icon: Heart, label: 'Meus Pedidos de Oração', action: () => setShowMyPrayers(true) },
           { icon: Heart, label: 'Minhas Solicitações de Visita', action: () => setShowMyVisits(true) },
@@ -3658,33 +3929,33 @@ export default function App() {
     // Dynamic polling based on roles
     const unsubscribes: (() => void)[] = [];
 
-    unsubscribes.push(api.subscribe('events', setEvents, 2000));
+    unsubscribes.push(api.subscribe('events', setEvents, 5000));
     unsubscribes.push(api.subscribe('prayers', (data) => {
       data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setPrayers(data);
-    }, 2000));
-    unsubscribes.push(api.subscribe('cells', setCells, 2000));
-    unsubscribes.push(api.subscribe('users', setUsers, 2000));
-    unsubscribes.push(api.subscribe('announcements', setAnnouncements, 2000));
-    unsubscribes.push(api.subscribe('readingPlans', setReadingPlans, 2000));
-    unsubscribes.push(api.subscribe('sermons', setSermons, 2000));
+    }, 5000));
+    unsubscribes.push(api.subscribe('cells', setCells, 5000));
+    unsubscribes.push(api.subscribe('users', setUsers, 5000));
+    unsubscribes.push(api.subscribe('announcements', setAnnouncements, 5000));
+    unsubscribes.push(api.subscribe('readingPlans', setReadingPlans, 5000));
+    unsubscribes.push(api.subscribe('sermons', setSermons, 5000));
     unsubscribes.push(api.subscribe('verseHighlights', (data) => {
       setVerseHighlights(data.filter((h: any) => h.uid === currentUserData?.id));
-    }, 2000));
-    unsubscribes.push(api.subscribe('attendance', setAttendanceHistory, 2000));
-    unsubscribes.push(api.subscribe('pastoralVisits', setPastoralVisits, 2000));
-    unsubscribes.push(api.subscribe('ministries', setMinistries, 2000));
-    unsubscribes.push(api.subscribe('ministrySchedules', setMinistrySchedules, 2000));
+    }, 5000));
+    unsubscribes.push(api.subscribe('attendance', setAttendanceHistory, 5000));
+    unsubscribes.push(api.subscribe('pastoralVisits', setPastoralVisits, 5000));
+    unsubscribes.push(api.subscribe('ministries', setMinistries, 5000));
+    unsubscribes.push(api.subscribe('ministrySchedules', setMinistrySchedules, 5000));
     unsubscribes.push(api.subscribe('config', (data) => {
       const tConfig = data.find((c: any) => c.id === 'tithes');
       if (tConfig) setTitheConfig(tConfig);
       
       const wConfig = data.find((c: any) => c.id === 'whatsapp');
       if (wConfig) setWhatsappConfig(wConfig);
-    }, 2000));
+    }, 5000));
 
     if (userRole === 'admin' || userRole === 'superadmin') {
-      unsubscribes.push(api.subscribe('transactions', setTransactions, 2000));
+      unsubscribes.push(api.subscribe('transactions', setTransactions, 5000));
     }
 
     return () => unsubscribes.forEach(unsub => unsub());
@@ -3877,6 +4148,15 @@ export default function App() {
     } catch (err) {
       setAnnouncements(prev => prev.filter(a => a.id !== tempAnnouncement.id));
       handleApiError(err, 'addAnnouncement');
+    }
+  };
+
+  const addAnyUser = async (data: Partial<UserType>) => {
+    try {
+      await api.create('users', data);
+      handleApiSuccess('Usuário criado com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'addAnyUser');
     }
   };
 
@@ -4202,7 +4482,7 @@ export default function App() {
       if (myProgress) {
         setUserReadingProgress(myProgress.readingPlans || {});
       }
-    }, 2000);
+    }, 5000);
   }, [isLoggedIn, currentUserData]);
 
   const toggleChapter = async (planId: string, chapter: string) => {
@@ -4434,7 +4714,7 @@ const joinCell = async (cellId: string) => {
         case 'groups': return <GroupsScreen cells={cells} users={users} isAdmin currentUser={currentUserData} onAdd={() => setShowAddCell(true)} onDelete={deleteCell} onEdit={(c) => { setEditingCell(c); setShowAddCell(true); }} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
         case 'members': return <MembersScreen users={users} cells={cells} currentUserRole={userRole} onUpdateRole={updateMemberRole} showMessage={showMessage} />;
         case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
-        case 'integration': return <IntegrationScreen users={users} onUpdateUser={updateAnyUser} showMessage={showMessage} />;
+        case 'integration': return <IntegrationScreen users={users} onUpdateUser={updateAnyUser} onAddUser={addAnyUser} showMessage={showMessage} />;
         case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
@@ -4451,6 +4731,8 @@ const joinCell = async (cellId: string) => {
               stats={{ cells: userCells.length, prayers: userPrayers.length }} 
               prayers={prayers} 
               pastoralVisits={pastoralVisits}
+              schedules={ministrySchedules}
+              ministries={ministries}
               whatsappConfig={whatsappConfig}
               onUpdateWhatsApp={updateWhatsAppConfig}
               isAdmin={isAdmin} 
@@ -4492,6 +4774,8 @@ const joinCell = async (cellId: string) => {
             stats={{ cells: userCells.length, prayers: userPrayers.length }} 
             prayers={prayers} 
             pastoralVisits={pastoralVisits}
+            schedules={ministrySchedules}
+            ministries={ministries}
             whatsappConfig={whatsappConfig}
             onUpdateWhatsApp={updateWhatsAppConfig}
             isAdmin={isAdmin} 

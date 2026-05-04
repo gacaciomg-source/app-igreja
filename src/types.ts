@@ -176,6 +176,7 @@ export interface MinistrySchedule {
   time: string;
   location: string;
   assignedUserIds: string[];
+  confirmations?: Record<string, 'confirmed' | 'declined' | 'pending'>;
   notes?: string;
 }
 

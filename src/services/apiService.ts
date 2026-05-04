@@ -126,6 +126,13 @@ class ApiService {
     });
   }
 
+  async confirmMinistrySchedule(scheduleId: string, status: 'confirmed' | 'declined') {
+    return this.request('/ministries/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ scheduleId, status }),
+    });
+  }
+
   // Simple polling helper for onSnapshot replacement
   subscribe(collection: string, callback: (data: any[]) => void, interval = 5000) {
     const poll = async () => {
