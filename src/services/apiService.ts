@@ -1,8 +1,8 @@
 import { User as UserType } from '../types';
 import { APP_CONFIG } from '../themeConfig';
 
-const IS_NATIVE = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNative;
-const BASE_URL = IS_NATIVE ? APP_CONFIG.apiUrl : '';
+const IS_CAPACITOR = typeof window !== 'undefined' && !!(window as any).Capacitor;
+const BASE_URL = IS_CAPACITOR ? APP_CONFIG.apiUrl : '';
 const API_URL = `${BASE_URL}/api`;
 
 interface AuthResponse {
@@ -22,7 +22,7 @@ class ApiService {
 
     try {
       const url = `${API_URL}${path}`;
-      if (IS_NATIVE) console.log(`API Request: ${url}`);
+      if (IS_CAPACITOR) console.log(`API Request: ${url}`);
       const response = await fetch(url, { ...options, headers });
       
       if (!response.ok) {
@@ -43,7 +43,7 @@ class ApiService {
       return response.json();
     } catch (err) {
       if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
-         if (IS_NATIVE && BASE_URL.includes('ais-dev')) {
+         if (IS_CAPACITOR && BASE_URL.includes('ais-dev')) {
              throw new Error('O servidor AI Studio não aceita conexões do celular. Hospede o app (ex: Render) e altere a apiUrl.');
          }
          throw new Error('Sem conexão com o servidor. Verifique sua internet ou a apiUrl.');

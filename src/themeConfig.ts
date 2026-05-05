@@ -11,9 +11,9 @@ export const APP_CONFIG = {
   
   // URL das Imagens (Você pode trocar pelos seus links)
   logos: {
-    dark: "https://img.magnific.com/vetores-gratis/vetor-de-design-de-branding-minimo-de-modelo-de-logotipo-de-negocios_53876-136229.jpg?semt=ais_hybrid&w=740&q=80", // Logo para fundos claros
-    light: "https://img.magnific.com/vetores-gratis/vetor-de-design-de-branding-minimo-de-modelo-de-logotipo-de-negocios_53876-136229.jpg?semt=ais_hybrid&w=740&q=80", // Logo para fundos escuros
-    icon: "https://img.magnific.com/vetores-gratis/vetor-de-design-de-branding-minimo-de-modelo-de-logotipo-de-negocios_53876-136229.jpg?semt=ais_hybrid&w=740&q=80", // Ícone circular
+    dark: "https://images.unsplash.com/photo-1544427928-c49cdfebf4ad?q=80&w=200&h=200&auto=format&fit=crop", // Logo para fundos claros
+    light: "https://images.unsplash.com/photo-1544427928-c49cdfebf4ad?q=80&w=200&h=200&auto=format&fit=crop", // Logo para fundos escuros
+    icon: "https://images.unsplash.com/photo-1544427928-c49cdfebf4ad?q=80&w=100&h=100&auto=format&fit=crop", // Ícone circular
   },
   
   // Cores Principais (Use códigos Hexadecimal)
@@ -39,15 +39,14 @@ export const APP_CONFIG = {
   // (Abra o terminal no PC, digite 'ipconfig' no Windows ou 'ifconfig' no Mac e busque IPv4)
   //
   // >>> 3. PARA LANÇAR O APLICATIVO OFICIAL:
-  // Coloque o seu domínio da Cloudflare ou da hospedagem final, SEM A PORTA.
-  // Exemplo: apiUrl: "https://app.suaigreja.com.br"
+  // Coloque o seu domínio da Cloudflare ou da hospedagem final, SEM A PORTA E SEM BARRA NO FINAL.
+  // Exemplo: apiUrl: "https://app-igreja-4pak.onrender.com"
   
-  apiUrl: "https://app-igreja-4pak.onrender.com/", // Altere aqui seguindo as regras acima
-
+  apiUrl: "https://app-igreja-4pak.onrender.com", // Altere aqui seguindo as regras acima
 
   // Redes Sociais
   social: {
-    instagram: "https://instagram.com/igrejarenovaroficial",
+    instagram: "https://instagram.com/igrejarenovar",
     youtube: "https://youtube.com/igrejarenovar",
     whatsapp: "5511999999999",
   }
