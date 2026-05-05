@@ -1,6 +1,9 @@
 import { User as UserType } from '../types';
+import { APP_CONFIG } from '../themeConfig';
 
-const API_URL = '/api';
+const IS_NATIVE = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNative;
+const BASE_URL = IS_NATIVE ? APP_CONFIG.apiUrl : '';
+const API_URL = `${BASE_URL}/api`;
 
 interface AuthResponse {
   user: UserType;
@@ -18,7 +21,9 @@ class ApiService {
     };
 
     try {
-      const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+      const url = `${API_URL}${path}`;
+      if (IS_NATIVE) console.log(`API Request: ${url}`);
+      const response = await fetch(url, { ...options, headers });
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Ocorreu um erro no servidor' }));
@@ -26,20 +31,23 @@ class ApiService {
         
         if (response.status === 401 || response.status === 403) {
           this.logout();
-          // Force reload to clear app state if not handled by components
-          // But only if we're not already at root and not in a login attempt
           if (typeof window !== 'undefined' && 
               window.location.pathname !== '/' && 
               !path.includes('/auth/login')) {
             window.location.href = '/';
           }
         }
-        
         throw new Error(errorMessage);
       }
 
       return response.json();
     } catch (err) {
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+         if (IS_NATIVE && BASE_URL.includes('ais-dev')) {
+             throw new Error('O servidor AI Studio não aceita conexões do celular. Hospede o app (ex: Render) e altere a apiUrl.');
+         }
+         throw new Error('Sem conexão com o servidor. Verifique sua internet ou a apiUrl.');
+      }
       if (err instanceof Error) throw err;
       throw new Error('Falha na comunicação com o servidor');
     }

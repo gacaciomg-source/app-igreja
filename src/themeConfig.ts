@@ -23,6 +23,9 @@ export const APP_CONFIG = {
     accent: "#f43f5e", // Rose 500 (Destaques)
   },
 
+  // Configurações Técnicas
+  apiUrl: "https://ais-dev-ejrcrjdyz4gr7xmdtfczzs-125365002112.us-east5.run.app", // Altere para sua URL de produção após deploy
+
   // Redes Sociais
   social: {
     instagram: "https://instagram.com/igrejarenovar",
