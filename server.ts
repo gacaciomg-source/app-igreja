@@ -361,6 +361,29 @@ async function startServer() {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
+  app.post("/api/auth/change-password", authenticateToken, async (req: any, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      const userId = req.user.id;
+      
+      const users = await storage.readCollection<any>("users");
+      const user = users.find(u => u.id === userId);
+      
+      if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+      
+      if (!(await bcrypt.compare(currentPassword, user.password))) {
+        return res.status(400).json({ error: "Senha atual incorreta" });
+      }
+      
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.update<any>("users", userId, { password: hashedPassword });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao alterar senha" });
+    }
+  });
+
   // --- Auth API ---
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -378,6 +401,14 @@ async function startServer() {
         // If it was a pre-registration (visitor) and doesn't have a password yet
         if (existingUser.isPreRegistered && !existingUser.password) {
           const hashedPassword = await bcrypt.hash(password, 10);
+          const conversionNote = {
+            id: uuidv4(),
+            text: "Cadastro completado pelo usuário via aplicativo.",
+            date: new Date().toISOString(),
+            authorName: "Sistema",
+            type: "status_change"
+          };
+
           const updatedUser = {
             ...existingUser,
             name: name || existingUser.name,
@@ -386,10 +417,11 @@ async function startServer() {
             age: parseInt(age) || existingUser.age || 0,
             address: address || existingUser.address || "",
             phone: phone || existingUser.phone || "",
-            memberStatus: "new_member", // Advance status from visitor to new_member
+            memberStatus: "new_member", 
+            integrationNotes: [...(existingUser.integrationNotes || []), conversionNote],
             joinedAt: existingUser.joinedAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            isPreRegistered: false // No longer just a placeholder
+            isPreRegistered: false 
           };
 
           await storage.update("users", existingUser.id, updatedUser);

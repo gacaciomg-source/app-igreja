@@ -57,6 +57,7 @@ import { api } from './services/apiService';
 import { ReadingPlansScreen } from './components/ReadingPlansScreen';
 import { TithesScreen } from './components/TithesScreen';
 import { TithesAdminScreen } from './components/TithesAdminScreen';
+import { APP_CONFIG } from './themeConfig';
 
 // --- Error Handling ---
 let setGlobalErrorRef: (msg: string | null) => void = () => {};
@@ -254,10 +255,14 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
         className="w-full max-w-md space-y-8"
       >
         <div className="text-center space-y-2">
-          <div className="w-20 h-20 bg-primary rounded-3xl mx-auto flex items-center justify-center shadow-lg shadow-primary/20">
-            <Home className="text-white w-10 h-10" />
+          <div className="w-24 h-24 bg-white rounded-3xl mx-auto flex items-center justify-center p-4 shadow-xl shadow-primary/5 mb-4">
+            <img 
+              src={APP_CONFIG.logos.icon} 
+              className="w-full h-full object-contain" 
+              alt="Logo" 
+            />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">Igreja Renovar</h1>
+          <h1 className="text-3xl font-bold text-slate-900">{APP_CONFIG.name}</h1>
           <p className="text-slate-500">
             {mode === 'login' && 'Bem-vindo à nossa comunidade'}
             {mode === 'signup' && 'Crie sua conta para participar'}
@@ -528,11 +533,15 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
               backgroundPosition: 'center',
             }}
           >
-            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-12 h-12 bg-white/30 rounded-full flex items-center justify-center">
-              <Home className="text-white w-6 h-6" />
+            <div className="absolute top-12 left-1/2 -translate-x-1/2 w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center p-3">
+              <img 
+                src={APP_CONFIG.logos.icon} 
+                className="w-full h-full object-contain invert brightness-0" 
+                alt="Logo" 
+              />
             </div>
             
-            <div className="space-y-6 z-10">
+            <div className="space-y-6 z-10 pt-16">
               <p className="text-white text-xl font-medium italic leading-relaxed drop-shadow-lg">
                 "{verse.text}"
               </p>
@@ -543,8 +552,8 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
             </div>
 
             <div className="absolute bottom-8 left-0 right-0 text-center">
-              <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">Igreja Renovar</p>
-              <p className="text-white/40 text-[9px] font-medium tracking-[0.1em] mt-0.5">@igrejarenovaroficial</p>
+              <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">{APP_CONFIG.name}</p>
+              <p className="text-white/40 text-[9px] font-medium tracking-[0.1em] mt-0.5">{APP_CONFIG.social.instagram.replace('https://instagram.com/', '@')}</p>
             </div>
 
             {/* Decorative Elements */}
@@ -954,11 +963,14 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
   );
 };
 
-const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { users: UserType[], onUpdateUser: (userId: string, updates: Partial<UserType>) => void, onAddUser: (user: Partial<UserType>) => void, showMessage?: (msg: string) => void }) => {
-  const newMembers = users.filter(u => u.memberStatus === 'new_member' || u.memberStatus === 'visitor');
+const UserManagementScreen = ({ users, cells, ministries, currentUserRole, onUpdateUser, onAddUser, onUpdateRole, onUpdateMinistryLeaders, showMessage, initialTab = 'members' }: { users: UserType[], cells: CellGroup[], ministries: Ministry[], currentUserRole: UserRole, onUpdateUser: (userId: string, updates: Partial<UserType>) => void, onAddUser: (user: Partial<UserType>) => void, onUpdateRole?: (userId: string, newRole: UserRole, leaderOf?: string) => void, onUpdateMinistryLeaders?: (userId: string, ministryIds: string[]) => void, showMessage?: (msg: string) => void, initialTab?: 'members' | 'integration' }) => {
+  const [activeTab, setActiveTab] = useState<'members' | 'integration'>(initialTab);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [newNote, setNewNote] = useState('');
   const [showAddVisitor, setShowAddVisitor] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<UserType & { ledMinistryIds?: string[] }>>({});
+  const [searchTerm, setSearchTerm] = useState('');
   const [visitorForm, setVisitorForm] = useState({
     name: '',
     email: '',
@@ -966,6 +978,21 @@ const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { us
     age: '',
     address: ''
   });
+
+  const membersList = users.filter(user => {
+    if (user.role === 'superadmin' && currentUserRole !== 'superadmin') return false;
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      return user.name?.toLowerCase().includes(search) || user.email?.toLowerCase().includes(search) || user.phone?.includes(searchTerm);
+    }
+    return true;
+  });
+
+  const integrationList = users.filter(u => (u.memberStatus === 'new_member' || u.memberStatus === 'visitor') && 
+    (searchTerm ? (u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase())) : true)
+  );
+
+  const displayUsers = activeTab === 'members' ? membersList : integrationList;
 
   const handleAddVisitor = () => {
     if (!visitorForm.name || (!visitorForm.email && !visitorForm.phone)) {
@@ -979,7 +1006,7 @@ const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { us
       memberStatus: 'visitor',
       joinedAt: new Date().toISOString(),
       role: 'member',
-      isPreRegistered: true, // Flag to identify admin-created accounts
+      isPreRegistered: true,
       integrationNotes: [`${new Date().toLocaleDateString('pt-BR')}: Visitante criado pelo administrador.`]
     });
 
@@ -1004,6 +1031,25 @@ const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { us
     showMessage?.('Observação adicionada');
   };
 
+  const handleStartEdit = (user: UserType) => {
+    setSelectedUser(user);
+    const ledMinistryIds = ministries.filter(m => m.leaderIds.includes(user.id)).map(m => m.id);
+    setEditForm({ ...user, ledMinistryIds });
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!selectedUser) return;
+    const { ledMinistryIds, ...userUpdates } = editForm;
+    onUpdateUser(selectedUser.id, userUpdates);
+    if (onUpdateMinistryLeaders && ledMinistryIds) {
+      onUpdateMinistryLeaders(selectedUser.id, ledMinistryIds);
+    }
+    setSelectedUser({ ...selectedUser, ...userUpdates });
+    setIsEditing(false);
+    showMessage?.('Dados atualizados');
+  };
+
   const getStatusColor = (status?: MemberStatus) => {
     switch (status) {
       case 'new_member': return 'bg-amber-50 text-amber-600';
@@ -1015,80 +1061,26 @@ const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { us
     }
   };
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<UserType>>({});
-
-  const handleStartEdit = () => {
-    if (!selectedUser) return;
-    setEditForm(selectedUser);
-    setIsEditing(true);
-  };
-
-  const handleSaveEdit = () => {
-    if (!selectedUser) return;
-    onUpdateUser(selectedUser.id, editForm);
-    setSelectedUser({ ...selectedUser, ...editForm });
-    setIsEditing(false);
-    showMessage?.('Dados atualizados');
-  };
-
-  if (selectedUser) {
+  if (selectedUser && !isEditing && activeTab === 'integration') {
     return (
       <div className="space-y-6 pb-24">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={() => { setSelectedUser(null); setIsEditing(false); }} className="p-2 hover:bg-slate-100 rounded-full">
+            <button onClick={() => setSelectedUser(null)} className="p-2 hover:bg-slate-100 rounded-full">
               <ArrowLeft className="w-6 h-6 text-slate-400" />
             </button>
-            <h2 className="text-xl font-bold text-slate-900">Acompanhamento: {selectedUser.name}</h2>
+            <h2 className="text-xl font-bold text-slate-900">{selectedUser.name}</h2>
           </div>
-          {!isEditing && (
-            <button onClick={handleStartEdit} className="p-2 bg-slate-100 text-slate-500 rounded-full">
-              <Settings className="w-5 h-5" />
-            </button>
-          )}
+          <button 
+            onClick={() => { setEditForm(selectedUser); setIsEditing(true); }} 
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-sm"
+          >
+            <User className="w-4 h-4" />
+            Completar Cadastro
+          </button>
         </header>
 
-        {isEditing ? (
-          <Card className="space-y-4">
-            <h3 className="font-bold text-sm text-slate-400 uppercase">Editar Dados</h3>
-            <div className="space-y-3">
-              <input 
-                type="text" 
-                value={editForm.name || ''} 
-                onChange={e => setEditForm({...editForm, name: e.target.value})}
-                placeholder="Nome"
-                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
-              />
-              <input 
-                type="email" 
-                value={editForm.email || ''} 
-                onChange={e => setEditForm({...editForm, email: e.target.value})}
-                placeholder="E-mail"
-                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
-              />
-              <input 
-                type="tel" 
-                value={editForm.phone || ''} 
-                onChange={e => setEditForm({...editForm, phone: e.target.value})}
-                placeholder="Telefone"
-                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
-              />
-              <input 
-                type="text" 
-                value={editForm.address || ''} 
-                onChange={e => setEditForm({...editForm, address: e.target.value})}
-                placeholder="Endereço"
-                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={handleSaveEdit}>Salvar</Button>
-              <button onClick={() => setIsEditing(false)} className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold">Cancelar</button>
-            </div>
-          </Card>
-        ) : (
-          <Card className="space-y-4">
+        <Card className="space-y-4">
           <div className="flex justify-between items-center">
             <span className={cn("px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider", getStatusColor(selectedUser.memberStatus))}>
               {selectedUser.memberStatus === 'new_member' ? 'Novo Membro' : 
@@ -1107,12 +1099,7 @@ const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { us
                 <p className="text-slate-500 text-sm">{selectedUser.email}</p>
               </div>
               {selectedUser.phone && (
-                <a 
-                  href={`https://wa.me/${selectedUser.phone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-3 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 transition-colors"
-                >
+                <a href={`https://wa.me/${selectedUser.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="p-3 bg-emerald-500 text-white rounded-full">
                   <MessageSquare className="w-5 h-5" />
                 </a>
               )}
@@ -1137,29 +1124,25 @@ const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { us
             </div>
           </div>
         </Card>
-      )}
 
-      <div className="space-y-4">
-          <h3 className="font-bold text-slate-900">Observações de Acompanhamento</h3>
+        <div className="space-y-4">
+          <h3 className="font-bold text-slate-900">Observações</h3>
           <div className="flex gap-2">
             <input 
               type="text" 
               value={newNote}
               onChange={e => setNewNote(e.target.value)}
               placeholder="Adicionar nota..."
-              className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm"
             />
-            <button 
-              onClick={handleAddNote}
-              className="p-2 bg-primary text-white rounded-xl"
-            >
+            <button onClick={handleAddNote} className="p-2 bg-primary text-white rounded-xl">
               <Plus className="w-5 h-5" />
             </button>
           </div>
 
           <div className="space-y-3">
             {selectedUser.integrationNotes?.slice().reverse().map((note, i) => (
-              <div key={i} className="p-3 bg-white border border-slate-100 rounded-xl text-sm text-slate-600 leading-relaxed shadow-sm">
+              <div key={i} className="p-3 bg-white border border-slate-100 rounded-xl text-sm text-slate-600 shadow-sm">
                 {note}
               </div>
             )) || <p className="text-center text-slate-400 text-sm py-4">Nenhuma observação ainda.</p>}
@@ -1171,45 +1154,93 @@ const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { us
 
   return (
     <div className="space-y-6 pb-24">
-      <header className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-900">Consolidação</h2>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setShowAddVisitor(true)}
-            className="p-2 bg-primary text-white rounded-full shadow-lg"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-full">
-            <Users className="w-4 h-4" />
-            <span className="text-xs font-bold">{newMembers.length} Novos</span>
+      <header className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-900">Gestão de Pessoas</h2>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setShowAddVisitor(true)}
+              className="p-2 bg-primary text-white rounded-full shadow-lg"
+            >
+              <Plus className="w-6 h-6" />
+            </button>
           </div>
+        </div>
+
+        <div className="flex bg-slate-100 p-1 rounded-2xl w-full">
+          <button 
+            onClick={() => { setActiveTab('members'); setSelectedUser(null); setIsEditing(false); }}
+            className={cn("flex-1 py-3 rounded-xl text-sm font-bold transition-all", activeTab === 'members' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
+          >
+            Membros ({membersList.length})
+          </button>
+          <button 
+            onClick={() => { setActiveTab('integration'); setSelectedUser(null); setIsEditing(false); }}
+            className={cn("flex-1 py-3 rounded-xl text-sm font-bold transition-all relative", activeTab === 'integration' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
+          >
+            Consolidação ({integrationList.length})
+            {integrationList.length > 0 && activeTab !== 'integration' && (
+              <span className="absolute top-2 right-4 w-2 h-2 bg-red-500 rounded-full"></span>
+            )}
+          </button>
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input 
+            type="text" 
+            placeholder="Buscar por nome ou e-mail..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+          />
         </div>
       </header>
 
       <div className="space-y-4">
-        {newMembers.length > 0 ? (
-          newMembers.map(user => (
-            <Card key={user.id} className="flex items-center gap-4 p-3 hover:border-primary cursor-pointer transition-all" onClick={() => setSelectedUser(user)}>
-              <img src={user.avatar || `https://picsum.photos/seed/${user.id}/100/100`} className="w-12 h-12 rounded-full object-cover" alt={user.name} />
-              <div className="flex-1">
-                <h4 className="font-bold text-slate-900 text-sm">{user.name}</h4>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold uppercase", getStatusColor(user.memberStatus))}>
-                    {user.memberStatus === 'new_member' ? 'Novo' : 'Visitante'}
-                  </span>
-                  <span className="text-[10px] text-slate-400">{user.joinedAt ? new Date(user.joinedAt).toLocaleDateString('pt-BR') : ''}</span>
+        {displayUsers.map(user => (
+          <Card key={user.id} className="flex items-center gap-4 p-3 hover:border-primary/30 cursor-pointer transition-all" onClick={() => {
+            if (activeTab === 'integration') setSelectedUser(user);
+            else handleStartEdit(user);
+          }}>
+            <img src={user.avatar || `https://picsum.photos/seed/${user.id}/100/100`} className="w-12 h-12 rounded-full object-cover shadow-sm" alt={user.name} />
+            <div className="flex-1">
+              <h4 className="font-bold text-slate-900 text-sm">{user.name}</h4>
+              <p className="text-[10px] text-slate-400">{user.email}</p>
+              {activeTab === 'members' && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {user.role === 'leader' && user.leaderOf && (
+                    <span className="text-[7px] bg-primary/10 text-primary px-1 py-0.5 rounded font-bold uppercase">
+                      Líder: {cells.find(c => c.id === user.leaderOf)?.name}
+                    </span>
+                  )}
+                  {ministries.filter(m => m.leaderIds.includes(user.id)).map(m => (
+                    <span key={m.id} className="text-[7px] bg-teal-50 text-teal-600 px-1 py-0.5 rounded font-bold uppercase">
+                      Ministério: {m.name}
+                    </span>
+                  ))}
                 </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-slate-300" />
-            </Card>
-          ))
-        ) : (
+              )}
+            </div>
+            <div className="text-right flex flex-col items-end gap-1">
+              <span className={cn("px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider", getStatusColor(user.memberStatus))}>
+                {user.memberStatus === 'new_member' ? 'Novo' : 
+                 user.memberStatus === 'visitor' ? 'Visitante' :
+                 user.memberStatus === 'integrated' ? 'Integrado' : 
+                 user.memberStatus === 'active' ? 'Ativo' : 'Inativo'}
+              </span>
+              {activeTab === 'members' && (
+                <span className="text-[8px] text-slate-400 font-bold uppercase">{user.role}</span>
+              )}
+            </div>
+          </Card>
+        ))}
+        {displayUsers.length === 0 && (
           <div className="text-center py-20 space-y-4">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300">
               <Users className="w-8 h-8" />
             </div>
-            <p className="text-slate-500">Nenhum novo membro para consolidação.</p>
+            <p className="text-slate-500">Nenhum registro encontrado.</p>
           </div>
         )}
       </div>
@@ -1218,71 +1249,121 @@ const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { us
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center animate-in fade-in p-4">
           <Card className="w-full max-w-md rounded-3xl p-6 space-y-4">
             <header className="flex justify-between items-center">
-              <h3 className="text-xl font-bold">Criar Visitante</h3>
+              <h3 className="text-xl font-bold">Novo Visitante</h3>
               <button onClick={() => setShowAddVisitor(false)} className="p-2 bg-slate-100 rounded-full"><LogOut className="w-5 h-5 rotate-180" /></button>
             </header>
-            
+            <div className="space-y-4">
+              <input type="text" placeholder="Nome" value={visitorForm.name} onChange={e => setVisitorForm({...visitorForm, name: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+              <input type="tel" placeholder="Telefone" value={visitorForm.phone} onChange={e => setVisitorForm({...visitorForm, phone: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+              <input type="email" placeholder="E-mail" value={visitorForm.email} onChange={e => setVisitorForm({...visitorForm, email: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+              <Button className="w-full" onClick={handleAddVisitor}>Salvar</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {isEditing && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center animate-in fade-in p-4">
+          <Card className="w-full max-w-md rounded-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <header className="flex justify-between items-center">
+              <h3 className="text-xl font-bold">Editar Usuário</h3>
+              <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-100 rounded-full"><LogOut className="w-5 h-5 rotate-180" /></button>
+            </header>
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase">Nome Completo</label>
-                <input 
-                  type="text" 
-                  value={visitorForm.name} 
-                  onChange={e => setVisitorForm({...visitorForm, name: e.target.value})} 
-                  placeholder="Nome do visitante"
-                  className="w-full p-3 bg-slate-50 rounded-xl text-sm"
-                />
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Nome</label>
+                <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase">Telefone</label>
-                  <input 
-                    type="tel" 
-                    value={visitorForm.phone} 
-                    onChange={e => setVisitorForm({...visitorForm, phone: e.target.value})} 
-                    placeholder="(00) 00000-0000"
-                    className="w-full p-3 bg-slate-50 rounded-xl text-sm"
-                  />
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Perfil (Cargo)</label>
+                  <select 
+                    value={editForm.role} 
+                    onChange={e => {
+                      const newRole = e.target.value as UserRole;
+                      setEditForm({...editForm, role: newRole});
+                      onUpdateRole?.(selectedUser!.id, newRole, editForm.leaderOf);
+                    }}
+                    disabled={currentUserRole !== 'superadmin' && editForm.role === 'superadmin'}
+                    className="w-full p-3 bg-slate-50 rounded-xl"
+                  >
+                    <option value="member">Membro</option>
+                    <option value="leader">Líder</option>
+                    {(currentUserRole === 'superadmin' || currentUserRole === 'admin') && <option value="admin">Admin</option>}
+                    {currentUserRole === 'superadmin' && <option value="superadmin">Super Admin</option>}
+                  </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase">Idade</label>
-                  <input 
-                    type="number" 
-                    value={visitorForm.age} 
-                    onChange={e => setVisitorForm({...visitorForm, age: e.target.value})} 
-                    placeholder="Opcional"
-                    className="w-full p-3 bg-slate-50 rounded-xl text-sm"
-                  />
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Status Eclesiástico</label>
+                  <select 
+                    value={editForm.memberStatus} 
+                    onChange={e => setEditForm({...editForm, memberStatus: e.target.value as MemberStatus})}
+                    className="w-full p-3 bg-slate-50 rounded-xl"
+                  >
+                    <option value="visitor">Visitante</option>
+                    <option value="new_member">Novo Membro</option>
+                    <option value="integrated">Integrado</option>
+                    <option value="active">Ativo</option>
+                    <option value="inactive">Inativo</option>
+                  </select>
                 </div>
               </div>
-
+              {editForm.role === 'leader' && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Líder do PG</label>
+                  <select 
+                    value={editForm.leaderOf || ''} 
+                    onChange={e => {
+                      const cellId = e.target.value;
+                      setEditForm({...editForm, leaderOf: cellId});
+                      onUpdateRole?.(selectedUser!.id, 'leader', cellId);
+                    }}
+                    className="w-full p-3 bg-slate-50 rounded-xl"
+                  >
+                    <option value="">Nenhum</option>
+                    {cells.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {(editForm.role === 'leader' || editForm.role === 'admin' || editForm.role === 'superadmin') && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Ministérios que Lidera</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {ministries.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          const current = editForm.ledMinistryIds || [];
+                          const updated = current.includes(m.id) 
+                            ? current.filter(id => id !== m.id)
+                            : [...current, m.id];
+                          setEditForm({ ...editForm, ledMinistryIds: updated });
+                        }}
+                        className={cn(
+                          "p-2 text-[10px] font-bold rounded-lg border text-left flex items-center justify-between",
+                          editForm.ledMinistryIds?.includes(m.id)
+                            ? "bg-primary/10 border-primary text-primary"
+                            : "bg-slate-50 border-slate-200 text-slate-500"
+                        )}
+                      >
+                        {m.name}
+                        {editForm.ledMinistryIds?.includes(m.id) && <CheckCircle className="w-3 h-3" />}
+                      </button>
+                    ))}
+                    {ministries.length === 0 && <p className="text-[10px] text-slate-400 col-span-2">Nenhum ministério cadastrado.</p>}
+                  </div>
+                </div>
+              )}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase">E-mail</label>
-                <input 
-                  type="email" 
-                  value={visitorForm.email} 
-                  onChange={e => setVisitorForm({...visitorForm, email: e.target.value})} 
-                  placeholder="exemplo@email.com"
-                  className="w-full p-3 bg-slate-50 rounded-xl text-sm"
-                />
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Telefone</label>
+                <input type="tel" value={editForm.phone || ''} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
               </div>
-
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase">Endereço</label>
-                <input 
-                  type="text" 
-                  value={visitorForm.address} 
-                  onChange={e => setVisitorForm({...visitorForm, address: e.target.value})} 
-                  placeholder="Rua, número, bairro"
-                  className="w-full p-3 bg-slate-50 rounded-xl text-sm"
-                />
+                <label className="text-[10px] font-bold text-slate-400 uppercase">E-mail</label>
+                <input type="email" value={editForm.email || ''} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
               </div>
+              <Button className="w-full" onClick={handleSaveEdit}>Salvar Alterações</Button>
             </div>
-
-            <Button className="w-full" onClick={handleAddVisitor}>
-              Salvar Visitante
-            </Button>
           </Card>
         </div>
       )}
@@ -1290,7 +1371,19 @@ const IntegrationScreen = ({ users, onUpdateUser, onAddUser, showMessage }: { us
   );
 };
 
-const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, isAdmin, onSwitchToAdmin, showMessage }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void }) => {
+
+const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, isAdmin, onSwitchToAdmin, showMessage, onRefresh }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void, onRefresh?: () => Promise<void> }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (!onRefresh) return;
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const dailyVerse = React.useMemo(() => {
     const today = new Date();
@@ -1299,20 +1392,33 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
   }, []);
 
   return (
-  <div className="space-y-6 pb-24">
-    <header className="flex items-center justify-between">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Olá, {user?.name?.split(' ')[0] || 'Irmão'}!</h2>
-        <p className="text-slate-500">Bom ver você hoje.</p>
-      </div>
-      <div className="flex gap-2">
-        <button onClick={() => showMessage?.('Nenhuma nova notificação')} className="p-2 bg-white rounded-full shadow-sm border border-slate-100 relative">
-          <Bell className="w-5 h-5 text-slate-600" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full border-2 border-white"></span>
-        </button>
-        <img src={user?.avatar || 'https://picsum.photos/seed/user/100/100'} className="w-10 h-10 rounded-full border-2 border-primary shadow-sm" alt="Avatar" />
-      </div>
-    </header>
+    <div className="space-y-6 pb-24">
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 leading-tight">Olá, {user?.name?.split(' ')[0] || 'Irmão'}!</h2>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{APP_CONFIG.name}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleRefresh}
+            className={cn(
+              "p-2 bg-white rounded-xl shadow-sm border border-slate-100 transition-all active:scale-95",
+              isRefreshing && "animate-spin"
+            )}
+          >
+            <RefreshCw className="w-5 h-5 text-slate-400" />
+          </button>
+          <button onClick={() => onTabChange('profile')} className="p-0.5 bg-white rounded-full shadow-sm border-2 border-primary/20">
+            <img 
+              src={user?.avatar || `https://picsum.photos/seed/${user?.id}/100/100`} 
+              className="w-9 h-9 rounded-full object-cover" 
+              alt="Perfil" 
+            />
+          </button>
+        </div>
+      </header>
 
     {user?.memberStatus === 'new_member' && (
       <Card className="bg-amber-50 border-amber-200 border-2 relative overflow-hidden group">
@@ -1321,10 +1427,10 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
             <Heart className="w-6 h-6 animate-pulse" />
           </div>
           <div className="space-y-1">
-            <h4 className="font-bold text-amber-900">Seja bem-vindo à Renovar!</h4>
+            <h4 className="font-bold text-amber-900">Seja bem-vindo à {APP_CONFIG.shortName}!</h4>
             <p className="text-sm text-amber-700 leading-tight">Ficamos muito felizes em ter você aqui. Queremos te conhecer melhor!</p>
             <button 
-              onClick={() => onTabChange('profile')}
+              onClick={() => onTabChange('profile-edit')}
               className="text-[10px] font-bold text-amber-800 bg-white px-3 py-1.5 rounded-lg border border-amber-200 mt-2 shadow-sm hover:bg-amber-50 transition-colors uppercase tracking-wider"
             >
               Completar Cadastro
@@ -1669,14 +1775,28 @@ const PrayerWall = ({ prayers, cells, onAdd, onDelete, onTogglePrayed, onAddComm
   );
 };
 
+const BIBLE_TRANSLATIONS = [
+  { id: 'naa', name: 'NAA (Nova Almeida Atualizada)', api: 'bolls', bollsId: 60 },
+  { id: 'almeida', name: 'Almeida ARA (Geral)', api: 'bible-api', translation: 'almeida' },
+  { id: 'nvi', name: 'NVI (Nova Versão Internacional)', api: 'bolls', bollsId: 23 },
+  { id: 'rc', name: 'Almeida RC (Tradicional)', api: 'bolls', bollsId: 22 },
+  { id: 'kjv', name: 'King James Version', api: 'bible-api', translation: 'kjv' },
+];
+
 const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void }) => {
   const [selectedBook, setSelectedBook] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [translation, setTranslation] = useState<string>(localStorage.getItem('bibleTranslation') || 'naa');
   const [verses, setVerses] = useState<{verse: number, text: string}[]>([]);
   const [loadingVerses, setLoadingVerses] = useState(false);
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
+  const [searchMode, setSearchMode] = useState<'books' | 'verses'>('books');
+  const [searchResults, setSearchResults] = useState<{book: string, chapter: number, verse: number, text: string}[]>([]);
+  const [searching, setSearching] = useState(false);
   
+  const currentTranslation = BIBLE_TRANSLATIONS.find(t => t.id === translation) || BIBLE_TRANSLATIONS[0];
+
   const colors = [
     { name: 'Amarelo', value: 'bg-yellow-200' },
     { name: 'Verde', value: 'bg-green-200' },
@@ -1688,7 +1808,10 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   const lastReadBook = localStorage.getItem('lastReadBook') || 'Gênesis';
   const lastReadChapter = parseInt(localStorage.getItem('lastReadChapter') || '1', 10);
 
-  const handleSelectChapter = async (book: string, chapter: number) => {
+  const handleSelectChapter = async (book: string, chapter: number, transId?: string) => {
+    const tId = transId || translation;
+    const t = BIBLE_TRANSLATIONS.find(tr => tr.id === tId) || currentTranslation;
+    
     setSelectedBook(book);
     setSelectedChapter(chapter);
     localStorage.setItem('lastReadBook', book);
@@ -1697,17 +1820,81 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
     setLoadingVerses(true);
     setVerses([]);
     try {
-      const response = await fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}?translation=almeida`);
-      if (response.ok) {
-        const data = await response.json();
-        setVerses(data.verses);
+      if (t.api === 'bolls') {
+        const bookId = BIBLE_BOOKS.findIndex(b => b.name === book) + 1;
+        const response = await fetch(`https://bolls.life/api/v1/translation/${t.bollsId}/${bookId}/${chapter}/`);
+        if (response.ok) {
+          const data = await response.json();
+          setVerses(data.map((v: any) => ({ verse: v.verse, text: v.text })));
+        } else {
+          throw new Error('Fallback to bible-api');
+        }
       } else {
-        setVerses([{ verse: 1, text: 'Erro ao carregar o texto bíblico. Tente novamente mais tarde.' }]);
+        const response = await fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}?translation=${t.translation || 'almeida'}`);
+        if (response.ok) {
+          const data = await response.json();
+          setVerses(data.verses);
+        } else {
+          setVerses([{ verse: 1, text: 'Erro ao carregar o texto bíblico nesta tradução.' }]);
+        }
       }
     } catch (error) {
-      setVerses([{ verse: 1, text: 'Erro ao carregar o texto bíblico. Verifique sua conexão.' }]);
+      // Fallback a bible-api se bolls falhar
+      try {
+        const response = await fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}?translation=almeida`);
+        const data = await response.json();
+        setVerses(data.verses);
+      } catch (e) {
+        setVerses([{ verse: 1, text: 'Erro ao carregar o texto bíblico. Verifique sua conexão.' }]);
+      }
     } finally {
       setLoadingVerses(false);
+    }
+  };
+
+  const handleSearchVerses = async () => {
+    if (!searchQuery || searchQuery.length < 3) {
+      showMessage?.('Digite pelo menos 3 caracteres para buscar.');
+      return;
+    }
+    setSearching(true);
+    setSearchMode('verses');
+    setSearchResults([]);
+    
+    try {
+      const t = currentTranslation;
+      let results: any[] = [];
+      
+      if (t.api === 'bolls') {
+        const response = await fetch(`https://bolls.life/api/v1/search/${t.bollsId}/?search=${encodeURIComponent(searchQuery)}`);
+        if (response.ok) {
+          const data = await response.json();
+          results = data.map((r: any) => ({
+            book: BIBLE_BOOKS[r.book - 1]?.name || `Livro ${r.book}`,
+            chapter: r.chapter,
+            verse: r.verse,
+            text: r.text
+          }));
+        }
+      } else {
+        // Fallback or another search API if needed
+        // Since bible-api doesn't support search well, we use bolls ARA as fallback for search
+        const response = await fetch(`https://bolls.life/api/v1/search/21/?search=${encodeURIComponent(searchQuery)}`);
+        const data = await response.json();
+        results = data.map((r: any) => ({
+          book: BIBLE_BOOKS[r.book - 1]?.name || `Livro ${r.book}`,
+          chapter: r.chapter,
+          verse: r.verse,
+          text: r.text
+        }));
+      }
+      
+      setSearchResults(results);
+      if (results.length === 0) showMessage?.('Nenhum resultado encontrado.');
+    } catch (error) {
+      showMessage?.('Erro ao realizar busca de versículos.');
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -1716,14 +1903,29 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   if (selectedChapter) {
     return (
       <div className="space-y-6 pb-24">
-        <header className="flex items-center gap-4">
-          <button onClick={() => setSelectedChapter(null)} className="p-2 hover:bg-slate-100 rounded-full">
-            <Plus className="w-6 h-6 rotate-45 text-slate-400" />
-          </button>
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">{selectedBook} {selectedChapter}</h2>
-            <p className="text-xs text-slate-500">Almeida Revista e Atualizada</p>
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSelectedChapter(null)} className="p-2 hover:bg-slate-100 rounded-full">
+              <Plus className="w-6 h-6 rotate-45 text-slate-400" />
+            </button>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">{selectedBook} {selectedChapter}</h2>
+              <p className="text-[10px] text-slate-500 font-bold uppercase">{currentTranslation.name}</p>
+            </div>
           </div>
+          <select 
+            value={translation}
+            onChange={(e) => {
+              setTranslation(e.target.value);
+              localStorage.setItem('bibleTranslation', e.target.value);
+              handleSelectChapter(selectedBook!, selectedChapter!, e.target.value);
+            }}
+            className="text-[10px] font-bold bg-slate-50 border-none rounded-lg py-2 px-3 focus:ring-0"
+          >
+            {BIBLE_TRANSLATIONS.map(t => (
+              <option key={t.id} value={t.id}>{t.id.toUpperCase()}</option>
+            ))}
+          </select>
         </header>
         <Card className="p-6 space-y-4">
           {loadingVerses ? (
@@ -1814,113 +2016,171 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
 
   return (
     <div className="space-y-6 pb-24">
-      <header className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-900">Bíblia Sagrada</h2>
+      <header className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-900">Bíblia Sagrada</h2>
+          <select 
+            value={translation}
+            onChange={(e) => {
+              setTranslation(e.target.value);
+              localStorage.setItem('bibleTranslation', e.target.value);
+            }}
+            className="text-[10px] font-bold bg-white border border-slate-100 rounded-lg py-2 px-3 focus:ring-0 shadow-sm"
+          >
+            {BIBLE_TRANSLATIONS.map(t => (
+              <option key={t.id} value={t.id}>{t.id.toUpperCase()}</option>
+            ))}
+          </select>
+        </div>
         <div className="flex gap-2">
-          <div className="relative">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
-              placeholder="Buscar livro..." 
-              className="pl-9 pr-4 py-2 bg-white rounded-xl border border-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder={searchMode === 'books' ? "Buscar livro..." : "Buscar nos versículos..."}
+              className="w-full pl-9 pr-4 py-2 bg-white rounded-xl border border-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                if (searchMode === 'verses' && e.target.value === '') setSearchMode('books');
+              }}
+              onKeyDown={e => e.key === 'Enter' && handleSearchVerses()}
             />
           </div>
+          <button 
+            onClick={() => searchMode === 'verses' ? setSearchMode('books') : handleSearchVerses()}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-bold transition-colors",
+              searchMode === 'verses' ? "bg-slate-100 text-slate-600" : "bg-primary text-white"
+            )}
+          >
+            {searching ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : searchMode === 'verses' ? 'Limpar' : 'Buscar'}
+          </button>
         </div>
       </header>
 
-      {activePlans.length > 0 && (
+      {searchMode === 'verses' ? (
         <section className="space-y-4">
-          <h3 className="text-lg font-bold text-slate-900">Seu Progresso</h3>
-          <div className="flex gap-4 overflow-x-auto pb-2 snap-x no-scrollbar">
-            {activePlans.map(plan => {
-              const completed = progress?.[plan.id]?.length || 0;
-              const total = plan.chapters.length;
-              const percent = Math.round((completed / total) * 100);
-              return (
-                <Card key={plan.id} className="min-w-[240px] snap-start p-4 space-y-3 cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => onTabChange?.('readingPlans')}>
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-slate-900 text-sm truncate pr-2">{plan.title}</h4>
-                    <span className="text-xs font-bold text-primary">{percent}%</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-primary transition-all duration-500" style={{ width: `${percent}%` }}></div>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">{completed} de {total} capítulos</p>
-                </Card>
-              );
-            })}
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-slate-900">Resultados da Busca</h3>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">{searchResults.length} encontrados</span>
           </div>
-        </section>
-      )}
-
-      <div className="flex flex-col gap-4">
-        <Card className="flex flex-col p-4 gap-4 bg-primary text-white border-none relative overflow-hidden">
-          <div className="relative z-10 space-y-2">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              <span className="font-bold">Planos de Leitura</span>
-            </div>
-            <p className="text-xs text-white/80">Acompanhe sua jornada bíblica com planos personalizados.</p>
-            <Button 
-              variant="secondary"
-              onClick={() => onTabChange?.('readingPlans')}
-              className="w-full bg-white text-primary hover:bg-white/90 border-none mt-2"
-            >
-              Ver Todos os Planos
-            </Button>
-          </div>
-          <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-        </Card>
-      </div>
-
-      <section className="space-y-4">
-        <h3 className="text-lg font-bold text-slate-900">Continuar Lendo</h3>
-        <Card className="flex items-center justify-between p-4 border-l-4 border-l-primary cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleSelectChapter(lastReadBook, lastReadChapter)}>
-          <div>
-            <h4 className="font-bold text-slate-900">{lastReadBook} {lastReadChapter}</h4>
-            <p className="text-sm text-slate-500">Última leitura</p>
-          </div>
-          <button className="w-10 h-10 bg-primary-light rounded-full flex items-center justify-center text-primary">
-            <ChevronRight className="w-6 h-6" />
-          </button>
-        </Card>
-      </section>
-
-      {highlights && highlights.length > 0 && (
-        <section className="space-y-4">
-          <h3 className="text-lg font-bold text-slate-900">Minhas Marcações</h3>
-          <div className="grid gap-3">
-            {highlights.slice(0, 5).map(h => (
-              <Card key={h.id} className="p-3 cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleSelectChapter(h.book, h.chapter)}>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={cn("w-2 h-2 rounded-full", h.color)}></div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">{h.book} {h.chapter}:{h.verse}</span>
+          <div className="space-y-3">
+            {searchResults.map((res, i) => (
+              <Card key={i} className="p-4 space-y-2 cursor-pointer hover:bg-slate-50" onClick={() => handleSelectChapter(res.book, res.chapter)}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-primary uppercase">{res.book} {res.chapter}:{res.verse}</span>
                 </div>
-                <p className="text-xs text-slate-600 line-clamp-2 italic">"{h.text}"</p>
+                <p className="text-sm text-slate-600 leading-tight">{res.text}</p>
               </Card>
             ))}
-            {highlights.length > 5 && (
-              <p className="text-center text-[10px] font-bold text-slate-400 uppercase">E mais {highlights.length - 5} marcações...</p>
+            {searchResults.length === 0 && !searching && (
+              <div className="text-center py-12 space-y-2">
+                <Search className="w-8 h-8 text-slate-200 mx-auto" />
+                <p className="text-slate-400 text-sm">Nenhum versículo encontrado para "{searchQuery}"</p>
+              </div>
             )}
           </div>
         </section>
+      ) : (
+        <>
+          {activePlans.length > 0 && (
+            <section className="space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Seu Progresso</h3>
+              <div className="flex gap-4 overflow-x-auto pb-2 snap-x no-scrollbar">
+                {activePlans.map(plan => {
+                  const completed = progress?.[plan.id]?.length || 0;
+                  const total = plan.chapters.length;
+                  const percent = Math.round((completed / total) * 100);
+                  return (
+                    <Card key={plan.id} className="min-w-[240px] snap-start p-4 space-y-3 cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => onTabChange?.('readingPlans')}>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-slate-900 text-sm truncate pr-2">{plan.title}</h4>
+                        <span className="text-xs font-bold text-primary">{percent}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-primary transition-all duration-500" style={{ width: `${percent}%` }}></div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">{completed} de {total} capítulos</p>
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          <div className="flex flex-col gap-4">
+            <Card className="flex flex-col p-4 gap-4 bg-primary text-white border-none relative overflow-hidden">
+              <div className="relative z-10 space-y-2">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  <span className="font-bold">Planos de Leitura</span>
+                </div>
+                <p className="text-xs text-white/80">Acompanhe sua jornada bíblica com planos personalizados.</p>
+                <Button 
+                  variant="secondary"
+                  onClick={() => onTabChange?.('readingPlans')}
+                  className="w-full bg-white text-primary hover:bg-white/90 border-none mt-2"
+                >
+                  Ver Todos os Planos
+                </Button>
+              </div>
+              <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+            </Card>
+          </div>
+        </>
       )}
 
-      <section className="space-y-4">
-        <h3 className="text-lg font-bold text-slate-900">{searchQuery ? 'Resultados da Busca' : 'Livros'}</h3>
-        <div className="grid grid-cols-2 gap-4">
-          {filteredBooks.map((book, i) => (
-            <Card 
-              key={i} 
-              className="p-4 text-center font-bold text-slate-700 hover:bg-primary-light hover:text-primary transition-all cursor-pointer"
-              onClick={() => setSelectedBook(book.name)}
-            >
-              {book.name}
+      {searchMode === 'books' && (
+        <>
+          <section className="space-y-4">
+            <h3 className="text-lg font-bold text-slate-900">Continuar Lendo</h3>
+            <Card className="flex items-center justify-between p-4 border-l-4 border-l-primary cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleSelectChapter(lastReadBook, lastReadChapter)}>
+              <div>
+                <h4 className="font-bold text-slate-900">{lastReadBook} {lastReadChapter}</h4>
+                <p className="text-sm text-slate-500">Última leitura</p>
+              </div>
+              <button className="w-10 h-10 bg-primary-light rounded-full flex items-center justify-center text-primary">
+                <ChevronRight className="w-6 h-6" />
+              </button>
             </Card>
-          ))}
-        </div>
-      </section>
+          </section>
+
+          {highlights && highlights.length > 0 && (
+            <section className="space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Minhas Marcações</h3>
+              <div className="grid gap-3">
+                {highlights.slice(0, 5).map(h => (
+                  <Card key={h.id} className="p-3 cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleSelectChapter(h.book, h.chapter)}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={cn("w-2 h-2 rounded-full", h.color)}></div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{h.book} {h.chapter}:{h.verse}</span>
+                    </div>
+                    <p className="text-xs text-slate-600 line-clamp-2 italic">"{h.text}"</p>
+                  </Card>
+                ))}
+                {highlights.length > 5 && (
+                  <p className="text-center text-[10px] font-bold text-slate-400 uppercase">E mais {highlights.length - 5} marcações...</p>
+                )}
+              </div>
+            </section>
+          )}
+
+          <section className="space-y-4">
+            <h3 className="text-lg font-bold text-slate-900">{searchQuery ? 'Resultados da Busca' : 'Livros'}</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {filteredBooks.map((book, i) => (
+                <Card 
+                  key={i} 
+                  className="p-4 text-center font-bold text-slate-700 hover:bg-primary-light hover:text-primary transition-all cursor-pointer"
+                  onClick={() => setSelectedBook(book.name)}
+                >
+                  {book.name}
+                </Card>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 };
@@ -2102,7 +2362,7 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
     <header className="flex items-center justify-between">
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Painel Admin</h2>
-        <p className="text-slate-500">Gestão da Igreja Renovar</p>
+        <p className="text-slate-500">Gestão da {APP_CONFIG.name}</p>
       </div>
       <div className="flex gap-2">
         <button onClick={onSwitchToMember} className="flex items-center gap-2 px-3 py-2 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-colors">
@@ -2116,26 +2376,27 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
     </header>
 
     <div className="grid grid-cols-2 gap-4">
-      <Card className="bg-emerald-50 border-emerald-100 p-4 space-y-2 cursor-pointer hover:bg-emerald-100 transition-colors" onClick={() => onTabChange?.('members')}>
+      <Card className="bg-emerald-50 border-emerald-100 p-4 space-y-2 cursor-pointer hover:bg-emerald-100 transition-colors" onClick={() => onTabChange?.('users_members')}>
         <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white">
           <Users className="w-6 h-6" />
         </div>
         <div>
-          <p className="text-xs text-emerald-600 font-bold uppercase tracking-wider">Membros</p>
+          <p className="text-xs text-emerald-600 font-bold uppercase tracking-widest">Membros</p>
           <p className="text-2xl font-bold text-slate-900">{stats.members}</p>
         </div>
       </Card>
-      <Card className="bg-amber-50 border-amber-100 p-4 space-y-2 cursor-pointer hover:bg-amber-100 transition-colors" onClick={() => onTabChange?.('integration')}>
+      
+      <Card className="bg-amber-50 border-amber-100 p-4 space-y-2 cursor-pointer hover:bg-amber-100 transition-colors" onClick={() => onTabChange?.('users_integration')}>
         <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white relative">
           <Users className="w-6 h-6" />
-          {users.filter(u => u.memberStatus === 'new_member').length > 0 && (
+          {users.filter(u => u.memberStatus === 'new_member' || u.memberStatus === 'visitor').length > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-white animate-bounce">
-              {users.filter(u => u.memberStatus === 'new_member').length}
+              {users.filter(u => u.memberStatus === 'new_member' || u.memberStatus === 'visitor').length}
             </span>
           )}
         </div>
         <div>
-          <p className="text-xs text-amber-600 font-bold uppercase tracking-wider">Consolidação</p>
+          <p className="text-xs text-amber-600 font-bold uppercase tracking-widest">Consolidação</p>
           <p className="text-2xl font-bold text-slate-900">{users.filter(u => u.memberStatus === 'new_member' || u.memberStatus === 'visitor').length}</p>
         </div>
       </Card>
@@ -2292,8 +2553,7 @@ const AdminAllScreens = ({ onTabChange }: { onTabChange: (tab: string) => void }
     { id: 'home', label: 'Dashboard Principal', icon: PieChart, color: 'bg-slate-800' },
     { id: 'financial', label: 'Gestão Financeira', icon: DollarSign, color: 'bg-amber-500' },
     { id: 'prayer', label: 'Mural de Orações', icon: Heart, color: 'bg-red-500' },
-    { id: 'members', label: 'Gestão de Membros', icon: Users, color: 'bg-blue-500' },
-    { id: 'integration', label: 'Consolidação de Membros', icon: Users, color: 'bg-emerald-500' },
+    { id: 'users', label: 'Gestão de Pessoas', icon: Users, color: 'bg-blue-500' },
     { id: 'ministries', label: 'Ministérios e Escalas', icon: Music, color: 'bg-teal-500' },
     { id: 'readingPlans', label: 'Planos de Leitura', icon: TrendingUp, color: 'bg-emerald-500' },
     { id: 'events', label: 'Agenda de Eventos', icon: Calendar, color: 'bg-purple-500' },
@@ -2745,9 +3005,11 @@ const MySchedulesScreen = ({ schedules, ministries, currentUser, onConfirm, onDe
   );
 };
 
-const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastoralVisits, schedules, ministries, whatsappConfig, onUpdateWhatsApp, isAdmin, onSwitchToAdmin, onSwitchToMember, showMessage, onOpenNotifications }: { onLogout: () => void, user: UserType | null, onUpdateProfile: (data: Partial<UserType>) => Promise<void>, stats: { cells: number, prayers: number }, prayers?: PrayerRequest[], pastoralVisits?: PastoralVisit[], schedules?: MinistrySchedule[], ministries?: Ministry[], whatsappConfig?: WhatsAppConfig, onUpdateWhatsApp?: (data: WhatsAppConfig) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, onSwitchToMember?: () => void, showMessage: (msg: string) => void, onOpenNotifications?: () => void }) => {
-  const [isEditing, setIsEditing] = useState(false);
+const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastoralVisits, schedules, ministries, whatsappConfig, onUpdateWhatsApp, isAdmin, onSwitchToAdmin, onSwitchToMember, showMessage, onOpenNotifications, initialIsEditing = false }: { onLogout: () => void, user: UserType | null, onUpdateProfile: (data: Partial<UserType>) => Promise<void>, stats: { cells: number, prayers: number }, prayers?: PrayerRequest[], pastoralVisits?: PastoralVisit[], schedules?: MinistrySchedule[], ministries?: Ministry[], whatsappConfig?: WhatsAppConfig, onUpdateWhatsApp?: (data: WhatsAppConfig) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, onSwitchToMember?: () => void, showMessage: (msg: string) => void, onOpenNotifications?: () => void, initialIsEditing?: boolean }) => {
+  const [isEditing, setIsEditing] = useState(initialIsEditing);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [form, setForm] = useState({
     name: user?.name || '',
     birthDate: user?.birthDate || '',
@@ -2765,6 +3027,26 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
       showMessage('Perfil atualizado com sucesso!');
     } catch (err) {
       showMessage('Erro ao atualizar perfil.');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordForm.new !== passwordForm.confirm) {
+      showMessage('As senhas não coincidem.');
+      return;
+    }
+    if (passwordForm.new.length < 6) {
+      showMessage('A nova senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    try {
+      await api.changePassword(passwordForm.current, passwordForm.new);
+      setShowChangePassword(false);
+      setPasswordForm({ current: '', new: '', confirm: '' });
+      showMessage('Senha alterada com sucesso!');
+    } catch (err: any) {
+      showMessage(err.message || 'Erro ao alterar senha.');
     }
   };
 
@@ -2976,7 +3258,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
             <div className="flex items-center justify-center gap-2">
               <h2 className="text-2xl font-bold text-slate-900">{user?.name || 'Membro'}</h2>
               <button onClick={() => setIsEditing(true)} className="p-1 text-slate-300 hover:text-primary transition-colors">
-                <Settings className="w-4 h-4" />
+                <User className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -3005,9 +3287,9 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
         {[
           isAdmin && onSwitchToAdmin && { icon: LayoutDashboard, label: 'Painel de Gerenciamento', action: onSwitchToAdmin },
           isAdmin && onSwitchToMember && { icon: Eye, label: 'Ver como Membro', action: onSwitchToMember },
-          { icon: User, label: 'Dados Pessoais', action: () => setIsEditing(true) },
           { icon: Bell, label: 'Notificações', action: onOpenNotifications },
-          { icon: Calendar, label: 'Minhas Escalas', action: () => setShowMySchedules(true) },
+          { icon: Lock, label: 'Alterar Senha', action: () => setShowChangePassword(true) },
+          user?.id && ministries?.some(m => m.memberIds.includes(user.id) || m.leaderIds.includes(user.id)) && { icon: Calendar, label: 'Minhas Escalas', action: () => setShowMySchedules(true) },
           user?.role === 'superadmin' && { icon: MessageSquare, label: 'Configurar WhatsApp', action: () => setShowWhatsAppConfig(true) },
           { icon: Heart, label: 'Meus Pedidos de Oração', action: () => setShowMyPrayers(true) },
           { icon: Heart, label: 'Minhas Solicitações de Visita', action: () => setShowMyVisits(true) },
@@ -3031,84 +3313,47 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
           <span className="font-bold">Sair do Aplicativo</span>
         </button>
       </div>
-    </div>
-  );
-};
 
-const MembersScreen = ({ users, cells, currentUserRole, onUpdateRole, showMessage }: { users: UserType[], cells: CellGroup[], currentUserRole: UserRole, onUpdateRole?: (userId: string, newRole: UserRole, leaderOf?: string) => void, showMessage?: (msg: string) => void }) => {
-  const filteredUsers = users.filter(user => {
-    // Superadmins are only visible to other superadmins
-    if (user.role === 'superadmin') {
-      return currentUserRole === 'superadmin';
-    }
-    return true;
-  });
-
-  return (
-    <div className="space-y-6 pb-24">
-      <header className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-900">Membros</h2>
-        <button onClick={() => showMessage?.('Funcionalidade em desenvolvimento')} className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
-          <Search className="w-5 h-5 text-slate-600" />
-        </button>
-      </header>
-
-      <div className="space-y-4">
-        {filteredUsers.map(user => (
-          <Card key={user.id} className="flex items-center gap-4 p-3">
-            <img src={user.avatar || `https://picsum.photos/seed/${user.id}/100/100`} className="w-12 h-12 rounded-full object-cover" alt={user.name} />
-            <div className="flex-1">
-              <h4 className="font-bold text-slate-900 text-sm">{user.name}</h4>
-              <p className="text-xs text-slate-500">{user.email}</p>
-              {user.role === 'leader' && user.leaderOf && (
-                <p className="text-[10px] text-primary font-bold uppercase mt-1">
-                  Líder: {cells.find(c => c.id === user.leaderOf)?.name || 'PG não encontrado'}
-                </p>
-              )}
-            </div>
-            <div className="text-right flex flex-col items-end gap-1">
-              <span className={cn(
-                "px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider",
-                user.role === 'superadmin' ? "bg-purple-50 text-purple-600" :
-                user.role === 'admin' ? "bg-amber-50 text-amber-600" : 
-                user.role === 'leader' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
-              )}>
-                {user.role === 'leader' ? 'Líder de PG' : user.role}
-              </span>
-              {(currentUserRole === 'superadmin' || currentUserRole === 'admin') && user.role !== 'superadmin' && (
-                <div className="flex flex-col gap-1">
-                  <select 
-                    className="text-[10px] bg-slate-50 border border-slate-200 rounded p-1"
-                    value={user.role}
-                    onChange={(e) => onUpdateRole?.(user.id, e.target.value as UserRole, user.leaderOf)}
-                  >
-                    <option value="member">Membro</option>
-                    <option value="leader">Líder de PG</option>
-                    {currentUserRole === 'superadmin' && (
-                      <>
-                        <option value="admin">Admin</option>
-                        <option value="superadmin">Super Admin</option>
-                      </>
-                    )}
-                  </select>
-                  {user.role === 'leader' && (
-                    <select
-                      className="text-[10px] bg-slate-50 border border-slate-200 rounded p-1"
-                      value={user.leaderOf || ''}
-                      onChange={(e) => onUpdateRole?.(user.id, 'leader', e.target.value)}
-                    >
-                      <option value="">Selecionar PG...</option>
-                      {cells.map(cell => (
-                        <option key={cell.id} value={cell.id}>{cell.name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
+      {showChangePassword && (
+        <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4">
+          <Card className="w-full max-w-md space-y-4 rounded-3xl p-6">
+            <h3 className="text-xl font-bold text-slate-900">Alterar Senha</h3>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Senha Atual</label>
+                <input 
+                  type="password" 
+                  value={passwordForm.current} 
+                  onChange={e => setPasswordForm({...passwordForm, current: e.target.value})}
+                  className="w-full p-3 bg-slate-50 rounded-xl" 
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Nova Senha</label>
+                <input 
+                  type="password" 
+                  value={passwordForm.new} 
+                  onChange={e => setPasswordForm({...passwordForm, new: e.target.value})}
+                  className="w-full p-3 bg-slate-50 rounded-xl" 
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Confirmar Nova Senha</label>
+                <input 
+                  type="password" 
+                  value={passwordForm.confirm} 
+                  onChange={e => setPasswordForm({...passwordForm, confirm: e.target.value})}
+                  className="w-full p-3 bg-slate-50 rounded-xl" 
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleChangePassword} className="flex-1">Salvar</Button>
+                <Button variant="outline" onClick={() => setShowChangePassword(false)} className="flex-1">Cancelar</Button>
+              </div>
             </div>
           </Card>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -3773,6 +4018,7 @@ export default function App() {
   const [userRole, setUserRole] = useState<UserRole>('member');
   const [currentUserData, setCurrentUserData] = useState<UserType | null>(null);
   const [currentTab, setCurrentTab] = useState('home');
+  const [profileAutoEdit, setProfileAutoEdit] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Dynamic State
@@ -3814,6 +4060,55 @@ export default function App() {
     setGlobalMessage(msg);
     setTimeout(() => setGlobalMessage(null), 3000);
   };
+
+  const refreshData = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const [
+        e, p, c, u, a, r, s, h, at, pv, m, ms, config
+      ] = await Promise.all([
+        api.list('events'),
+        api.list('prayers'),
+        api.list('cells'),
+        api.list('users'),
+        api.list('announcements'),
+        api.list('readingPlans'),
+        api.list('sermons'),
+        api.list('verseHighlights'),
+        api.list('attendance'),
+        api.list('pastoralVisits'),
+        api.list('ministries'),
+        api.list('ministrySchedules'),
+        api.list('config')
+      ]);
+
+      setEvents(e);
+      setPrayers(p.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setCells(c);
+      setUsers(u);
+      setAnnouncements(a);
+      setReadingPlans(r);
+      setSermons(s);
+      setVerseHighlights(h.filter((vh: any) => vh.uid === currentUserData?.id));
+      setAttendanceHistory(at);
+      setPastoralVisits(pv);
+      setMinistries(m);
+      setMinistrySchedules(ms);
+
+      const tConfig = config.find((cfg: any) => cfg.id === 'tithes');
+      if (tConfig) setTitheConfig(tConfig);
+      
+      const wConfig = config.find((cfg: any) => cfg.id === 'whatsapp');
+      if (wConfig) setWhatsappConfig(wConfig);
+
+      if (userRole === 'admin' || userRole === 'superadmin') {
+        const trans = await api.list('transactions');
+        setTransactions(trans);
+      }
+    } catch (err) {
+      console.error('Refresh failed:', err);
+    }
+  }, [isLoggedIn, userRole, currentUserData?.id]);
 
   useEffect(() => {
     setGlobalErrorRef = setGlobalError;
@@ -4250,6 +4545,12 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    if (currentTab !== 'profile') {
+      setProfileAutoEdit(false);
+    }
+  }, [currentTab]);
+
   const handleLogout = async () => {
     try {
       api.logout();
@@ -4620,6 +4921,28 @@ const joinCell = async (cellId: string) => {
     }
   };
 
+  const updateMinistryLeaders = async (userId: string, ministryIds: string[]) => {
+    try {
+      const updatedMinistries = await Promise.all(ministries.map(async (m) => {
+        const isNowLeader = ministryIds.includes(m.id);
+        const wasLeader = m.leaderIds.includes(userId);
+
+        if (isNowLeader === wasLeader) return m;
+
+        const newLeaderIds = isNowLeader 
+          ? [...m.leaderIds, userId]
+          : m.leaderIds.filter(id => id !== userId);
+
+        await api.update('ministries', m.id, { leaderIds: newLeaderIds });
+        return { ...m, leaderIds: newLeaderIds };
+      }));
+
+      setMinistries(updatedMinistries);
+    } catch (err) {
+      handleApiError(err, 'updateMinistryLeaders');
+    }
+  };
+
   const handleAttendanceSubmit = async (data: Omit<Attendance, 'id' | 'createdAt'>) => {
     try {
       await api.create('attendance', {
@@ -4692,10 +5015,7 @@ const joinCell = async (cellId: string) => {
   }
 
   const renderContent = () => {
-    const isAdmin = userRole === 'admin' || userRole === 'superadmin';
-    const isRootAdmin = location.pathname.startsWith('/admin');
-    
-    if (isAdmin && isRootAdmin) {
+    if (isAdmin && isAdminPanel) {
       const visibleUsers = users.filter(u => u.role !== 'superadmin' || userRole === 'superadmin');
       const stats = { 
         members: visibleUsers.length, 
@@ -4712,9 +5032,28 @@ const joinCell = async (cellId: string) => {
         case 'events': return <EventsScreen events={events} isAdmin onDelete={deleteEvent} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} showMessage={showMessage} />;
         case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} showMessage={showMessage} />;
         case 'groups': return <GroupsScreen cells={cells} users={users} isAdmin currentUser={currentUserData} onAdd={() => setShowAddCell(true)} onDelete={deleteCell} onEdit={(c) => { setEditingCell(c); setShowAddCell(true); }} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
-        case 'members': return <MembersScreen users={users} cells={cells} currentUserRole={userRole} onUpdateRole={updateMemberRole} showMessage={showMessage} />;
+        case 'users':
+        case 'users_members':
+        case 'users_integration':
+          return (
+            <UserManagementScreen 
+              users={users} 
+              cells={cells} 
+              ministries={ministries}
+              currentUserRole={userRole} 
+              onUpdateUser={updateAnyUser} 
+              onAddUser={addAnyUser} 
+              onUpdateRole={updateMemberRole} 
+              onUpdateMinistryLeaders={updateMinistryLeaders}
+              showMessage={showMessage} 
+              initialTab={currentTab === 'users_integration' ? 'integration' : 'members'}
+            />
+          );
+        case 'members':
+        case 'integration':
+          setCurrentTab('users');
+          return null;
         case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
-        case 'integration': return <IntegrationScreen users={users} onUpdateUser={updateAnyUser} onAddUser={addAnyUser} showMessage={showMessage} />;
         case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
@@ -4738,6 +5077,7 @@ const joinCell = async (cellId: string) => {
               isAdmin={isAdmin} 
               onSwitchToMember={() => navigate('/')} 
               showMessage={showMessage} 
+              initialIsEditing={profileAutoEdit}
               onOpenNotifications={async () => {
                 setShowNotificationSettings(true);
                 // Also request permission in background
@@ -4751,7 +5091,7 @@ const joinCell = async (cellId: string) => {
     }
 
     switch (currentTab) {
-      case 'home': return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setShowDonationModal(true)} onShowReadingPlans={() => setCurrentTab('readingPlans')} onRequestPastoralVisit={() => setShowAddPastoralVisit(true)} onShareVerse={setSelectedShareVerse} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} showMessage={showMessage} />;
+      case 'home': return <Dashboard {...dashboardProps} />;
       case 'events': return <EventsScreen events={events} onShowMural={() => setCurrentTab('prayer')} showMessage={showMessage} />;
       case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
       case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onDelete={deleteAnnouncement} showMessage={showMessage} />;
@@ -4781,6 +5121,7 @@ const joinCell = async (cellId: string) => {
             isAdmin={isAdmin} 
             onSwitchToAdmin={() => navigate('/admin')} 
             showMessage={showMessage} 
+            initialIsEditing={profileAutoEdit}
             onOpenNotifications={async () => {
               setShowNotificationSettings(true);
               // Also request permission in background
@@ -4789,7 +5130,7 @@ const joinCell = async (cellId: string) => {
           />
         );
       }
-      default: return <Dashboard events={events} user={currentUserData} announcements={announcements} onTabChange={setCurrentTab} onShowDonation={() => setCurrentTab('tithes')} onShowReadingPlans={() => setCurrentTab('readingPlans')} onRequestPastoralVisit={() => setShowAddPastoralVisit(true)} onShareVerse={setSelectedShareVerse} isAdmin={isAdmin} onSwitchToAdmin={() => navigate('/admin')} showMessage={showMessage} />;
+      default: return <Dashboard {...dashboardProps} onTabChange={setCurrentTab} onShowDonation={() => setCurrentTab('tithes')} />;
     }
   };
 
@@ -4811,8 +5152,31 @@ const joinCell = async (cellId: string) => {
     { id: 'profile', icon: Settings, label: 'Perfil' },
   ];
 
+  const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const isAdminPanel = location.pathname.startsWith('/admin');
-  const tabs = (userRole === 'admin' || userRole === 'superadmin') && isAdminPanel ? adminTabs : memberTabs;
+  const tabs = isAdmin && isAdminPanel ? adminTabs : memberTabs;
+
+    const dashboardProps = {
+      events,
+      user: currentUserData,
+      announcements,
+      onTabChange: (tab: string) => {
+        if (tab === 'profile-edit') {
+          setCurrentTab('profile');
+          setProfileAutoEdit(true);
+        } else {
+          setCurrentTab(tab);
+        }
+      },
+      onShowDonation: () => setCurrentTab('tithes'),
+      onShowReadingPlans: () => setCurrentTab('readingPlans'),
+      onRequestPastoralVisit: () => setShowAddPastoralVisit(true),
+      onShareVerse: setSelectedShareVerse,
+      isAdmin,
+      onSwitchToAdmin: () => navigate('/admin'),
+      showMessage,
+      onRefresh: refreshData
+    };
 
   return (
     <ErrorBoundary>
