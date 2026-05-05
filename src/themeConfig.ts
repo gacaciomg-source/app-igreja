@@ -23,8 +23,27 @@ export const APP_CONFIG = {
     accent: "#f43f5e", // Rose 500 (Destaques)
   },
 
-  // Configurações Técnicas
-  apiUrl: "https://ais-dev-ejrcrjdyz4gr7xmdtfczzs-125365002112.us-east5.run.app", // Altere para sua URL de produção após deploy
+  // ----------------------------------------------------
+  // Configurações Técnicas & Servidor
+  // ----------------------------------------------------
+  //
+  // >>> 1. PARA TESTAR NO COMPUTADOR MODO WEB:
+  // Se você rodar `npm run dev` no computador e acessar pelo navegador, 
+  // pode deixar qualquer link aqui, o app web vai ignorar e se conectar sozinho.
+  // 
+  // >>> 2. PARA TESTAR O APLICATIVO ANDROID NO SEU WIFI:
+  // Se você for compilar o APK só para testar no celular enquanto seu 
+  // computador roda o servidor (`npm run dev`), você precisa colocar o IP local
+  // da sua máquina com a porta 3000. 
+  // Exemplo: apiUrl: "http://192.168.0.15:3000"
+  // (Abra o terminal no PC, digite 'ipconfig' no Windows ou 'ifconfig' no Mac e busque IPv4)
+  //
+  // >>> 3. PARA LANÇAR O APLICATIVO OFICIAL:
+  // Coloque o seu domínio da Cloudflare ou da hospedagem final, SEM A PORTA.
+  // Exemplo: apiUrl: "https://app.suaigreja.com.br"
+  
+  apiUrl: "https://ais-dev-ejrcrjdyz4gr7xmdtfczzs-125365002112.us-east5.run.app", // Altere aqui seguindo as regras acima
+
 
   // Redes Sociais
   social: {

@@ -10,6 +10,43 @@ Siga este passo a passo para colocar tudo no ar:
 
 ---
 
+## *Onde eu coloco portas e como inicio as coisas? (Guia Para Leigos)*
+
+Como você está usando seu celular para testar (APK) ou o computador para visualizar:
+
+### 1. Testando no seu próprio Computador e no seu WiFi (Sem Hospedagem)
+
+Você não precisa enviar para a internet para testar, você consegue rodar o "Servidor Backend" diretamente no seu computador do seu quarto, usando sua internet local (WiFi).
+
+**Como Iniciar o Servidor no PC:**
+1. Abra o arquivo que você baixou.
+2. Abra a pasta do projeto no **VS Code** (ou terminal).
+3. Abra o terminal do VS Code e digite `npm install` (dê Enter e espere, caso nunca tenha feito).
+4. Digite **`npm run dev`** (e dê Enter) para iniciar o servidor. 
+5. O console vai mostrar `Server running on http://localhost:3000`. **Deixe a tela preta (terminal) aberta. Se fechar, o app morre.**
+
+**No Navegador (Teste Web):**
+- Apenas digite `http://localhost:3000` no seu Google Chrome do computador. Funciona automaticamente. E você *não* precisa mudar a `apiUrl` do `themeConfig.ts` para isso. A versão do navegador sabe como se encontrar com o servidor sozinha.
+
+**Testando o APK do Celular no mesmo WiFi do PC:**
+- O seu celular não sabe o que é `localhost` (para o celular, `localhost` significa "o próprio celular", e o servidor não está no celular, está no seu PC).
+- Você tem que descobrir o **IP da sua máquina**.
+  - Se for **Windows**, abra o Iniciar, digite `cmd`, abra-o e digite `ipconfig`. Procure o "Endereço IPv4" (vai ser algo como `192.168.1.5` ou `10.0.0.10`).
+- Vá no arquivo `src/themeConfig.ts` e mude o link para:
+  `apiUrl: "http://192.168.1.5:3000"` (usando o SEU número, e **manter o :3000 no final**).
+- Agora gere de novo o APK (usando `npm run build && npx cap copy` e depois indo pro Android Studio e criando o App).
+- Instale no celular (ele tem que estar no mesmo Wi-Fi). Pronto!
+
+### 2. E quando eu for colocar Oficialmente na Nuvem (Render / Cloudflare)?
+
+A nuvem não usa portas visíveis porque trabalha numa internet profissional. Portanto, a regra de ouro é: **A nuvem padrão esconde a porta.**
+
+- O seu código internamente continua usando a porta `3000`. Mas o Render ou a Cloudflare transformam isso no HTTPS padrão (porta 443 escondida).
+- O seu arquivo `src/themeConfig.ts` vai ficar APENAS com a URL bonita, sem porta nenhuma.
+  Exemplo CORRETO: `apiUrl: "https://app.suaigreja.com.br"` (Você nunca deve por `:3000` aqui).
+
+---
+
 ## 1. Hospedar o Servidor (Backend) 🌐
 
 O servidor atual do seu aplicativo (o arquivo `server.ts`) gerencia o banco de dados (que no momento salva os dados em um arquivo local `.json`) e a API. Você precisa hospedar isso em plataformas gratuitas ou muito baratas.
