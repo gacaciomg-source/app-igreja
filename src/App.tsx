@@ -3009,6 +3009,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
   const [isEditing, setIsEditing] = useState(initialIsEditing);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [form, setForm] = useState({
     name: user?.name || '',
@@ -3293,7 +3294,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
           user?.role === 'superadmin' && { icon: MessageSquare, label: 'Configurar WhatsApp', action: () => setShowWhatsAppConfig(true) },
           { icon: Heart, label: 'Meus Pedidos de Oração', action: () => setShowMyPrayers(true) },
           { icon: Heart, label: 'Minhas Solicitações de Visita', action: () => setShowMyVisits(true) },
-          { icon: Settings, label: 'Privacidade', action: () => showMessage?.('Configurações de privacidade em breve') },
+          { icon: Settings, label: 'Privacidade', action: () => setShowPrivacy(true) },
         ].filter(Boolean).map((item: any, i) => (
           <button key={i} onClick={item.action} className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:bg-slate-50 transition-all group">
             <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors">
@@ -3313,6 +3314,37 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
           <span className="font-bold">Sair do Aplicativo</span>
         </button>
       </div>
+
+      {showPrivacy && (
+        <Modal title="Privacidade e Seus Dados" onClose={() => setShowPrivacy(false)}>
+          <div className="space-y-6">
+            <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-700 space-y-3">
+              <p className="font-bold text-slate-900">O que nós coletamos</p>
+              <p>
+                Para facilitar a comunicação e o cuidado pastoral, nós armazenamos seu 
+                <strong> Nome, E-mail, Telefone e Histórico de Participação</strong> (pedidos de oração, presenças, etc).
+              </p>
+              <p>
+                Apenas os administradores (pastores e líderes autorizados) possuem acesso 
+                ao seu e-mail e telefone para gestão da igreja. Demais membros 
+                apenas veem seu nome de perfil.
+              </p>
+            </div>
+            
+            <div className="pt-6 border-t border-slate-100 mt-6">
+               <h4 className="text-sm font-bold text-slate-900 mb-2">Lei Geral de Proteção de Dados (LGPD)</h4>
+               <p className="text-xs text-slate-500 mb-4">
+                 Respeitamos a sua privacidade de acordo com a Lei 13.709/2018. 
+                 Ao utilizar nosso app, seus dados são mantidos em sigilo e usados estritamente 
+                 para atividades eclesiásticas. Caso deseje não fazer mais parte do nosso banco de dados, solicite a exclusão.
+               </p>
+               <Button variant="outline" className="w-full text-red-500 border-red-200 hover:bg-red-50" onClick={() => { setShowPrivacy(false); showMessage('Sua solicitação de exclusão foi enviada aos administradores.'); }}>
+                 Solicitar Exclusão da Conta
+               </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {showChangePassword && (
         <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4">

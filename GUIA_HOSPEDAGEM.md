@@ -73,6 +73,24 @@ Para os usuários de Android que gostam do app na Play Store ou via download dir
 
 ---
 
+## 5. Configurar Domínio Personalizado (Cloudflare) 🔗
+
+Se você quer que seu app seja acessado via `app.suaigreja.com.br` de forma profissional (e esconder a URL do servidor Render/Railway):
+
+1. Compre um domínio (no Registro.br, Hostinger, ou onde preferir).
+2. Crie uma conta gratuita na [Cloudflare](https://dash.cloudflare.com).
+3. Adicione o seu domínio na Cloudflare. Eles te darão os "Nameservers" (ex: *ns1.cloudflare.com*, *ns2.cloudflare.com*) para você colocar onde comprou o domínio.
+4. Vá em **DNS** na Cloudflare.
+5. Crie um registro **CNAME**:
+   - **Nome / Host:** `@` ou `app` (para ser app.suaigreja.com.br)
+   - **Destino:** A URL do servidor no Render (ex: `seu-app-igreja.onrender.com`)
+   - **Status do Proxy (Nuvem laranja):** Deixe ATIVADO. Isso oculta a origem do seu servidor e melhora a segurança e velocidade, garantindo o HTTPS gratuito.
+6. A porta da versão web será sempre a porta padrão da internet **(443 via HTTPS ou 80 via HTTP)**, mas internamente seu servidor usa a porta `3000`. Você NÃO precisa digitar a porta :3000 na URL ao usar domínio + Cloudflare ou link do Render/Railway.
+
+*Nota:* Ao configurar seu próprio domínio, você precisará também alterar o `apiUrl` no `src/themeConfig.ts` para o novo domínio, compilar, e refazer os passos do APK.
+
+---
+
 ## Dica Importante sobre a "Memória Local"
 O seu sistema atual usa "Bancos de Dados baseados em arquivos".
 Toda vez que você fecha o servidor ou faz deploy no sistema gratuíto do Render, os servidores gratuitos sofrem "restart" diário/semanal, o que pode apagar o `data.json`.
