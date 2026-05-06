@@ -461,12 +461,12 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
   const [selectedBg, setSelectedBg] = useState(SHARE_BACKGROUNDS[0]);
   const verseCardRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
 
   const handleShare = async () => {
     if (!verseCardRef.current) return;
     setIsGenerating(true);
     try {
-      // Deeper delay for style application and image loading
       await new Promise(resolve => setTimeout(resolve, 300));
       
       const dataUrl = await toPng(verseCardRef.current, { 
@@ -480,50 +480,12 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
         }
       });
       
-      const fileName = `versiculo-${verse.ref.replace(/[:\s]/g, '-')}.png`;
+      setGeneratedImage(dataUrl);
+      
+      // Auto-trigger share for Native Apps (Capacitor) because they don't have the user gesture constraint
       const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor;
-
       if (isNative) {
-        try {
-          // Salvar como base64 no cache do dispositivo e compartilhar
-          const savedFile = await Filesystem.writeFile({
-            path: fileName,
-            data: dataUrl,
-            directory: Directory.Cache
-          });
-          
-          await Share.share({
-            title: 'Versículo do Dia',
-            text: `"${verse.text}" - ${verse.ref}`,
-            url: savedFile.uri,
-            dialogTitle: 'Compartilhar Versículo'
-          });
-        } catch (capacitorErr) {
-          console.error("Capacitor Share Error:", capacitorErr);
-          downloadImage(dataUrl, fileName);
-        }
-      } else {
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], fileName, { type: 'image/png' });
-
-        // Check for native sharing capability (especially for iOS)
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: 'Versículo do Dia',
-              text: `"${verse.text}" - ${verse.ref}`
-            });
-          } catch (shareErr) {
-            console.warn('Share cancelled or failed:', shareErr);
-            if ((shareErr as any).name !== 'AbortError') {
-              downloadImage(dataUrl, fileName);
-            }
-          }
-        } else {
-          // Fallback for browsers that don't support file sharing
-          downloadImage(dataUrl, fileName);
-        }
+        setTimeout(() => handleDirectShareWithUrl(dataUrl), 100);
       }
     } catch (err) {
       console.error('Failed to generate image:', err);
@@ -532,10 +494,59 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
     }
   };
 
-  const downloadImage = (dataUrl: string, fileName: string) => {
+  const handleDirectShareWithUrl = async (urlToShare: string) => {
+    const fileName = `versiculo-${verse.ref.replace(/[:\s]/g, '-')}.png`;
+    const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor;
+
+    if (isNative) {
+        try {
+          const base64Data = urlToShare.split(',')[1];
+          const savedFile = await Filesystem.writeFile({
+            path: fileName,
+            data: base64Data,
+            directory: Directory.Cache
+          });
+          await Share.share({
+            title: 'Versículo do Dia',
+            text: `"${verse.text}" - ${verse.ref}`,
+            url: savedFile.uri,
+            dialogTitle: 'Compartilhar Versículo'
+          });
+        } catch (capacitorErr) {
+          console.error("Capacitor Share Error:", capacitorErr);
+        }
+    } else {
+      try {
+        const blob = await (await fetch(urlToShare)).blob();
+        const file = new File([blob], fileName, { type: 'image/png' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Versículo do Dia',
+            text: `"${verse.text}" - ${verse.ref}`
+          });
+        } else {
+           downloadImage(urlToShare);
+        }
+      } catch (err) {
+        console.warn('Share error:', err);
+      }
+    }
+  };
+
+  const handleDirectShare = () => {
+    if (generatedImage) {
+      handleDirectShareWithUrl(generatedImage);
+    }
+  };
+
+  const downloadImage = (dataUrl?: string, name?: string) => {
+    const finalUrl = dataUrl || generatedImage;
+    if (!finalUrl) return;
+    const finalName = name || `versiculo-${verse.ref.replace(/[:\s]/g, '-')}.png`;
     const link = document.createElement('a');
-    link.download = fileName;
-    link.href = dataUrl;
+    link.download = finalName;
+    link.href = finalUrl;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -544,10 +555,24 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
   return (
     <div className="space-y-6">
       <div className="flex flex-col items-center">
-        {/* Preview Container - Optimized for 9:16 aspect ratio in a smaller preview for generation */}
-        <div className="bg-slate-50 p-4 rounded-3xl border-2 border-slate-100 shadow-inner">
-          <div 
-            ref={verseCardRef}
+        {generatedImage ? (
+           <div className="space-y-4 w-full flex flex-col items-center">
+             <p className="text-[10px] text-center uppercase font-bold text-slate-400">Pronto! Pressione a imagem e segure para salvar (iOS) ou clique abaixo.</p>
+             <img src={generatedImage} alt="Versículo Gerado" className="w-[280px] rounded-2xl shadow-2xl" />
+             <div className="flex flex-col w-full max-w-[280px] gap-2">
+               <Button onClick={handleDirectShare} className="w-full flex gap-2 items-center justify-center">
+                 <Share2 className="w-4 h-4" />
+                 Compartilhar Agora
+               </Button>
+               <Button onClick={() => downloadImage()} variant="outline" className="w-full">
+                 Baixar Imagem Manualmente
+               </Button>
+             </div>
+           </div>
+        ) : (
+          <div className="bg-slate-50 p-4 rounded-3xl border-2 border-slate-100 shadow-inner">
+            <div 
+              ref={verseCardRef}
             className="w-[280px] h-[497px] rounded-2xl flex flex-col items-center justify-center p-8 text-center relative overflow-hidden shadow-2xl"
             style={{
               background: (selectedBg as any).gradient || ((selectedBg as any).url ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${(selectedBg as any).url})` : '#1e293b'),
@@ -583,12 +608,14 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
             <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
             <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
           </div>
-        </div>
+          </div>
+        )}
       </div>
 
-      <div className="space-y-3">
-        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Escolha o Fundo</label>
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+      {!generatedImage && (
+        <div className="space-y-3">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Escolha o Fundo</label>
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
           {SHARE_BACKGROUNDS.map((bg) => (
             <button
               key={bg.id}
@@ -614,26 +641,29 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
           ))}
         </div>
       </div>
+      )}
 
       <div className="flex gap-3">
         <Button variant="outline" onClick={onClose} className="flex-1 py-4">Cancelar</Button>
-        <Button 
-          onClick={handleShare} 
-          className="flex-3 py-4 text-lg font-bold" 
-          disabled={isGenerating}
-        >
-          {isGenerating ? (
-            <>
-              <RefreshCw className="w-5 h-5 animate-spin" />
-              Gerando...
-            </>
-          ) : (
-            <>
-              <Share2 className="w-5 h-5" />
-              Compartilhar
-            </>
-          )}
-        </Button>
+        {!generatedImage && (
+          <Button 
+            onClick={handleShare} 
+            className="flex-3 py-4 text-lg font-bold" 
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <>
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                Gerando...
+              </>
+            ) : (
+              <>
+                <Share2 className="w-5 h-5" />
+                Gerar Imagem
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -2674,7 +2704,13 @@ const AdminFinancial = ({ transactions, balance, onAdd, onDelete, showMessage }:
 );
 
 const NotificationSettingsScreen = ({ settings, onUpdate, onClose, showMessage }: { settings: any, onUpdate: (data: any) => Promise<void>, onClose: () => void, showMessage: (msg: string) => void }) => {
-  const [localSettings, setLocalSettings] = useState(settings);
+  const [localSettings, setLocalSettings] = useState({ 
+    allMuted: false, 
+    newSermonEnabled: true, 
+    wordOfDayEnabled: true, 
+    wordOfDayTime: '08:00',
+    ...settings 
+  });
 
   const handleSave = async () => {
     try {
@@ -5235,13 +5271,65 @@ const joinCell = async (cellId: string) => {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-secondary w-full md:max-w-2xl lg:max-w-4xl mx-auto relative shadow-2xl overflow-hidden md:border-x md:border-slate-100">
-        <Routes>
-          <Route path="/" element={
-            <main className="p-6">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentTab}
+      <div className={cn(
+        "min-h-screen bg-secondary mx-auto relative shadow-2xl overflow-hidden",
+        isAdminPanel ? "w-full md:max-w-none md:flex md:flex-row shadow-none" : "max-w-md"
+      )}>
+        
+        {/* Desktop Admin Sidebar (Hidden on Mobile) */}
+        {isAdminPanel && (
+           <nav className="hidden md:flex md:w-64 md:flex-col md:bg-white md:border-r md:border-slate-100 md:h-screen md:sticky md:top-0 md:pt-8 md:px-4 md:z-50 md:shadow-lg">
+             <div className="flex items-center gap-3 mb-8 px-2">
+               <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                 <span className="text-primary font-bold text-xl">P</span>
+               </div>
+               <div>
+                 <h1 className="font-bold text-sm tracking-tight text-slate-800">Painel Admin</h1>
+                 <p className="text-[10px] text-slate-500 uppercase tracking-widest">Workspace</p>
+               </div>
+             </div>
+             <div className="flex flex-col gap-2">
+               {tabs.map(tab => (
+                 <button
+                   key={tab.id}
+                   onClick={() => {
+                     if (tab.id === 'admin_switch') {
+                       navigate('/admin');
+                       setCurrentTab('home');
+                     } else {
+                       setCurrentTab(tab.id);
+                     }
+                   }}
+                   className={cn(
+                     "flex items-center gap-3 px-4 py-3 rounded-xl transition-all w-full text-left",
+                     currentTab === tab.id ? "bg-primary text-white shadow-md shadow-primary/20" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                   )}
+                 >
+                   <tab.icon className={cn("w-5 h-5", currentTab === tab.id ? "stroke-[2.5px]" : "stroke-[2px]")} />
+                   <span className="font-bold text-sm">{tab.label}</span>
+                 </button>
+               ))}
+               <button
+                 onClick={() => navigate('/')}
+                 className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all w-full text-left mt-auto text-slate-500 hover:bg-slate-50 hover:text-slate-800 mb-4"
+               >
+                 <LogOut className="w-5 h-5 stroke-[2px]" />
+                 <span className="font-bold text-sm">Voltar ao App</span>
+               </button>
+             </div>
+           </nav>
+        )}
+
+        <div className={cn(
+          "flex-1 pb-24", // mobile nav padding
+          isAdminPanel ? "md:h-screen md:overflow-y-auto md:pb-6" : ""
+        )}>
+          <Routes>
+            <Route path="/" element={
+              <main className="p-6">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentTab}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
@@ -5254,7 +5342,7 @@ const joinCell = async (cellId: string) => {
           } />
           <Route path="/admin" element={
             (userRole === 'admin' || userRole === 'superadmin') ? (
-              <main className="p-6">
+              <main className={cn("p-6", "md:p-10 md:max-w-7xl md:mx-auto w-full")}>
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={currentTab}
@@ -5417,8 +5505,12 @@ const joinCell = async (cellId: string) => {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
 
-        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl lg:max-w-4xl bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-3 flex justify-between items-center z-50">
+        <nav className={cn(
+          "fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-3 flex justify-between items-center z-50",
+          isAdminPanel ? "md:hidden" : ""
+        )}>
           {tabs.map(tab => (
             <button
               key={tab.id}
