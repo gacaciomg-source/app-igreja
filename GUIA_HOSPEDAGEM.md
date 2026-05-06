@@ -116,15 +116,34 @@ Se você quer que seu app seja acessado via `app.suaigreja.com.br` de forma prof
 
 1. Compre um domínio (no Registro.br, Hostinger, ou onde preferir).
 2. Crie uma conta gratuita na [Cloudflare](https://dash.cloudflare.com).
-3. Adicione o seu domínio na Cloudflare. Eles te darão os "Nameservers" (ex: *ns1.cloudflare.com*, *ns2.cloudflare.com*) para você colocar onde comprou o domínio.
+3. Adicione o seu domínio na Cloudflare.
 4. Vá em **DNS** na Cloudflare.
 5. Crie um registro **CNAME**:
    - **Nome / Host:** `@` ou `app` (para ser app.suaigreja.com.br)
    - **Destino:** A URL do servidor no Render (ex: `seu-app-igreja.onrender.com`)
-   - **Status do Proxy (Nuvem laranja):** Deixe ATIVADO. Isso oculta a origem do seu servidor e melhora a segurança e velocidade, garantindo o HTTPS gratuito.
-6. A porta da versão web será sempre a porta padrão da internet **(443 via HTTPS ou 80 via HTTP)**, mas internamente seu servidor usa a porta `3000`. Você NÃO precisa digitar a porta :3000 na URL ao usar domínio + Cloudflare ou link do Render/Railway.
+   - **Status do Proxy (Nuvem laranja):** Deixe ATIVADO.
+6. **Para o Android/iOS funcionar com a Cloudflare**: Vá na Cloudflare > **SSL/TLS** > **Visão Geral** e marque a opção **"Completo (Rigoroso)"** ou **"Full"** (Isso previne erros de comunicação).
 
-*Nota:* Ao configurar seu próprio domínio, você precisará também alterar o `apiUrl` no `src/themeConfig.ts` para o novo domínio, compilar, e refazer os passos do APK.
+*Nota:* Após configurar o domínio, altere o `apiUrl` no `src/themeConfig.ts` para o novo domínio (ex: `https://app.suaigreja.com.br`), rode `npm run build` e gere o APK novamente.
+
+---
+
+## 6. WhatsApp não funciona ou desconectando sozinho? 💬
+
+Se o WhatsApp não aparece o QR Code na "Gestão do WhatsApp" ou desconecta todo dia na nuvem (ex: no Render.com):
+
+O problema é a "Memória Volátil" dos servidores gratuitos. Ferramentas grátis apagam todos os arquivos que o seu servidor gera (incluindo o login do seu WhatsApp na pasta oculta `.wwebjs_auth`) toda vez que ele hiberna.
+
+**Como corrigir no Render.com:**
+1. Vá no seu painel do Render, no seu Web Service.
+2. Vá no menu lateral na opção **Disks** (Discos).
+3. Crie um novo Disco:
+   - **Name:** `dados-igreja`
+   - **Mount Path:** `/opt/render/project/src`
+   - **Size:** `1 GB` (que é grátis)
+4. Salve e deixe o Render reiniciar. Isso vai tornar o seu banco de dados `data.json` e o Login do WhatsApp **PERMANENTES**.
+
+Outra solução é usar plataformas como o `Railway.app` com um volume permanente ou migrar para uma VPS mais robusta.
 
 ---
 

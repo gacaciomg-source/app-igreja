@@ -9,6 +9,8 @@ import {
   useLocation
 } from 'react-router-dom';
 import { toPng } from 'html-to-image';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { 
   Home, 
   Calendar, 
@@ -478,29 +480,50 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
         }
       });
       
-      const blob = await (await fetch(dataUrl)).blob();
       const fileName = `versiculo-${verse.ref.replace(/[:\s]/g, '-')}.png`;
-      const file = new File([blob], fileName, { type: 'image/png' });
+      const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor;
 
-      // Check for native sharing capability (especially for iOS)
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (isNative) {
         try {
-          await navigator.share({
-            files: [file],
-            title: 'Versículo do Dia',
-            text: `"${verse.text}" - ${verse.ref}`
+          // Salvar como base64 no cache do dispositivo e compartilhar
+          const savedFile = await Filesystem.writeFile({
+            path: fileName,
+            data: dataUrl,
+            directory: Directory.Cache
           });
-        } catch (shareErr) {
-          // If the user cancelled or sharing failed, don't necessarily error out
-          console.warn('Share cancelled or failed:', shareErr);
-          // Fallback to direct download if it wasn't a manual cancel
-          if ((shareErr as any).name !== 'AbortError') {
-            downloadImage(dataUrl, fileName);
-          }
+          
+          await Share.share({
+            title: 'Versículo do Dia',
+            text: `"${verse.text}" - ${verse.ref}`,
+            url: savedFile.uri,
+            dialogTitle: 'Compartilhar Versículo'
+          });
+        } catch (capacitorErr) {
+          console.error("Capacitor Share Error:", capacitorErr);
+          downloadImage(dataUrl, fileName);
         }
       } else {
-        // Fallback for browsers that don't support file sharing
-        downloadImage(dataUrl, fileName);
+        const blob = await (await fetch(dataUrl)).blob();
+        const file = new File([blob], fileName, { type: 'image/png' });
+
+        // Check for native sharing capability (especially for iOS)
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'Versículo do Dia',
+              text: `"${verse.text}" - ${verse.ref}`
+            });
+          } catch (shareErr) {
+            console.warn('Share cancelled or failed:', shareErr);
+            if ((shareErr as any).name !== 'AbortError') {
+              downloadImage(dataUrl, fileName);
+            }
+          }
+        } else {
+          // Fallback for browsers that don't support file sharing
+          downloadImage(dataUrl, fileName);
+        }
       }
     } catch (err) {
       console.error('Failed to generate image:', err);
@@ -5212,7 +5235,7 @@ const joinCell = async (cellId: string) => {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-secondary max-w-md mx-auto relative shadow-2xl overflow-hidden">
+      <div className="min-h-screen bg-secondary w-full md:max-w-2xl lg:max-w-4xl mx-auto relative shadow-2xl overflow-hidden md:border-x md:border-slate-100">
         <Routes>
           <Route path="/" element={
             <main className="p-6">
@@ -5354,7 +5377,7 @@ const joinCell = async (cellId: string) => {
           {showNotificationSettings && currentUserData && (
             <Modal title="Configurações de Notificação" onClose={() => setShowNotificationSettings(false)}>
               <NotificationSettingsScreen 
-                settings={currentUserData.notificationSettings}
+                settings={currentUserData.notificationSettings || { allMuted: false, newSermonEnabled: true, wordOfDayEnabled: true, wordOfDayTime: '08:00' }}
                 showMessage={showMessage}
                 onClose={() => setShowNotificationSettings(false)}
                 onUpdate={async (newSettings) => {
@@ -5395,7 +5418,7 @@ const joinCell = async (cellId: string) => {
           )}
         </AnimatePresence>
 
-        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-3 flex justify-between items-center z-50">
+        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl lg:max-w-4xl bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-3 flex justify-between items-center z-50">
           {tabs.map(tab => (
             <button
               key={tab.id}
