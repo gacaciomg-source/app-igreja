@@ -448,13 +448,13 @@ const SHARE_BACKGROUNDS = [
   { id: 'gradient-blue', gradient: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)', name: 'Azul Moderno' },
   { id: 'gradient-purple', gradient: 'linear-gradient(135deg, #a855f7 0%, #db2777 100%)', name: 'Roxo Vibrante' },
   { id: 'gradient-orange', gradient: 'linear-gradient(135deg, #fb923c 0%, #f43f5e 100%)', name: 'Pôr do Sol' },
-  { id: 'nature-1', url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=1000', name: 'Floresta' },
-  { id: 'nature-2', url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=1000', name: 'Montanha' },
-  { id: 'nature-3', url: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&q=80&w=1000', name: 'Lago' },
-  { id: 'nature-4', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=1000', name: 'Praia' },
-  { id: 'nature-5', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=80&w=1000', name: 'Pico' },
-  { id: 'nature-6', url: 'https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?auto=format&fit=crop&q=80&w=1000', name: 'Céu' },
-  { id: 'abstract-1', url: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80&w=1000', name: 'Abstrato' },
+  { id: 'nature-1', url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=100&w=1080', name: 'Floresta' },
+  { id: 'nature-2', url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=100&w=1080', name: 'Montanha' },
+  { id: 'nature-3', url: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&q=100&w=1080', name: 'Lago' },
+  { id: 'nature-4', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=100&w=1080', name: 'Praia' },
+  { id: 'nature-5', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=100&w=1080', name: 'Pico' },
+  { id: 'nature-6', url: 'https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?auto=format&fit=crop&q=100&w=1080', name: 'Céu' },
+  { id: 'abstract-1', url: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=100&w=1080', name: 'Abstrato' },
 ];
 
 const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: string }, onClose: () => void }) => {
@@ -462,6 +462,7 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
   const verseCardRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState(false);
 
   const handleShare = async () => {
     if (!verseCardRef.current) return;
@@ -575,19 +576,22 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
               ref={verseCardRef}
             className="w-[280px] h-[497px] rounded-2xl flex flex-col items-center justify-center p-8 text-center relative overflow-hidden shadow-2xl"
             style={{
-              background: (selectedBg as any).gradient || ((selectedBg as any).url ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${(selectedBg as any).url})` : '#1e293b'),
+              backgroundImage: (selectedBg as any).gradient || ((selectedBg as any).url ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${(selectedBg as any).url})` : 'none'),
               backgroundColor: '#1e293b',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
           >
-            <div className="absolute top-12 left-1/2 -translate-x-1/2 w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center p-3">
-              <img 
-                src={APP_CONFIG.logos.icon} 
-                className="w-full h-full object-contain invert brightness-0" 
-                alt="Logo" 
-              />
-            </div>
+            {!logoError && (
+              <div className="absolute top-12 left-1/2 -translate-x-1/2 w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center p-3">
+                <img 
+                  src={APP_CONFIG.logos.icon} 
+                  className="w-full h-full object-contain invert brightness-0" 
+                  alt="Logo" 
+                  onError={() => setLogoError(true)}
+                />
+              </div>
+            )}
             
             <div className="space-y-6 z-10 pt-16">
               <p className="text-white text-xl font-medium italic leading-relaxed drop-shadow-lg">
@@ -628,8 +632,10 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
               <div 
                 className="w-full h-full"
                 style={{ 
-                  background: (bg as any).gradient || (bg.url ? `url(${bg.url})` : undefined),
-                  backgroundSize: 'cover'
+                  backgroundImage: (bg as any).gradient || (bg.url ? `url(${bg.url})` : 'none'),
+                  backgroundColor: '#f1f5f9',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
                 }}
               />
               <div className="absolute inset-0 flex items-end p-1">
