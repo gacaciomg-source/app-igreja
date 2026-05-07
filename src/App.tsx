@@ -51,7 +51,8 @@ import {
   FileText,
   CheckCircle,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Server
 } from 'lucide-react';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
@@ -576,14 +577,30 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
               ref={verseCardRef}
             className="w-[280px] h-[497px] rounded-2xl flex flex-col items-center justify-center p-8 text-center relative overflow-hidden shadow-2xl"
             style={{
-              backgroundImage: (selectedBg as any).gradient || ((selectedBg as any).url ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${(selectedBg as any).url})` : 'none'),
               backgroundColor: '#1e293b',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
             }}
           >
+            {/* Renderiza o background */}
+            {(selectedBg as any).url && (
+              <>
+                <img 
+                  src={(selectedBg as any).url} 
+                  crossOrigin="anonymous" 
+                  alt="background" 
+                  className="absolute inset-0 w-full h-full object-cover z-0" 
+                />
+                <div className="absolute inset-0 bg-black/40 z-0" />
+              </>
+            )}
+            {(selectedBg as any).gradient && (
+              <div 
+                className="absolute inset-0 z-0" 
+                style={{ background: (selectedBg as any).gradient }} 
+              />
+            )}
+
             {!logoError && (
-              <div className="absolute top-12 left-1/2 -translate-x-1/2 w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center p-3">
+              <div className="absolute top-12 left-1/2 -translate-x-1/2 w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center p-3 z-10">
                 <img 
                   src={APP_CONFIG.logos.icon} 
                   className="w-full h-full object-contain invert brightness-0" 
@@ -2604,6 +2621,116 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
       </Card>
     </section>
   </div>
+  );
+};
+
+const AdminHostingScreen = () => {
+  return (
+    <div className="space-y-6 pb-24">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Hospedagem em VPS</h2>
+          <p className="text-sm font-medium text-slate-500">Passo a passo para produção</p>
+        </div>
+        <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+          <Server className="w-6 h-6 text-primary" />
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <Card className="border-l-4 border-l-blue-500">
+          <h3 className="font-bold text-lg text-slate-800 mb-2">1. Preparando o Servidor</h3>
+          <p className="text-sm text-slate-600 mb-4 tracking-tight">Recomendamos uma VPS Ubuntu 22.04 LTS ou 24.04 LTS (DigitalOcean, AWS, Hetzner, etc). Faça acesso via SSH.</p>
+          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+            <code className="text-xs text-green-400 whitespace-pre">
+{`# Atualize os pacotes do sistema
+sudo apt update && sudo apt upgrade -y
+
+# Instale Node.js 20.x, npm e git
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs git`}
+            </code>
+          </div>
+        </Card>
+
+        <Card className="border-l-4 border-l-primary">
+          <h3 className="font-bold text-lg text-slate-800 mb-2">2. Clonando e Instalando</h3>
+          <p className="text-sm text-slate-600 mb-4 tracking-tight">Baixe os arquivos do seu aplicativo e instale as dependências.</p>
+          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+            <code className="text-xs text-green-400 whitespace-pre">
+{`# Clone o seu repositório ou faça upload dos arquivos via SFTP
+git clone https://seu-repositorio.git app-igreja
+cd app-igreja
+
+# Instale as dependências
+npm install
+
+# Instale o PM2 para manter o servidor online
+sudo npm install -g pm2`}
+            </code>
+          </div>
+        </Card>
+
+        <Card className="border-l-4 border-l-purple-500">
+          <h3 className="font-bold text-lg text-slate-800 mb-2">3. Configurando Base de Dados</h3>
+          <p className="text-sm text-slate-600 mb-3 tracking-tight">Seu aplicativo armazena todos os dados em arquivos JSON na pasta <strong className="text-slate-900 bg-slate-100 px-1 rounded">/data</strong> localizada na raiz do projeto (mesmo nível do server.ts).</p>
+          <p className="text-sm text-slate-600 mb-4 tracking-tight">Isso significa que para <strong>fazer backup</strong> basta salvar a pasta <code className="bg-slate-100 px-1 rounded">data/</code>. Para migrar de hospedagem, mova esta pasta inteira para o novo servidor.</p>
+          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+            <code className="text-xs text-green-400 whitespace-pre">
+{`# Exemplo de backup manual via ZIP
+zip -r backup-dados-igreja.zip data/`}
+            </code>
+          </div>
+        </Card>
+
+        <Card className="border-l-4 border-l-orange-500">
+          <h3 className="font-bold text-lg text-slate-800 mb-2">4. Construindo para Produção</h3>
+          <p className="text-sm text-slate-600 mb-4 tracking-tight">Compile o backend (server) e os arquivos estáticos (Vite) antes de rodar.</p>
+          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+            <code className="text-xs text-green-400 whitespace-pre">
+{`# Cria os arquivos de produção
+npm run build`}
+            </code>
+          </div>
+        </Card>
+
+        <Card className="border-l-4 border-l-green-500">
+          <h3 className="font-bold text-lg text-slate-800 mb-2">5. Iniciando o Aplicativo</h3>
+          <p className="text-sm text-slate-600 mb-4 tracking-tight">Iniciamos o servidor com o PM2 para que o Node.js rode em background mesmo se você fechar o terminal.</p>
+          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+            <code className="text-xs text-green-400 whitespace-pre">
+{`# Inicia o servidor setando a variável de produção
+# A porta padrão mapeada é 3000
+PORT=3000 NODE_ENV=production pm2 start dist/server.cjs --name "app-igreja"
+
+# Salve a configuração do PM2 para iniciar com o sistema operacioal
+pm2 save
+pm2 startup`}
+            </code>
+          </div>
+        </Card>
+        
+        <Card className="border-l-4 border-l-slate-800">
+          <h3 className="font-bold text-lg text-slate-800 mb-2">6. NGINX e Certificado SSL (HTTPS)</h3>
+          <p className="text-sm text-slate-600 mb-4 tracking-tight">Para acessar o aplicativo é necessário um proxy e HTTPS gratuito na porta 443 com o domínio da sua igreja.</p>
+          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+            <code className="text-xs text-green-400 whitespace-pre">
+{`# Instale NGINX e Certbot
+sudo apt install nginx certbot python3-certbot-nginx -y
+
+# Configure o NGINX, crie um arquivo em:
+# /etc/nginx/sites-available/app-igreja
+# E aponte server_name para seudominio.com.br
+# Use "proxy_pass http://localhost:3000" para redirecionar
+
+# Habilite e adicione o certificado
+sudo ln -s /etc/nginx/sites-available/app-igreja /etc/nginx/sites-enabled/
+sudo certbot --nginx -d seudominio.com.br`}
+            </code>
+          </div>
+        </Card>
+      </div>
+    </div>
   );
 };
 
@@ -5125,6 +5252,7 @@ const joinCell = async (cellId: string) => {
         case 'home': return <AdminDashboard stats={stats} users={visibleUsers} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
         case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} />;
         case 'financial': return <AdminFinancial transactions={transactions} balance={totalBalance} onAdd={() => setShowAddTransaction(true)} onDelete={deleteTransaction} showMessage={showMessage} />;
+        case 'hosting': return <AdminHostingScreen />;
         case 'tithes': return <TithesAdminScreen config={titheConfig} onUpdate={updateTitheConfig} showMessage={showMessage} />;
         case 'events': return <EventsScreen events={events} isAdmin onDelete={deleteEvent} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} showMessage={showMessage} />;
         case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} showMessage={showMessage} />;
@@ -5247,6 +5375,7 @@ const joinCell = async (cellId: string) => {
     { id: 'sermons', icon: Mic, label: 'Sermões' },
     { id: 'prayer', icon: Heart, label: 'Mural' },
     { id: 'profile', icon: Settings, label: 'Perfil' },
+    { id: 'hosting', icon: Server, label: 'Hospedagem' },
   ];
 
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
