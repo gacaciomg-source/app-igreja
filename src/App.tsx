@@ -58,9 +58,10 @@ import {
   Cpu,
   HardDrive,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Sparkles
 } from 'lucide-react';
-import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig } from './types';
+import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
 import { api } from './services/apiService';
 import { ReadingPlansScreen } from './components/ReadingPlansScreen';
@@ -206,6 +207,23 @@ export const Button = ({
 
 // --- Screens ---
 
+const TreeLogo = ({ className = "w-20 h-20" }: { className?: string }) => (
+  <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <circle cx="100" cy="100" r="98" fill="#064e3b" />
+    <circle cx="100" cy="100" r="92" stroke="#D4AF37" strokeWidth="2" />
+    <path d="M100 160V70" stroke="white" strokeWidth="8" strokeLinecap="round" />
+    <path d="M100 70C100 70 140 100 140 130" stroke="white" strokeWidth="6" strokeLinecap="round" />
+    <path d="M100 70C100 70 60 100 60 130" stroke="white" strokeWidth="6" strokeLinecap="round" />
+    <path d="M100 90C100 90 125 110 125 125" stroke="#D4AF37" strokeWidth="5" strokeLinecap="round" />
+    <path d="M100 90C100 90 75 110 75 125" stroke="#D4AF37" strokeWidth="5" strokeLinecap="round" />
+    <circle cx="100" cy="55" r="10" fill="white" />
+    <circle cx="140" cy="115" r="7" fill="white" />
+    <circle cx="60" cy="115" r="7" fill="white" />
+    <circle cx="120" cy="85" r="6" fill="white" />
+    <circle cx="80" cy="85" r="6" fill="white" />
+  </svg>
+);
+
 const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => void }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
   const [email, setEmail] = useState('');
@@ -265,11 +283,7 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
       >
         <div className="text-center space-y-2">
           <div className="w-24 h-24 bg-white rounded-3xl mx-auto flex items-center justify-center p-4 shadow-xl shadow-primary/5 mb-4">
-            <img 
-              src={APP_CONFIG.logos.icon} 
-              className="w-full h-full object-contain" 
-              alt="Logo" 
-            />
+            <TreeLogo className="w-full h-full" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{APP_CONFIG.name}</h1>
           <p className="text-slate-500">
@@ -1686,7 +1700,23 @@ const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, showMessage }: 
     </div>
   </div>
 );
-const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowMural, showMessage }: { events: Event[], isAdmin?: boolean, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onShowMural?: () => void, showMessage?: (msg: string) => void }) => {
+const PrayingHands = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <svg 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <path d="M12 3L9 9v3l-4 6 3 3 4-2 4 2 3-3-4-6V9l-3-6z" />
+    <path d="M12 3v13" />
+    <path d="M9 18l3 2 3-2" />
+  </svg>
+);
+
+const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, showMessage }: { events: Event[], isAdmin?: boolean, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onShowOrações?: () => void, showMessage?: (msg: string) => void }) => {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const filteredEvents = selectedCategory === 'Todos' ? events : events.filter(e => e.category === selectedCategory);
 
@@ -1699,8 +1729,8 @@ const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowMural, showMess
           <Filter className="w-5 h-5 text-slate-600" />
         </button>
         {!isAdmin && (
-          <button onClick={onShowMural} className="p-2 bg-primary-light text-primary rounded-xl shadow-sm border border-primary/10">
-            <Heart className="w-5 h-5" />
+          <button onClick={onShowOrações} className="p-2 bg-primary-light text-primary rounded-xl shadow-sm border border-primary/10">
+            <PrayingHands className="w-5 h-5 text-primary" />
           </button>
         )}
       </div>
@@ -1782,7 +1812,7 @@ const PrayerWall = ({ prayers, cells, onAdd, onDelete, onTogglePrayed, onAddComm
   return (
   <div className="space-y-6 pb-24">
     <header className="flex items-center justify-between">
-      <h2 className="text-2xl font-bold text-slate-900">Mural de Pedidos</h2>
+      <h2 className="text-2xl font-bold text-slate-900">Orações</h2>
       <Button className="rounded-full w-10 h-10 p-0" onClick={onAdd}>
         <Plus className="w-6 h-6" />
       </Button>
@@ -2707,10 +2737,20 @@ const AdminHostingScreen = () => {
   };
 
   const formatUptime = (seconds: number) => {
-    const d = Math.floor(seconds / (3600*24));
-    const h = Math.floor(seconds % (3600*24) / 3600);
-    const m = Math.floor(seconds % 3600 / 60);
-    return `${d > 0 ? d + 'd ' : ''}${h}h ${m}m`;
+    const days = Math.floor(seconds / (3600 * 24));
+    const hrs = Math.floor((seconds % (3600 * 24)) / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return `${days > 0 ? days + 'd ' : ''}${hrs}h ${mins}m`;
+  };
+
+  const handleResetWhatsApp = async () => {
+    if (!confirm('Deseja realmente reiniciar a conexão do WhatsApp? Isso pode levar um minuto.')) return;
+    try {
+      await api.request('/whatsapp/reset', { method: 'POST' });
+      alert('Comando enviado! O servidor está reiniciando a conexão. Verifique o status na tela de Configuração do WhatsApp em instantes.');
+    } catch (e) {
+      alert('Erro ao enviar comando de reinicialização');
+    }
   };
 
   return (
@@ -2721,9 +2761,13 @@ const AdminHostingScreen = () => {
           <p className="text-sm font-medium text-slate-500">Métricas de saúde e backups</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={handleResetWhatsApp} variant="secondary" className="flex items-center gap-2 bg-amber-50 text-amber-700 border-amber-200">
+            <RefreshCw className="w-4 h-4" />
+            Resetar WhatsApp
+          </Button>
           <Button onClick={handleBackup} disabled={isBackingUp} className="flex items-center gap-2">
             {isBackingUp ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Backup Automático
+            Backup Sistema
           </Button>
         </div>
       </div>
@@ -2808,123 +2852,80 @@ const AdminHostingScreen = () => {
             >
               <div className="space-y-4 pt-4">
                 <Card className="border-l-4 border-l-blue-500">
-                  <h3 className="font-bold text-lg text-slate-800 mb-2">1. Preparando o Servidor</h3>
-                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Recomendamos uma VPS Ubuntu 22.04 LTS ou 24.04 LTS (DigitalOcean, AWS, Hetzner, etc). Faça acesso via SSH.</p>
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">1. Preparando o Servidor (Ubuntu 24.04/22.04)</h3>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Execute estes comandos via SSH para instalar o Node.js e as bibliotecas necessárias para o WhatsApp:</p>
                   <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
                     <code className="text-xs text-green-400 whitespace-pre">
-{`# Atualize os pacotes do sistema
+{`# 1. Atualize o sistema
 sudo apt update && sudo apt upgrade -y
 
-# Instale Node.js 20.x, npm e git
+# 2. Instale Node.js 20.x e dependências
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs git
+sudo apt-get install -y nodejs git chromium-browser
 
-# Instale dependências requeridas pelo Chromium (para o WhatsApp Web funcionar na VPS)
-sudo apt-get install -y libnss3 libxss1 libasound2 libatk-bridge2.0-0 libgtk-3-0 libgbm-dev`}
-                    </code>
-                  </div>
-                </Card>
-
-                <Card className="border-l-4 border-l-primary">
-                  <h3 className="font-bold text-lg text-slate-800 mb-2">2. Clonando e Instalando</h3>
-                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Baixe os arquivos do seu aplicativo e instale as dependências.</p>
-                  <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
-                    <code className="text-xs text-green-400 whitespace-pre">
-{`# Clone o seu repositório ou faça upload dos arquivos via SFTP
-git clone https://seu-repositorio.git app-igreja
-cd app-igreja
-
-# Instale as dependências
-npm install
-
-# Instale o PM2 para manter o servidor online
-sudo npm install -g pm2`}
-                    </code>
-                  </div>
-                </Card>
-
-                <Card className="border-l-4 border-l-purple-500">
-                  <h3 className="font-bold text-lg text-slate-800 mb-2">3. Configurando Base de Dados</h3>
-                  <p className="text-sm text-slate-600 mb-3 tracking-tight">Seu aplicativo armazena todos os dados em arquivos JSON na pasta <strong className="text-slate-900 bg-slate-100 px-1 rounded">/data</strong> localizada na raiz do projeto (mesmo nível do server.ts).</p>
-                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Isso significa que para <strong>fazer backup</strong> basta salvar a pasta <code className="bg-slate-100 px-1 rounded">data/</code>. Para migrar de hospedagem, mova esta pasta inteira para o novo servidor.</p>
-                  <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
-                    <code className="text-xs text-green-400 whitespace-pre">
-{`# Exemplo de backup manual via ZIP
-zip -r backup-dados-igreja.zip data/`}
-                    </code>
-                  </div>
-                </Card>
-
-                <Card className="border-l-4 border-l-orange-500">
-                  <h3 className="font-bold text-lg text-slate-800 mb-2">4. Construindo para Produção</h3>
-                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Compile o backend (server) e os arquivos estáticos (Vite) antes de rodar.</p>
-                  <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
-                    <code className="text-xs text-green-400 whitespace-pre">
-{`# Cria os arquivos de produção
-npm run build`}
+# 3. Instale TODAS as bibliotecas do Chrome (Essencial para o WhatsApp)
+sudo apt-get install -y ca-certificates fonts-liberation libappindicator3-1 libasound2 libatk-bridge2.0-0 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1 libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 lsb-release wget xdg-utils`}
                     </code>
                   </div>
                 </Card>
 
                 <Card className="border-l-4 border-l-green-500">
-                  <h3 className="font-bold text-lg text-slate-800 mb-2">5. Iniciando o Aplicativo</h3>
-                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Iniciamos o servidor com o PM2 para que o Node.js rode em background mesmo se você fechar o terminal.</p>
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">2. Rodando o App com WhatsApp Estável</h3>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Para o WhatsApp não falhar, inicie o app apontando para o navegador que instalamos:</p>
                   <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
                     <code className="text-xs text-green-400 whitespace-pre">
-{`# Inicia o servidor setando a variável de produção
-# A porta padrão mapeada é 3000
-PORT=3000 NODE_ENV=production pm2 start dist/server.cjs --name "app-igreja"
+{`# Entre na pasta do seu app
+npm install
+sudo npm install -g pm2
+npm run build
 
-# Salve a configuração do PM2 para iniciar com o sistema operacioal
-pm2 save
-pm2 startup`}
+# Inicie com o CHROME_PATH definido (Ubuntu 24/22)
+export CHROME_PATH=/usr/bin/chromium-browser
+export NODE_ENV=production
+export PORT=3000
+pm2 start dist/server.cjs --name "igreja-app"
+
+# Salve para iniciar no boot
+pm2 save && pm2 startup`}
                     </code>
                   </div>
                 </Card>
-                
-                <Card className="border-l-4 border-l-slate-800">
-                  <h3 className="font-bold text-lg text-slate-800 mb-2">6. NGINX e Certificado SSL (HTTPS)</h3>
-                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Para acessar o aplicativo é necessário um proxy e HTTPS gratuito na porta 443 com o domínio da sua igreja.</p>
+
+                <Card className="border-l-4 border-l-orange-500">
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">3. NGINX + Cloudflare (SSL Loop Fix)</h3>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight text-red-600 font-bold">Importante: No painel da CLOUDFLARE, mude o SSL/TLS para "Full (Strict)".</p>
                   <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
                     <code className="text-xs text-green-400 whitespace-pre">
-{`# Instale NGINX e Certbot
-sudo apt install nginx certbot python3-certbot-nginx -y
-
-# Configure o NGINX, crie um arquivo em:
-# /etc/nginx/sites-available/app-igreja
-
+{`# Arquivo /etc/nginx/sites-available/igreja (ou app-igreja)
 server {
+    listen 80;
     server_name seudominio.com.br;
-    
+
     location / {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 
-# Habilite e adicione o certificado
-sudo ln -s /etc/nginx/sites-available/app-igreja /etc/nginx/sites-enabled/
-sudo certbot --nginx -d seudominio.com.br
-sudo systemctl restart nginx`}
+# Habilite e adicione SSL
+sudo ln -s /etc/nginx/sites-available/igreja /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl restart nginx
+sudo certbot --nginx -d seudominio.com.br`}
                     </code>
                   </div>
                 </Card>
 
                 <Card className="border-l-4 border-l-yellow-500">
-                  <h3 className="font-bold text-lg text-slate-800 mb-2">7. Se estiver usando o APP Android</h3>
-                  <p className="text-sm text-slate-600 mb-4 tracking-tight">O app Android precisa saber para onde enviar os dados. Se for lançar o app (APK):</p>
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">4. Dica: Se o domínio não apontar no App</h3>
                   <ul className="text-sm text-slate-600 list-disc ml-4 space-y-2">
-                    <li>Abra o arquivo <code className="bg-slate-100 rounded px-1">src/themeConfig.ts</code></li>
-                    <li>Altere a propriedade <code className="bg-slate-100 rounded px-1">apiUrl: "https://seudominio.com.br"</code></li>
-                    <li>Rode o comando <code className="bg-slate-100 rounded px-1">npm run build</code> e re-gere o seu APK Android pelo Android Studio.</li>
-                    <li>E no <strong>Cloudflare</strong>, vá em "SSL/TLS" e mude a criptografia para <strong>Full (Strict)</strong> para evitar erros de loop infinito com o NGINX.</li>
+                    <li>Verifique se você alterou o <code className="bg-slate-100 rounded px-1">src/themeConfig.ts</code> para o NOVO domínio.</li>
+                    <li>Sempre que mudar o domínio no código, você PRECISA rodar <code className="bg-slate-100 rounded px-1">npm run build</code> e reiniciar o app no VPS.</li>
                   </ul>
                 </Card>
               </div>
@@ -2941,7 +2942,7 @@ const AdminAllScreens = ({ onTabChange, isTabAllowed }: { onTabChange: (tab: str
   const screens = [
     { id: 'home', label: 'Dashboard Principal', icon: PieChart, color: 'bg-slate-800' },
     { id: 'financial', label: 'Gestão Financeira', icon: DollarSign, color: 'bg-amber-500' },
-    { id: 'prayer', label: 'Mural de Orações', icon: Heart, color: 'bg-red-500' },
+    { id: 'prayer', label: 'Orações', icon: PrayingHands, color: 'bg-red-500' },
     { id: 'users', label: 'Gestão de Pessoas', icon: Users, color: 'bg-blue-500' },
     { id: 'ministries', label: 'Ministérios e Escalas', icon: Music, color: 'bg-teal-500' },
     { id: 'readingPlans', label: 'Planos de Leitura', icon: TrendingUp, color: 'bg-emerald-500' },
@@ -3819,7 +3820,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
           { icon: Lock, label: 'Alterar Senha', action: () => setShowChangePassword(true) },
           user?.id && ministries?.some(m => m.memberIds.includes(user.id) || m.leaderIds.includes(user.id)) && { icon: Calendar, label: 'Minhas Escalas', action: () => setShowMySchedules(true) },
           user?.role === 'superadmin' && { icon: MessageSquare, label: 'Configurar WhatsApp', action: () => setShowWhatsAppConfig(true) },
-          { icon: Heart, label: 'Meus Pedidos de Oração', action: () => setShowMyPrayers(true) },
+          { icon: PrayingHands, label: 'Minhas Orações', action: () => setShowMyPrayers(true) },
           { icon: Heart, label: 'Minhas Solicitações de Visita', action: () => setShowMyVisits(true) },
           { icon: Settings, label: 'Privacidade', action: () => setShowPrivacy(true) },
         ].filter(Boolean).map((item: any, i) => (
@@ -5682,7 +5683,7 @@ const joinCell = async (cellId: string) => {
 
     switch (currentTab) {
       case 'home': return <Dashboard {...dashboardProps} />;
-      case 'events': return <EventsScreen events={events} onShowMural={() => setCurrentTab('prayer')} showMessage={showMessage} />;
+      case 'events': return <EventsScreen events={events} onShowOrações={() => setCurrentTab('prayer')} showMessage={showMessage} />;
       case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
       case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onDelete={deleteAnnouncement} showMessage={showMessage} />;
       case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} progress={userReadingProgress} onToggleChapter={toggleChapter} isAdmin={false} showMessage={showMessage} />;
@@ -5726,7 +5727,7 @@ const joinCell = async (cellId: string) => {
 
   const memberTabs = [
     { id: 'home', icon: Home, label: 'Início' },
-    { id: 'prayer', icon: Heart, label: 'Mural' },
+    { id: 'prayer', icon: PrayingHands, label: 'Orações' },
     { id: 'bible', icon: BookOpen, label: 'Bíblia' },
     { id: 'sermons', icon: Mic, label: 'Sermões' },
     { id: 'profile', icon: User, label: 'Perfil' },
@@ -5756,7 +5757,7 @@ const joinCell = async (cellId: string) => {
     { id: 'financial', icon: DollarSign, label: 'Financeiro' },
     { id: 'pastoral', icon: Heart, label: 'Visitas' },
     { id: 'sermons', icon: Mic, label: 'Sermões' },
-    { id: 'prayer', icon: Heart, label: 'Mural' },
+    { id: 'prayer', icon: PrayingHands, label: 'Orações' },
     { id: 'profile', icon: Settings, label: 'Perfil' },
     { id: 'hosting', icon: Server, label: 'Servidor' },
   ].filter(t => isTabAllowed(t.id));

@@ -10,6 +10,7 @@ import * as storage from "./src/lib/storage";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode';
+import qrcodeTerminal from 'qrcode-terminal';
 import cron from 'node-cron';
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
@@ -19,6 +20,8 @@ let whatsappClient: any | null = null;
 let lastQr: string | null = null;
 let whatsappStatus: 'DISCONNECTED' | 'INITIALIZING' | 'READY' | 'AUTHENTRICATING' = 'DISCONNECTED';
 let whatsappError: string | null = null;
+
+const START_TIME = Date.now();
 
 async function getWhatsAppChatId(phone: string) {
     if (!whatsappClient) return null;
@@ -116,74 +119,103 @@ async function initWhatsApp() {
 
   console.log('Initializing WhatsApp Client...');
   whatsappStatus = 'INITIALIZING';
+  whatsappError = null;
 
-  const lockFile = path.join(process.cwd(), '.wwebjs_auth', 'session', 'SingletonLock');
-  const cookieFile = path.join(process.cwd(), '.wwebjs_auth', 'session', 'SingletonCookie');
+  const authPath = path.join(process.cwd(), '.wwebjs_auth');
+  const sessionPath = path.join(authPath, 'session');
+  
+  // Limpeza de arquivos de trava do Puppeteer que impedem reinicialização
   try {
-    if (fs.existsSync(lockFile)) fs.unlinkSync(lockFile);
-    if (fs.existsSync(cookieFile)) fs.unlinkSync(cookieFile);
+    const lockFiles = [
+      path.join(sessionPath, 'SingletonLock'),
+      path.join(sessionPath, 'SingletonCookie'),
+      path.join(sessionPath, 'SingletonSocket')
+    ];
+    lockFiles.forEach(file => {
+      if (fs.existsSync(file)) {
+        console.log(`Limpando arquivo de trava: ${file}`);
+        fs.unlinkSync(file);
+      }
+    });
   } catch (e) {
-    console.error('Failed to remove Singleton files', e);
+    console.error('Falha ao limpar arquivos de trava do Puppeteer:', e);
   }
 
   whatsappClient = new Client({
-    authStrategy: new LocalAuth({ dataPath: path.join(process.cwd(), '.wwebjs_auth') }),
+    authStrategy: new LocalAuth({ dataPath: authPath }),
+    authTimeoutMs: 120000, 
+    webVersionCache: {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+    },
     puppeteer: {
       headless: true,
-      executablePath: process.env.CHROME_PATH || undefined,
+      executablePath: process.env.CHROME_PATH || '/usr/bin/chromium-browser',
+      handleSIGINT: false,
+      handleSIGTERM: false,
       args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage', 
-        '--disable-gpu', 
-        '--disable-extensions',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
         '--no-zygote',
         '--single-process',
-        '--disable-software-rasterizer'
+        '--disable-extensions',
+        '--no-first-run'
       ]
     }
   });
 
   whatsappClient.on('qr', async (qr) => {
-    console.log('WhatsApp QR Code generated');
-    lastQr = await qrcode.toDataURL(qr);
+    console.log('--- NOVO QR CODE GERADO ---');
+    console.log('Escaneie o código abaixo no seu WhatsApp:');
+    qrcodeTerminal.generate(qr, {small: true});
+    try {
+      lastQr = await qrcode.toDataURL(qr);
+      console.log('QR Code formatado para exibição no Painel Web!');
+    } catch (err) {
+      console.error('Erro ao converter QR para DataURL:', err);
+    }
     whatsappStatus = 'DISCONNECTED';
   });
 
   whatsappClient.on('ready', () => {
-    console.log('WhatsApp Client is ready!');
+    console.log('WhatsApp Client STATUS: PRONTO!');
     whatsappStatus = 'READY';
     lastQr = null;
+    whatsappError = null;
   });
 
   whatsappClient.on('authenticated', () => {
-    console.log('WhatsApp Authenticated');
+    console.log('WhatsApp STATUS: AUTENTICADO (carregando sessão)');
     whatsappStatus = 'AUTHENTRICATING';
   });
 
   whatsappClient.on('auth_failure', (msg) => {
-    console.error('WhatsApp Auth failure:', msg);
+    console.error('WhatsApp STATUS: FALHA NA AUTENTICAÇÃO:', msg);
     whatsappStatus = 'DISCONNECTED';
+    whatsappError = 'Falha na autenticação: ' + msg;
   });
 
   whatsappClient.on('disconnected', (reason) => {
-    console.log('WhatsApp Disconnected:', reason);
+    console.log('WhatsApp STATUS: DESCONECTADO:', reason);
     whatsappStatus = 'DISCONNECTED';
     lastQr = null;
     whatsappClient = null;
-    setTimeout(initWhatsApp, 5000);
+    // Tenta reconectar em 10 segundos se foi desconexão acidental
+    setTimeout(initWhatsApp, 10000);
   });
 
   try {
     await whatsappClient.initialize();
   } catch (err: any) {
-    console.error('Failed to initialize WhatsApp:', err);
+    console.error('ERRO CRÍTICO NA INICIALIZAÇÃO DO WHATSAPP:', err);
     whatsappError = err.message || String(err);
-    if (whatsappError.includes('Execution context was destroyed') || whatsappError.includes('browser is already running')) {
-        whatsappError += ' (Dica: Encerre processos "chrome.exe" / "node.exe" perdidos no Gerenciador de Tarefas do Windows ou apague a pasta .wwebjs_auth)';
+    
+    if (whatsappError.includes('Code: 127')) {
+      whatsappError = "Erro 127: Faltam bibliotecas do Chrome no seu Linux (Ubuntu). Execute os comandos de 'Hospedagem' no admin.";
     }
+
     whatsappStatus = 'DISCONNECTED';
     if (whatsappClient) {
         try { await whatsappClient.destroy(); } catch(e) {}
@@ -508,11 +540,24 @@ async function startServer() {
         freeMemory,
         totalMemory,
         loadAvg,
-        uptime: os.uptime()
+        uptime: Math.floor(os.uptime())
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao ler statos do sistema" });
     }
+  });
+
+  app.post("/api/whatsapp/reset", authenticateToken, async (req, res) => {
+    const userRole = (req as any).user?.role;
+    if (userRole !== 'superadmin' && userRole !== 'admin') return res.status(403).send("Acesso negado");
+    console.log('Reiniciando WhatsApp via Painel Admin...');
+    if (whatsappClient) {
+      try { await whatsappClient.destroy(); } catch(e) {}
+      whatsappClient = null;
+    }
+    whatsappStatus = 'DISCONNECTED';
+    initWhatsApp();
+    res.json({ ok: true });
   });
 
   app.get("/api/backup", authenticateToken, async (req, res) => {
@@ -724,7 +769,7 @@ async function startServer() {
 
   await ensureMinistries();
 
-  app.listen(PORT, "0.0.0.0", () => {
+  app.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

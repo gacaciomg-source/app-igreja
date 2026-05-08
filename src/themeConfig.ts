@@ -11,9 +11,9 @@ export const APP_CONFIG = {
   
   // URL das Imagens (Você pode trocar pelos seus links)
   logos: {
-    dark: "https://images.unsplash.com/photo-1544427928-c49cdfebf4ad?q=80&w=200&h=200&auto=format&fit=crop", // Logo para fundos claros
-    light: "https://images.unsplash.com/photo-1544427928-c49cdfebf4ad?q=80&w=200&h=200&auto=format&fit=crop", // Logo para fundos escuros
-    icon: "https://images.unsplash.com/photo-1544427928-c49cdfebf4ad?q=80&w=100&h=100&auto=format&fit=crop", // Ícone circular
+    dark: "/icon.png", // Logo para fundos claros
+    light: "/icon.png", // Logo para fundos escuros
+    icon: "/icon.png", // Ícone circular
   },
   
   // Cores Principais (Use códigos Hexadecimal)
