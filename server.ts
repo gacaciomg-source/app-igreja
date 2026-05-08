@@ -496,6 +496,45 @@ async function startServer() {
   });
 
   // --- Generic Data API ---
+  app.get("/api/sysinfo", authenticateToken, (req, res) => {
+    try {
+      const os = require('os');
+      const freeMemory = os.freemem();
+      const totalMemory = os.totalmem();
+      const memoryUsage = ((totalMemory - freeMemory) / totalMemory * 100).toFixed(2);
+      const loadAvg = os.loadavg();
+      res.json({
+        memoryUsage: Number(memoryUsage),
+        freeMemory,
+        totalMemory,
+        loadAvg,
+        uptime: os.uptime()
+      });
+    } catch (e) {
+      res.status(500).json({ error: "Erro ao ler statos do sistema" });
+    }
+  });
+
+  app.get("/api/backup", authenticateToken, async (req, res) => {
+    try {
+      // Return a JSON containing all collections
+      const collections = [
+        'users', 'events', 'prayers', 'announcements', 'cells', 
+        'readingPlans', 'pastoralVisits', 'titheTransactions', 
+        'attendances', 'config', 'ministries', 'ministrySchedules', 'adminRoles'
+      ];
+      const backup: any = {};
+      for (const c of collections) {
+        backup[c] = await storage.readCollection(c);
+      }
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename=igreja_backup_${new Date().toISOString().split('T')[0]}.json`);
+      res.send(JSON.stringify(backup, null, 2));
+    } catch (error) {
+       res.status(500).json({ error: "Erro ao gerar backup" });
+    }
+  });
+
   app.get("/api/collections/:name", authenticateToken, async (req, res) => {
     try {
       const data = await storage.readCollection(req.params.name);

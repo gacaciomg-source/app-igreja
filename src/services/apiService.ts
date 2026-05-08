@@ -72,6 +72,10 @@ class ApiService {
     return this.request('/whatsapp/logout', { method: 'POST' });
   }
 
+  async getSysInfo() {
+    return this.request('/sysinfo');
+  }
+
   setToken(token: string | null) {
     this.token = token;
     if (token) {

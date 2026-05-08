@@ -8,12 +8,19 @@ export function cn(...inputs: ClassValue[]) {
 export type UserRole = 'member' | 'leader' | 'admin' | 'superadmin';
 export type MemberStatus = 'visitor' | 'new_member' | 'integrated' | 'active' | 'inactive';
 
+export interface AdminRole {
+  id: string;
+  name: string;
+  permissions: string[];
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
   phone?: string;
   role: UserRole;
+  adminRoleId?: string;
   avatar?: string;
   birthDate?: string; // ISO format or YYYY-MM-DD
   age?: number;

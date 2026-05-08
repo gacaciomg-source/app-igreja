@@ -52,7 +52,13 @@ import {
   CheckCircle,
   XCircle,
   RefreshCw,
-  Server
+  Server,
+  Shield,
+  Download,
+  Cpu,
+  HardDrive,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
@@ -1039,7 +1045,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
   );
 };
 
-const UserManagementScreen = ({ users, cells, ministries, currentUserRole, onUpdateUser, onAddUser, onUpdateRole, onUpdateMinistryLeaders, showMessage, initialTab = 'members' }: { users: UserType[], cells: CellGroup[], ministries: Ministry[], currentUserRole: UserRole, onUpdateUser: (userId: string, updates: Partial<UserType>) => void, onAddUser: (user: Partial<UserType>) => void, onUpdateRole?: (userId: string, newRole: UserRole, leaderOf?: string) => void, onUpdateMinistryLeaders?: (userId: string, ministryIds: string[]) => void, showMessage?: (msg: string) => void, initialTab?: 'members' | 'integration' }) => {
+const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], currentUserRole, onUpdateUser, onAddUser, onUpdateRole, onUpdateMinistryLeaders, showMessage, initialTab = 'members' }: { users: UserType[], cells: CellGroup[], ministries: Ministry[], adminRoles?: AdminRole[], currentUserRole: UserRole, onUpdateUser: (userId: string, updates: Partial<UserType>) => void, onAddUser: (user: Partial<UserType>) => void, onUpdateRole?: (userId: string, newRole: UserRole, leaderOf?: string, adminRoleId?: string) => void, onUpdateMinistryLeaders?: (userId: string, ministryIds: string[]) => void, showMessage?: (msg: string) => void, initialTab?: 'members' | 'integration' }) => {
   const [activeTab, setActiveTab] = useState<'members' | 'integration'>(initialTab);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [newNote, setNewNote] = useState('');
@@ -1398,6 +1404,23 @@ const UserManagementScreen = ({ users, cells, ministries, currentUserRole, onUpd
                   >
                     <option value="">Nenhum</option>
                     {cells.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {editForm.role === 'admin' && adminRoles && adminRoles.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Perfil de Acesso do Admin</label>
+                  <select 
+                    value={editForm.adminRoleId || ''} 
+                    onChange={e => {
+                      const adminRoleId = e.target.value;
+                      setEditForm({...editForm, adminRoleId});
+                      onUpdateRole?.(selectedUser!.id, 'admin', undefined, adminRoleId);
+                    }}
+                    className="w-full p-3 bg-slate-50 rounded-xl"
+                  >
+                    <option value="">Acesso Completo</option>
+                    {adminRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
                 </div>
               )}
@@ -2437,7 +2460,7 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
   <div className="space-y-6 pb-24">
     <header className="flex items-center justify-between">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Painel Admin</h2>
+        <h2 className="text-2xl font-bold text-slate-900">GESTÃO</h2>
         <p className="text-slate-500">Gestão da {APP_CONFIG.name}</p>
       </div>
       <div className="flex gap-2">
@@ -2625,39 +2648,188 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
 };
 
 const AdminHostingScreen = () => {
+  const [sysInfo, setSysInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchInfo = async () => {
+      try {
+        const info = await api.getSysInfo();
+        if (mounted) {
+          setSysInfo(info);
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error("Erro ao buscar sysinfo", e);
+        if (mounted) setLoading(false);
+      }
+    };
+    fetchInfo();
+    const interval = setInterval(fetchInfo, 5000); // refresh every 5s
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      const response = await api.request('/backup');
+      // Create a blob from JSON
+      const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_igreja_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao fazer backup');
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const formatBytes = (bytes: number, decimals = 2) => {
+    if (!+bytes) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  };
+
+  const formatUptime = (seconds: number) => {
+    const d = Math.floor(seconds / (3600*24));
+    const h = Math.floor(seconds % (3600*24) / 3600);
+    const m = Math.floor(seconds % 3600 / 60);
+    return `${d > 0 ? d + 'd ' : ''}${h}h ${m}m`;
+  };
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Hospedagem em VPS</h2>
-          <p className="text-sm font-medium text-slate-500">Passo a passo para produção</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Servidor</h2>
+          <p className="text-sm font-medium text-slate-500">Métricas de saúde e backups</p>
         </div>
-        <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-          <Server className="w-6 h-6 text-primary" />
+        <div className="flex gap-2">
+          <Button onClick={handleBackup} disabled={isBackingUp} className="flex items-center gap-2">
+            {isBackingUp ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Backup Automático
+          </Button>
         </div>
       </div>
 
-      <div className="space-y-4">
-        <Card className="border-l-4 border-l-blue-500">
-          <h3 className="font-bold text-lg text-slate-800 mb-2">1. Preparando o Servidor</h3>
-          <p className="text-sm text-slate-600 mb-4 tracking-tight">Recomendamos uma VPS Ubuntu 22.04 LTS ou 24.04 LTS (DigitalOcean, AWS, Hetzner, etc). Faça acesso via SSH.</p>
-          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
-            <code className="text-xs text-green-400 whitespace-pre">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-4 bg-slate-800 text-white border-none relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Cpu className="w-16 h-16" />
+          </div>
+          <div className="relative z-10">
+            <h3 className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Carga da CPU (1m)</h3>
+            <div className="text-3xl font-black mb-2">
+              {loading ? '--' : (sysInfo?.loadAvg?.[0]?.toFixed(2) || 'N/A')}
+            </div>
+            <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div 
+                className={cn("h-full rounded-full transition-all duration-500", (sysInfo?.loadAvg?.[0] || 0) > 2 ? 'bg-red-500' : 'bg-primary')} 
+                style={{ width: `${Math.min((sysInfo?.loadAvg?.[0] || 0) * 10, 100)}%` }}
+              />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4 bg-slate-800 text-white border-none relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <HardDrive className="w-16 h-16" />
+          </div>
+          <div className="relative z-10">
+            <h3 className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Uso de RAM</h3>
+            <div className="text-3xl font-black mb-2">
+              {loading ? '--' : `${sysInfo?.memoryUsage || 0}%`}
+            </div>
+            <p className="text-xs text-slate-400 mb-2">
+              {loading ? '--' : `${formatBytes((sysInfo?.totalMemory || 0) - (sysInfo?.freeMemory || 0))} / ${formatBytes(sysInfo?.totalMemory || 0)}`}
+            </p>
+            <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div 
+                className={cn("h-full rounded-full transition-all duration-500", (sysInfo?.memoryUsage || 0) > 85 ? 'bg-red-500' : ((sysInfo?.memoryUsage || 0) > 70 ? 'bg-amber-500' : 'bg-green-500'))} 
+                style={{ width: `${sysInfo?.memoryUsage || 0}%` }}
+              />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4 bg-slate-800 text-white border-none relative overflow-hidden flex flex-col justify-center">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Server className="w-16 h-16" />
+          </div>
+          <div className="relative z-10">
+            <h3 className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Tempo Online (Uptime)</h3>
+            <div className="text-3xl font-black text-amber-400">
+              {loading ? '--' : (sysInfo?.uptime ? formatUptime(sysInfo.uptime) : 'N/A')}
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="mt-8">
+        <button 
+          onClick={() => setShowTutorial(!showTutorial)}
+          className="w-full flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-2xl hover:bg-slate-100 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+              <LogOut className="w-5 h-5 -rotate-90" />
+            </div>
+            <div className="text-left">
+              <h3 className="font-bold text-slate-800">Tutorial de Migração / Deploy</h3>
+              <p className="text-xs text-slate-500">Aprenda a hospedar seu sistema passo a passo</p>
+            </div>
+          </div>
+          {showTutorial ? <ChevronUp className="text-slate-400" /> : <ChevronDown className="text-slate-400" />}
+        </button>
+
+        <AnimatePresence>
+          {showTutorial && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="space-y-4 pt-4">
+                <Card className="border-l-4 border-l-blue-500">
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">1. Preparando o Servidor</h3>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Recomendamos uma VPS Ubuntu 22.04 LTS ou 24.04 LTS (DigitalOcean, AWS, Hetzner, etc). Faça acesso via SSH.</p>
+                  <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+                    <code className="text-xs text-green-400 whitespace-pre">
 {`# Atualize os pacotes do sistema
 sudo apt update && sudo apt upgrade -y
 
 # Instale Node.js 20.x, npm e git
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs git`}
-            </code>
-          </div>
-        </Card>
+sudo apt-get install -y nodejs git
 
-        <Card className="border-l-4 border-l-primary">
-          <h3 className="font-bold text-lg text-slate-800 mb-2">2. Clonando e Instalando</h3>
-          <p className="text-sm text-slate-600 mb-4 tracking-tight">Baixe os arquivos do seu aplicativo e instale as dependências.</p>
-          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
-            <code className="text-xs text-green-400 whitespace-pre">
+# Instale dependências requeridas pelo Chromium (para o WhatsApp Web funcionar na VPS)
+sudo apt-get install -y libnss3 libxss1 libasound2 libatk-bridge2.0-0 libgtk-3-0 libgbm-dev`}
+                    </code>
+                  </div>
+                </Card>
+
+                <Card className="border-l-4 border-l-primary">
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">2. Clonando e Instalando</h3>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Baixe os arquivos do seu aplicativo e instale as dependências.</p>
+                  <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+                    <code className="text-xs text-green-400 whitespace-pre">
 {`# Clone o seu repositório ou faça upload dos arquivos via SFTP
 git clone https://seu-repositorio.git app-igreja
 cd app-igreja
@@ -2667,38 +2839,38 @@ npm install
 
 # Instale o PM2 para manter o servidor online
 sudo npm install -g pm2`}
-            </code>
-          </div>
-        </Card>
+                    </code>
+                  </div>
+                </Card>
 
-        <Card className="border-l-4 border-l-purple-500">
-          <h3 className="font-bold text-lg text-slate-800 mb-2">3. Configurando Base de Dados</h3>
-          <p className="text-sm text-slate-600 mb-3 tracking-tight">Seu aplicativo armazena todos os dados em arquivos JSON na pasta <strong className="text-slate-900 bg-slate-100 px-1 rounded">/data</strong> localizada na raiz do projeto (mesmo nível do server.ts).</p>
-          <p className="text-sm text-slate-600 mb-4 tracking-tight">Isso significa que para <strong>fazer backup</strong> basta salvar a pasta <code className="bg-slate-100 px-1 rounded">data/</code>. Para migrar de hospedagem, mova esta pasta inteira para o novo servidor.</p>
-          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
-            <code className="text-xs text-green-400 whitespace-pre">
+                <Card className="border-l-4 border-l-purple-500">
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">3. Configurando Base de Dados</h3>
+                  <p className="text-sm text-slate-600 mb-3 tracking-tight">Seu aplicativo armazena todos os dados em arquivos JSON na pasta <strong className="text-slate-900 bg-slate-100 px-1 rounded">/data</strong> localizada na raiz do projeto (mesmo nível do server.ts).</p>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Isso significa que para <strong>fazer backup</strong> basta salvar a pasta <code className="bg-slate-100 px-1 rounded">data/</code>. Para migrar de hospedagem, mova esta pasta inteira para o novo servidor.</p>
+                  <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+                    <code className="text-xs text-green-400 whitespace-pre">
 {`# Exemplo de backup manual via ZIP
 zip -r backup-dados-igreja.zip data/`}
-            </code>
-          </div>
-        </Card>
+                    </code>
+                  </div>
+                </Card>
 
-        <Card className="border-l-4 border-l-orange-500">
-          <h3 className="font-bold text-lg text-slate-800 mb-2">4. Construindo para Produção</h3>
-          <p className="text-sm text-slate-600 mb-4 tracking-tight">Compile o backend (server) e os arquivos estáticos (Vite) antes de rodar.</p>
-          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
-            <code className="text-xs text-green-400 whitespace-pre">
+                <Card className="border-l-4 border-l-orange-500">
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">4. Construindo para Produção</h3>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Compile o backend (server) e os arquivos estáticos (Vite) antes de rodar.</p>
+                  <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+                    <code className="text-xs text-green-400 whitespace-pre">
 {`# Cria os arquivos de produção
 npm run build`}
-            </code>
-          </div>
-        </Card>
+                    </code>
+                  </div>
+                </Card>
 
-        <Card className="border-l-4 border-l-green-500">
-          <h3 className="font-bold text-lg text-slate-800 mb-2">5. Iniciando o Aplicativo</h3>
-          <p className="text-sm text-slate-600 mb-4 tracking-tight">Iniciamos o servidor com o PM2 para que o Node.js rode em background mesmo se você fechar o terminal.</p>
-          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
-            <code className="text-xs text-green-400 whitespace-pre">
+                <Card className="border-l-4 border-l-green-500">
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">5. Iniciando o Aplicativo</h3>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Iniciamos o servidor com o PM2 para que o Node.js rode em background mesmo se você fechar o terminal.</p>
+                  <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+                    <code className="text-xs text-green-400 whitespace-pre">
 {`# Inicia o servidor setando a variável de produção
 # A porta padrão mapeada é 3000
 PORT=3000 NODE_ENV=production pm2 start dist/server.cjs --name "app-igreja"
@@ -2706,35 +2878,66 @@ PORT=3000 NODE_ENV=production pm2 start dist/server.cjs --name "app-igreja"
 # Salve a configuração do PM2 para iniciar com o sistema operacioal
 pm2 save
 pm2 startup`}
-            </code>
-          </div>
-        </Card>
-        
-        <Card className="border-l-4 border-l-slate-800">
-          <h3 className="font-bold text-lg text-slate-800 mb-2">6. NGINX e Certificado SSL (HTTPS)</h3>
-          <p className="text-sm text-slate-600 mb-4 tracking-tight">Para acessar o aplicativo é necessário um proxy e HTTPS gratuito na porta 443 com o domínio da sua igreja.</p>
-          <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
-            <code className="text-xs text-green-400 whitespace-pre">
+                    </code>
+                  </div>
+                </Card>
+                
+                <Card className="border-l-4 border-l-slate-800">
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">6. NGINX e Certificado SSL (HTTPS)</h3>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight">Para acessar o aplicativo é necessário um proxy e HTTPS gratuito na porta 443 com o domínio da sua igreja.</p>
+                  <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto">
+                    <code className="text-xs text-green-400 whitespace-pre">
 {`# Instale NGINX e Certbot
 sudo apt install nginx certbot python3-certbot-nginx -y
 
 # Configure o NGINX, crie um arquivo em:
 # /etc/nginx/sites-available/app-igreja
-# E aponte server_name para seudominio.com.br
-# Use "proxy_pass http://localhost:3000" para redirecionar
+
+server {
+    server_name seudominio.com.br;
+    
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 
 # Habilite e adicione o certificado
 sudo ln -s /etc/nginx/sites-available/app-igreja /etc/nginx/sites-enabled/
-sudo certbot --nginx -d seudominio.com.br`}
-            </code>
-          </div>
-        </Card>
+sudo certbot --nginx -d seudominio.com.br
+sudo systemctl restart nginx`}
+                    </code>
+                  </div>
+                </Card>
+
+                <Card className="border-l-4 border-l-yellow-500">
+                  <h3 className="font-bold text-lg text-slate-800 mb-2">7. Se estiver usando o APP Android</h3>
+                  <p className="text-sm text-slate-600 mb-4 tracking-tight">O app Android precisa saber para onde enviar os dados. Se for lançar o app (APK):</p>
+                  <ul className="text-sm text-slate-600 list-disc ml-4 space-y-2">
+                    <li>Abra o arquivo <code className="bg-slate-100 rounded px-1">src/themeConfig.ts</code></li>
+                    <li>Altere a propriedade <code className="bg-slate-100 rounded px-1">apiUrl: "https://seudominio.com.br"</code></li>
+                    <li>Rode o comando <code className="bg-slate-100 rounded px-1">npm run build</code> e re-gere o seu APK Android pelo Android Studio.</li>
+                    <li>E no <strong>Cloudflare</strong>, vá em "SSL/TLS" e mude a criptografia para <strong>Full (Strict)</strong> para evitar erros de loop infinito com o NGINX.</li>
+                  </ul>
+                </Card>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
     </div>
   );
 };
 
-const AdminAllScreens = ({ onTabChange }: { onTabChange: (tab: string) => void }) => {
+const AdminAllScreens = ({ onTabChange, isTabAllowed }: { onTabChange: (tab: string) => void, isTabAllowed: (id: string) => boolean }) => {
   const screens = [
     { id: 'home', label: 'Dashboard Principal', icon: PieChart, color: 'bg-slate-800' },
     { id: 'financial', label: 'Gestão Financeira', icon: DollarSign, color: 'bg-amber-500' },
@@ -2748,7 +2951,8 @@ const AdminAllScreens = ({ onTabChange }: { onTabChange: (tab: string) => void }
     { id: 'pastoral', label: 'Visitas Pastorais', icon: Heart, color: 'bg-rose-500' },
     { id: 'sermons', label: 'Gerenciar Sermões', icon: Mic, color: 'bg-orange-600' },
     { id: 'tithes', label: 'Configuração de Dízimos', icon: DollarSign, color: 'bg-emerald-600' },
-  ];
+    { id: 'admin_roles', label: 'Perfis de Acesso Adm', icon: Shield, color: 'bg-red-600' },
+  ].filter(s => isTabAllowed(s.id));
 
   return (
     <div className="space-y-6 pb-24">
@@ -2835,6 +3039,137 @@ const AdminFinancial = ({ transactions, balance, onAdd, onDelete, showMessage }:
     </section>
   </div>
 );
+
+const AdminRolesScreen = ({ 
+  roles, 
+  onAddRole, 
+  onDeleteRole, 
+  showMessage 
+}: { 
+  roles: AdminRole[], 
+  onAddRole: (role: AdminRole) => Promise<void>, 
+  onDeleteRole: (id: string) => Promise<void>, 
+  showMessage: (msg: string) => void 
+}) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState('');
+  const [permissions, setPermissions] = useState<string[]>([]);
+
+  const availablePermissions = [
+    { id: 'financial', label: 'Gestão Financeira' },
+    { id: 'tithes', label: 'Dízimos e Ofertas' },
+    { id: 'sermons', label: 'Sermões' },
+    { id: 'events', label: 'Eventos' },
+    { id: 'announcements', label: 'Avisos' },
+    { id: 'groups', label: 'Pequenos Grupos' },
+    { id: 'pastoral', label: 'Visitas Pastorais' },
+    { id: 'users', label: 'Gestão de Usuários' },
+    { id: 'readingPlans', label: 'Planos de Leitura' },
+  ];
+
+  const handleSave = async () => {
+    if (!name.trim() || permissions.length === 0) {
+      showMessage('Preencha o nome e selecione permissões');
+      return;
+    }
+    await onAddRole({
+      id: 'role-' + Date.now(),
+      name,
+      permissions
+    });
+    setName('');
+    setPermissions([]);
+    setShowAdd(false);
+  };
+
+  const togglePermission = (id: string) => {
+    setPermissions(prev => 
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
+  };
+
+  return (
+    <div className="space-y-6 pb-24">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Perfis de Acesso</h2>
+          <p className="text-sm font-medium text-slate-500">Crie perfis personalizados para administradores</p>
+        </div>
+        <button onClick={() => setShowAdd(true)} className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white active:scale-95 transition-all shadow-lg shadow-primary/30">
+          <Plus className="w-6 h-6" />
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {roles.length === 0 ? (
+          <p className="text-sm text-slate-500 text-center py-8">Nenhum perfil criado ainda.</p>
+        ) : (
+          roles.map(role => (
+            <Card key={role.id} className="p-4 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-800">{role.name}</h3>
+                <p className="text-xs text-slate-500">{role.permissions.length} permissões</p>
+              </div>
+              <button onClick={() => onDeleteRole(role.id)} className="p-2 bg-red-50 text-red-500 rounded-xl">
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </Card>
+          ))
+        )}
+      </div>
+
+      <AnimatePresence>
+        {showAdd && (
+          <Modal title="Novo Perfil" onClose={() => setShowAdd(false)}>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Nome do Perfil (ex: Tesouraria)</label>
+                <input 
+                  type="text" 
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-800 focus:outline-none focus:border-primary transition-colors"
+                  placeholder="Nome do cargo"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">Permissões de Acesso</label>
+                <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto">
+                  {availablePermissions.map(perm => (
+                    <div 
+                      key={perm.id}
+                      onClick={() => togglePermission(perm.id)}
+                      className={cn(
+                        "p-3 rounded-xl border-2 flex items-center justify-between cursor-pointer transition-all",
+                        permissions.includes(perm.id) ? "border-primary bg-primary/5" : "border-slate-100 hover:border-slate-200"
+                      )}
+                    >
+                      <span className={cn(
+                        "text-sm font-bold",
+                        permissions.includes(perm.id) ? "text-primary" : "text-slate-600"
+                      )}>{perm.label}</span>
+                      <div className={cn(
+                        "w-5 h-5 rounded-full flex items-center justify-center border",
+                        permissions.includes(perm.id) ? "bg-primary border-primary text-white" : "border-slate-300"
+                      )}>
+                        {permissions.includes(perm.id) && <CheckCircle2 className="w-3 h-3" />}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <Button onClick={handleSave} className="w-full">Salvar Perfil</Button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const NotificationSettingsScreen = ({ settings, onUpdate, onClose, showMessage }: { settings: any, onUpdate: (data: any) => Promise<void>, onClose: () => void, showMessage: (msg: string) => void }) => {
   const [localSettings, setLocalSettings] = useState({ 
@@ -4259,6 +4594,7 @@ export default function App() {
   const [pastoralVisits, setPastoralVisits] = useState<PastoralVisit[]>([]);
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [ministrySchedules, setMinistrySchedules] = useState<MinistrySchedule[]>([]);
+  const [adminRoles, setAdminRoles] = useState<AdminRole[]>([]);
   const [userReadingProgress, setUserReadingProgress] = useState<Record<string, string[]>>({});
   const [allUserProgress, setAllUserProgress] = useState<Record<string, Record<string, string[]>>>({});
   const [titheConfig, setTitheConfig] = useState<TitheConfig>({ pixKey: '', bankName: '', accountHolder: '' });
@@ -4289,7 +4625,7 @@ export default function App() {
     if (!isLoggedIn) return;
     try {
       const [
-        e, p, c, u, a, r, s, h, at, pv, m, ms, config
+        e, p, c, u, a, r, s, h, at, pv, m, ms, config, roles
       ] = await Promise.all([
         api.list('events'),
         api.list('prayers'),
@@ -4303,7 +4639,8 @@ export default function App() {
         api.list('pastoralVisits'),
         api.list('ministries'),
         api.list('ministrySchedules'),
-        api.list('config')
+        api.list('config'),
+        api.list('adminRoles').catch(() => []) // Handle if doesn't exist
       ]);
 
       setEvents(e);
@@ -4318,6 +4655,7 @@ export default function App() {
       setPastoralVisits(pv);
       setMinistries(m);
       setMinistrySchedules(ms);
+      setAdminRoles(roles);
 
       const tConfig = config.find((cfg: any) => cfg.id === 'tithes');
       if (tConfig) setTitheConfig(tConfig);
@@ -5123,7 +5461,7 @@ const joinCell = async (cellId: string) => {
     }
   };
 
-  const updateMemberRole = async (userId: string, newRole: UserRole, leaderOf?: string) => {
+  const updateMemberRole = async (userId: string, newRole: UserRole, leaderOf?: string, adminRoleId?: string) => {
     try {
       if (newRole === 'admin' && userRole !== 'superadmin') {
         setGlobalError('Apenas o Super Administrador pode promover usuários a Admin.');
@@ -5137,7 +5475,8 @@ const joinCell = async (cellId: string) => {
 
       await api.update('users', userId, { 
         role: newRole,
-        leaderOf: newRole === 'leader' ? (leaderOf || null) : null
+        leaderOf: newRole === 'leader' ? (leaderOf || null) : null,
+        adminRoleId: newRole === 'admin' ? (adminRoleId || null) : null
       });
       showMessage('Cargo atualizado com sucesso!');
     } catch (err) {
@@ -5238,8 +5577,32 @@ const joinCell = async (cellId: string) => {
     }} />;
   }
 
+  const handleAddAdminRole = async (role: AdminRole) => {
+    try {
+      await api.create('adminRoles', role);
+      setAdminRoles(prev => [...prev, role]);
+      showMessage('Perfil criado com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'handleAddAdminRole');
+    }
+  };
+
+  const handleDeleteAdminRole = async (id: string) => {
+    try {
+      await api.delete('adminRoles', id);
+      setAdminRoles(prev => prev.filter(r => r.id !== id));
+      showMessage('Perfil excluído com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'handleDeleteAdminRole');
+    }
+  };
+
   const renderContent = () => {
     if (isAdmin && isAdminPanel) {
+      if (!isTabAllowed(currentTab)) {
+        return <div className="p-8 text-center text-slate-500">Você não tem permissão para acessar esta tela.</div>;
+      }
+
       const visibleUsers = users.filter(u => u.role !== 'superadmin' || userRole === 'superadmin');
       const stats = { 
         members: visibleUsers.length, 
@@ -5250,9 +5613,10 @@ const joinCell = async (cellId: string) => {
 
       switch (currentTab) {
         case 'home': return <AdminDashboard stats={stats} users={visibleUsers} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
-        case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} />;
+        case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} />;
         case 'financial': return <AdminFinancial transactions={transactions} balance={totalBalance} onAdd={() => setShowAddTransaction(true)} onDelete={deleteTransaction} showMessage={showMessage} />;
         case 'hosting': return <AdminHostingScreen />;
+        case 'admin_roles': return <AdminRolesScreen roles={adminRoles} onAddRole={handleAddAdminRole} onDeleteRole={handleDeleteAdminRole} showMessage={showMessage} />;
         case 'tithes': return <TithesAdminScreen config={titheConfig} onUpdate={updateTitheConfig} showMessage={showMessage} />;
         case 'events': return <EventsScreen events={events} isAdmin onDelete={deleteEvent} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} showMessage={showMessage} />;
         case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} showMessage={showMessage} />;
@@ -5265,6 +5629,7 @@ const joinCell = async (cellId: string) => {
               users={users} 
               cells={cells} 
               ministries={ministries}
+              adminRoles={adminRoles}
               currentUserRole={userRole} 
               onUpdateUser={updateAnyUser} 
               onAddUser={addAnyUser} 
@@ -5367,6 +5732,24 @@ const joinCell = async (cellId: string) => {
     { id: 'profile', icon: User, label: 'Perfil' },
   ];
 
+  const getAdminPermissions = () => {
+    if (userRole === 'superadmin') return null; // All access
+    if (userRole === 'admin') {
+      if (!currentUserData?.adminRoleId) return null; // Full access for old admins
+      const role = adminRoles.find(r => r.id === currentUserData.adminRoleId);
+      return role?.permissions || [];
+    }
+    return []; // No access
+  };
+
+  const adminPermissions = getAdminPermissions();
+
+  const isTabAllowed = (tabId: string) => {
+    if (!adminPermissions) return true;
+    if (['home', 'profile', 'all_screens'].includes(tabId)) return true; // Always visible basic screens
+    return adminPermissions.includes(tabId);
+  };
+
   const adminTabs = [
     { id: 'home', icon: PieChart, label: 'Dashboard' },
     { id: 'all_screens', icon: Grid, label: 'Telas' },
@@ -5375,8 +5758,8 @@ const joinCell = async (cellId: string) => {
     { id: 'sermons', icon: Mic, label: 'Sermões' },
     { id: 'prayer', icon: Heart, label: 'Mural' },
     { id: 'profile', icon: Settings, label: 'Perfil' },
-    { id: 'hosting', icon: Server, label: 'Hospedagem' },
-  ];
+    { id: 'hosting', icon: Server, label: 'Servidor' },
+  ].filter(t => isTabAllowed(t.id));
 
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const isAdminPanel = location.pathname.startsWith('/admin');
@@ -5419,7 +5802,7 @@ const joinCell = async (cellId: string) => {
                  <span className="text-primary font-bold text-xl">P</span>
                </div>
                <div>
-                 <h1 className="font-bold text-sm tracking-tight text-slate-800">Painel Admin</h1>
+                 <h1 className="font-bold text-sm tracking-tight text-slate-800">GESTÃO</h1>
                  <p className="text-[10px] text-slate-500 uppercase tracking-widest">Workspace</p>
                </div>
              </div>
