@@ -55,6 +55,7 @@ import {
   Server,
   Shield,
   Download,
+  Upload,
   Cpu,
   HardDrive,
   ChevronDown,
@@ -2682,6 +2683,8 @@ const AdminHostingScreen = () => {
   const [loading, setLoading] = useState(true);
   const [showTutorial, setShowTutorial] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -2708,13 +2711,24 @@ const AdminHostingScreen = () => {
   const handleBackup = async () => {
     setIsBackingUp(true);
     try {
-      const response = await api.request('/backup');
-      // Create a blob from JSON
-      const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
+      const response = await fetch('/api/backup/zip', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Falha ao baixar backup');
+      
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `backup_igreja_${new Date().toISOString().split('T')[0]}.json`;
+      
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const hour = String(now.getHours()).padStart(2, '0');
+      a.download = `backup-dia${day}-as-${hour}hrs.zip`;
+      
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2724,6 +2738,45 @@ const AdminHostingScreen = () => {
       alert('Erro ao fazer backup');
     } finally {
       setIsBackingUp(false);
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm('ATENÇÃO: Importar um backup irá SUBSTITUIR TODOS os dados atuais (usuários, eventos, etc). Esta ação não pode ser desfeita. Deseja continuar?')) {
+      event.target.value = '';
+      return;
+    }
+
+    setIsImporting(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/backup/import', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) throw new Error('Erro ao importar');
+      
+      alert('Bakup importado com sucesso! O sistema irá recarregar para aplicar as mudanças.');
+      window.location.reload();
+    } catch (e) {
+      alert('Erro ao importar arquivo');
+      console.error(e);
+    } finally {
+      setIsImporting(false);
+      event.target.value = '';
     }
   };
 
@@ -2743,6 +2796,8 @@ const AdminHostingScreen = () => {
     return `${days > 0 ? days + 'd ' : ''}${hrs}h ${mins}m`;
   };
 
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const handleResetWhatsApp = async () => {
     if (!confirm('Deseja realmente reiniciar a conexão do WhatsApp? Isso pode levar um minuto.')) return;
     try {
@@ -2750,6 +2805,19 @@ const AdminHostingScreen = () => {
       alert('Comando enviado! O servidor está reiniciando a conexão. Verifique o status na tela de Configuração do WhatsApp em instantes.');
     } catch (e) {
       alert('Erro ao enviar comando de reinicialização');
+    }
+  };
+
+  const handleGitUpdate = async () => {
+    if (!confirm('Deseja puxar as últimas atualizações do Git? O servidor pode ficar instável por alguns segundos.')) return;
+    setIsUpdating(true);
+    try {
+      const response = await api.request('/system/update', { method: 'POST' });
+      alert('Sistema atualizado com sucesso! \n\nResultado: ' + (response.output || 'Código sincronizado.'));
+    } catch (e: any) {
+      alert('Erro ao atualizar: ' + (e.message || 'Falha na conexão'));
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -2761,13 +2829,38 @@ const AdminHostingScreen = () => {
           <p className="text-sm font-medium text-slate-500">Métricas de saúde e backups</p>
         </div>
         <div className="flex gap-2">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            accept=".zip" 
+            className="hidden" 
+          />
+          <Button 
+            onClick={handleImportClick} 
+            disabled={isImporting}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            {isImporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Importar Dados
+          </Button>
+          <Button 
+            onClick={handleGitUpdate} 
+            disabled={isUpdating}
+            variant="secondary" 
+            className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-200"
+          >
+            {isUpdating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
+            {isUpdating ? 'Puxando...' : 'Atualizar Sistema (Git)'}
+          </Button>
           <Button onClick={handleResetWhatsApp} variant="secondary" className="flex items-center gap-2 bg-amber-50 text-amber-700 border-amber-200">
             <RefreshCw className="w-4 h-4" />
             Resetar WhatsApp
           </Button>
           <Button onClick={handleBackup} disabled={isBackingUp} className="flex items-center gap-2">
             {isBackingUp ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Backup Sistema
+            Download Backup ZIP
           </Button>
         </div>
       </div>

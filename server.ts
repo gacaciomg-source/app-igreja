@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -12,6 +13,10 @@ const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode';
 import qrcodeTerminal from 'qrcode-terminal';
 import cron from 'node-cron';
+import AdmZip from 'adm-zip';
+import multer from 'multer';
+
+const upload = multer({ dest: 'uploads/' });
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -295,6 +300,30 @@ cron.schedule('30 8 * * *', async () => {
     timezone: "America/Sao_Paulo"
 });
 
+// Automated daily backup at 23:00
+cron.schedule('0 23 * * *', async () => {
+  console.log('Iniciando backup automático diário...');
+  try {
+      const dataDir = path.join(process.cwd(), 'data');
+      const backupDir = path.join(process.cwd(), 'backups');
+      if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const hour = String(now.getHours()).padStart(2, '0');
+      const filename = `backup-dia${day}-as-${hour}hrs.zip`;
+      
+      const zip = new AdmZip();
+      zip.addLocalFolder(dataDir);
+      zip.writeZip(path.join(backupDir, filename));
+      console.log(`Backup automático concluído: ${filename}`);
+  } catch (e) {
+      console.error('Falha no backup automático:', e);
+  }
+}, {
+  timezone: "America/Sao_Paulo"
+});
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
@@ -530,7 +559,6 @@ async function startServer() {
   // --- Generic Data API ---
   app.get("/api/sysinfo", authenticateToken, (req, res) => {
     try {
-      const os = require('os');
       const freeMemory = os.freemem();
       const totalMemory = os.totalmem();
       const memoryUsage = ((totalMemory - freeMemory) / totalMemory * 100).toFixed(2);
@@ -560,6 +588,25 @@ async function startServer() {
     res.json({ ok: true });
   });
 
+  app.post("/api/system/update", authenticateToken, async (req, res) => {
+    const userRole = (req as any).user?.role;
+    if (userRole !== 'superadmin') return res.status(403).send("Acesso negado");
+    
+    const { exec } = await import('child_process');
+    // Comando mais seguro: fetch + reset (pula o merge interativo que trava em scripts)
+    // Isso garante que o código local fique IDÊNTICO ao do Git, mas NÃO mexe em pastas ignoradas (como data/)
+    const command = 'git fetch origin main && git reset --hard origin/main';
+    
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Erro na Atualização: ${error.message}`);
+        return res.status(500).json({ error: error.message, details: stderr });
+      }
+      console.log(`Sistema Atualizado via Git: ${stdout}`);
+      res.json({ ok: true, output: stdout });
+    });
+  });
+
   app.get("/api/backup", authenticateToken, async (req, res) => {
     try {
       // Return a JSON containing all collections
@@ -577,6 +624,67 @@ async function startServer() {
       res.send(JSON.stringify(backup, null, 2));
     } catch (error) {
        res.status(500).json({ error: "Erro ao gerar backup" });
+    }
+  });
+
+  app.get("/api/backup/zip", authenticateToken, async (req, res) => {
+    try {
+      const dataDir = path.join(process.cwd(), 'data');
+      if (!fs.existsSync(dataDir)) {
+          return res.status(404).json({ error: "Pasta de dados não encontrada" });
+      }
+
+      const zip = new AdmZip();
+      zip.addLocalFolder(dataDir);
+      const buffer = zip.toBuffer();
+
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const hour = String(now.getHours()).padStart(2, '0');
+      const filename = `backup-dia${day}-as-${hour}hrs.zip`;
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+      res.send(buffer);
+    } catch (error) {
+      console.error("Erro ao gerar ZIP de backup:", error);
+      res.status(500).json({ error: "Erro ao gerar backup ZIP" });
+    }
+  });
+
+  app.post("/api/backup/import", authenticateToken, upload.single('file'), async (req, res) => {
+    const userRole = (req as any).user?.role;
+    if (userRole !== 'superadmin' && userRole !== 'admin') return res.status(403).send("Acesso negado");
+
+    const file = (req as any).file;
+    if (!file) return res.status(400).send("Arquivo não enviado");
+
+    try {
+      const zip = new AdmZip(file.path);
+      const dataDir = path.join(process.cwd(), 'data');
+      
+      // Limpa pasta atual
+      if (fs.existsSync(dataDir)) {
+          const files = fs.readdirSync(dataDir);
+          for (const file of files) {
+              if (file.endsWith('.json')) {
+                  fs.unlinkSync(path.join(dataDir, file));
+              }
+          }
+      } else {
+          fs.mkdirSync(dataDir, { recursive: true });
+      }
+
+      zip.extractAllTo(dataDir, true);
+      
+      // Cleanup uploaded file
+      fs.unlinkSync(file.path);
+      
+      console.log('Backup importado com sucesso!');
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Erro ao importar backup:", error);
+      res.status(500).json({ error: "Erro ao processar arquivo de backup" });
     }
   });
 
