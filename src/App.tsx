@@ -62,7 +62,8 @@ import {
   HardDrive,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  Image
 } from 'lucide-react';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
@@ -478,6 +479,9 @@ const SHARE_BACKGROUNDS = [
   { id: 'nature-4', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=100&w=1080', name: 'Praia' },
   { id: 'nature-5', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=100&w=1080', name: 'Pico' },
   { id: 'nature-6', url: 'https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?auto=format&fit=crop&q=100&w=1080', name: 'Céu' },
+  { id: 'bible-1', url: 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&q=100&w=1080', name: 'Escrituras' },
+  { id: 'bible-2', url: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?auto=format&fit=crop&q=100&w=1080', name: 'Oração' },
+  { id: 'bible-3', url: 'https://images.unsplash.com/photo-1544427928-142ec22736bc?auto=format&fit=crop&q=100&w=1080', name: 'Luz' },
   { id: 'abstract-1', url: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=100&w=1080', name: 'Abstrato' },
 ];
 
@@ -1915,7 +1919,7 @@ const BIBLE_TRANSLATIONS = [
   { id: 'kjv', name: 'King James Version', api: 'bible-api', translation: 'kjv' },
 ];
 
-const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void }) => {
+const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight, onShareVerse }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void, onShareVerse?: (v: {text: string, ref: string}) => void }) => {
   const [selectedBook, setSelectedBook] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2105,6 +2109,20 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
                         >
                           <Plus className="w-4 h-4 rotate-45" />
                         </button>
+                        <div className="w-px h-6 bg-slate-100 mx-1 self-center"></div>
+                        <button
+                          onClick={() => {
+                            onShareVerse?.({ 
+                              text: v.text, 
+                              ref: `${selectedBook} ${selectedChapter}:${v.verse}` 
+                            });
+                            setSelectedVerse(null);
+                          }}
+                          className="w-8 h-8 rounded-full border border-slate-200 bg-sky-50 flex items-center justify-center text-sky-600 hover:bg-sky-100 transition-colors"
+                          title="Gerar Arte"
+                        >
+                          <Image className="w-4 h-4" />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -2201,6 +2219,16 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
               <Card key={i} className="p-4 space-y-2 cursor-pointer hover:bg-slate-50" onClick={() => handleSelectChapter(res.book, res.chapter)}>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-primary uppercase">{res.book} {res.chapter}:{res.verse}</span>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onShareVerse?.({ text: res.text, ref: `${res.book} ${res.chapter}:${res.verse}` });
+                    }}
+                    className="p-1.5 hover:bg-sky-50 text-sky-600 rounded-lg transition-colors"
+                    title="Gerar Arte"
+                  >
+                    <Image className="w-3.5 h-3.5" />
+                  </button>
                 </div>
                 <p className="text-sm text-slate-600 leading-tight">{res.text}</p>
               </Card>
@@ -5941,7 +5969,7 @@ const joinCell = async (cellId: string) => {
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
         case 'pastoral': return <AdminPastoralVisits visits={pastoralVisits} onUpdateStatus={updatePastoralVisitStatus} />;
-        case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} />;
+        case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} />;
         case 'profile': {
           const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
           const userPrayers = prayers.filter(p => p.uid === currentUserData?.id);
@@ -5979,7 +6007,7 @@ const joinCell = async (cellId: string) => {
       case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
       case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onDelete={deleteAnnouncement} showMessage={showMessage} />;
       case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} progress={userReadingProgress} onToggleChapter={toggleChapter} isAdmin={false} showMessage={showMessage} />;
-      case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} />;
+      case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} />;
       case 'sermons': return <SermonsScreen sermons={sermons} />;
       case 'tithes': return <TithesScreen config={titheConfig} onConfirmDonation={(val, label) => addTransaction({ label, value: val, type: 'in' })} showMessage={showMessage} currentUserData={currentUserData} />;
       case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
