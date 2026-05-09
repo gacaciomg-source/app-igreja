@@ -15,6 +15,7 @@ import qrcodeTerminal from 'qrcode-terminal';
 import cron from 'node-cron';
 import AdmZip from 'adm-zip';
 import multer from 'multer';
+import FormData from 'form-data';
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -312,11 +313,36 @@ cron.schedule('0 23 * * *', async () => {
       const day = String(now.getDate()).padStart(2, '0');
       const hour = String(now.getHours()).padStart(2, '0');
       const filename = `backup-dia${day}-as-${hour}hrs.zip`;
+      const filePath = path.join(backupDir, filename);
       
       const zip = new AdmZip();
       zip.addLocalFolder(dataDir);
-      zip.writeZip(path.join(backupDir, filename));
-      console.log(`Backup automático concluído: ${filename}`);
+      zip.writeZip(filePath);
+      console.log(`Backup automático concluído localmente: ${filename}`);
+
+      // Enviar para nuvem se configurado
+      const configs = await storage.readCollection<any>("config");
+      const cloudConfig = configs.find((c: any) => c.id === "cloudBackup");
+
+      if (cloudConfig?.telegramEnabled && cloudConfig.telegramToken && cloudConfig.telegramChatId) {
+        console.log('Enviando backup para Telegram...');
+        const form = new FormData();
+        form.append('chat_id', cloudConfig.telegramChatId);
+        form.append('caption', `📦 *Backup Automático Diário*\n📅 ${new Date().toLocaleString('pt-BR')}`);
+        form.append('document', fs.createReadStream(filePath));
+
+        const response = await fetch(`https://api.telegram.org/bot${cloudConfig.telegramToken}/sendDocument`, {
+          method: 'POST',
+          body: form as any
+        });
+
+        if (response.ok) {
+          console.log('Backup enviado com sucesso para o Telegram!');
+        } else {
+          const errData = await response.json();
+          console.error('Erro ao enviar para Telegram:', errData);
+        }
+      }
   } catch (e) {
       console.error('Falha no backup automático:', e);
   }
@@ -649,6 +675,45 @@ async function startServer() {
     } catch (error) {
       console.error("Erro ao gerar ZIP de backup:", error);
       res.status(500).json({ error: "Erro ao gerar backup ZIP" });
+    }
+  });
+
+  app.post("/api/backup/test-cloud", authenticateToken, async (req, res) => {
+    const userRole = (req as any).user?.role;
+    if (userRole !== 'superadmin' && userRole !== 'admin') return res.status(403).send("Acesso negado");
+
+    try {
+      const configs = await storage.readCollection<any>("config");
+      const cloudConfig = configs.find((c: any) => c.id === "cloudBackup");
+
+      if (!cloudConfig?.telegramToken || !cloudConfig.telegramChatId) {
+        return res.status(400).json({ error: "Configuração do Telegram incompleta ou não encontrada" });
+      }
+
+      const dataDir = path.join(process.cwd(), 'data');
+      const zip = new AdmZip();
+      zip.addLocalFolder(dataDir);
+      const buffer = zip.toBuffer();
+
+      const form = new FormData();
+      form.append('chat_id', cloudConfig.telegramChatId);
+      form.append('caption', `🧪 *Teste de Backup*\n📅 ${new Date().toLocaleString('pt-BR')}`);
+      form.append('document', buffer, { filename: 'teste-backup.zip', contentType: 'application/zip' });
+
+      const response = await fetch(`https://api.telegram.org/bot${cloudConfig.telegramToken}/sendDocument`, {
+        method: 'POST',
+        body: form as any
+      });
+
+      if (response.ok) {
+        res.json({ ok: true });
+      } else {
+        const errData = await response.json();
+        res.status(500).json({ error: "Falha ao enviar para Telegram", details: errData });
+      }
+    } catch (error: any) {
+      console.error("Erro no teste de backup:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 

@@ -56,6 +56,7 @@ import {
   Shield,
   Download,
   Upload,
+  Send,
   Cpu,
   HardDrive,
   ChevronDown,
@@ -2797,6 +2798,65 @@ const AdminHostingScreen = () => {
   };
 
   const [isUpdating, setIsUpdating] = useState(false);
+  const [cloudConfig, setCloudConfig] = useState<any>({
+    id: 'cloudBackup',
+    telegramEnabled: false,
+    telegramToken: '',
+    telegramChatId: ''
+  });
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchCloudConfig = async () => {
+      try {
+        const configs = await api.list('config');
+        const cloud = configs.find((c: any) => c.id === 'cloudBackup');
+        if (mounted && cloud) {
+          setCloudConfig(cloud);
+        }
+      } catch (e) {
+        console.error("Erro ao buscar cloud backup config", e);
+      }
+    };
+    fetchCloudConfig();
+    return () => { mounted = false; };
+  }, []);
+
+  const handleSaveCloudConfig = async () => {
+    setIsSavingCloud(true);
+    try {
+      const configs = await api.list('config');
+      const cloud = configs.find((c: any) => c.id === 'cloudBackup');
+      if (cloud) {
+        await api.update('config', cloud.id, cloudConfig);
+      } else {
+        await api.create('config', cloudConfig);
+      }
+      alert('Configuração de nuvem salva com sucesso!');
+    } catch (e) {
+      alert('Erro ao salvar configuração');
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
+  const handleTestTelegram = async () => {
+    if (!cloudConfig.telegramToken || !cloudConfig.telegramChatId) {
+      alert('Preencha os campos do Telegram primeiro.');
+      return;
+    }
+    alert('Tentando enviar o backup atual para o seu Telegram. Aguarde alguns segundos...');
+    try {
+      // Usaremos o endpoint que já existe de gerar backup diário, mas modificado ou um novo
+      // Por simplicidade, vamos apenas avisar que o próximo backup diário usará essas configs
+      // Ou melhor, podemos criar um endpoint /api/backup/test-cloud
+      await api.request('/backup/test-cloud', { method: 'POST' });
+      alert('Teste concluído! Verifique seu Telegram.');
+    } catch (e) {
+      alert('Erro no teste. Verifique o Token e o Chat ID.');
+    }
+  };
 
   const handleResetWhatsApp = async () => {
     if (!confirm('Deseja realmente reiniciar a conexão do WhatsApp? Isso pode levar um minuto.')) return;
@@ -2917,6 +2977,87 @@ const AdminHostingScreen = () => {
           </div>
         </Card>
       </div>
+
+      <Card className="p-6 mt-6">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-10 h-10 bg-sky-100 text-sky-600 rounded-xl flex items-center justify-center">
+            <HardDrive className="w-5 h-5" />
+          </div>
+          <div>
+             <h3 className="font-black text-slate-900 tracking-tight text-lg">Cloud Backup & Automação</h3>
+             <p className="text-xs text-slate-500 font-medium">Link do backup com plataformas externas</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+             <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                   <div className="w-8 h-8 bg-sky-500 text-white rounded-lg flex items-center justify-center">
+                      <Send className="w-4 h-4" />
+                   </div>
+                   <span className="font-bold text-slate-800">Telegram Bot</span>
+                </div>
+                <button 
+                  onClick={() => setCloudConfig({...cloudConfig, telegramEnabled: !cloudConfig.telegramEnabled})}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${cloudConfig.telegramEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                >
+                  <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${cloudConfig.telegramEnabled ? 'translate-x-6' : ''}`} />
+                </button>
+             </div>
+
+             {cloudConfig.telegramEnabled && (
+                <div className="space-y-3 pt-2">
+                   <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Bot Token API</label>
+                      <input 
+                        type="password"
+                        value={cloudConfig.telegramToken}
+                        onChange={(e) => setCloudConfig({...cloudConfig, telegramToken: e.target.value})}
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-shadow"
+                        placeholder="Ex: 728394012:AAH..."
+                      />
+                   </div>
+                   <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Chat ID / Grupo ID</label>
+                      <input 
+                        type="text"
+                        value={cloudConfig.telegramChatId}
+                        onChange={(e) => setCloudConfig({...cloudConfig, telegramChatId: e.target.value})}
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-shadow"
+                        placeholder="Ex: -100492837482"
+                      />
+                   </div>
+                   <div className="flex gap-2 pt-2">
+                      <Button onClick={handleSaveCloudConfig} disabled={isSavingCloud} className="flex-1 rounded-xl h-12">
+                         {isSavingCloud ? 'Salvando...' : 'Salvar'}
+                      </Button>
+                      <Button onClick={handleTestTelegram} variant="secondary" className="flex-1 rounded-xl h-12 bg-white border-slate-200">
+                         Testar Envio
+                      </Button>
+                   </div>
+                   <div className="p-3 bg-sky-50 rounded-lg text-[10px] text-sky-700 leading-normal flex gap-2">
+                      <Shield className="w-4 h-4 shrink-0" />
+                      <span>Configure um Bot no @BotFather e pegue seu ChatID com o @userinfobot. Os backups diários serão enviados automaticamente.</span>
+                   </div>
+                </div>
+             )}
+          </div>
+
+          <div className="space-y-4 p-5 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col justify-center text-center">
+             <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <HardDrive className="w-6 h-6" />
+             </div>
+             <h4 className="font-bold text-slate-800">Google Drive & Dropbox</h4>
+             <p className="text-xs text-slate-500 max-w-[200px] mx-auto leading-relaxed">
+               Para sincronização profissional com o Drive, recomendamos instalar o <b>Rclone</b> no seu Linux. É mais rápido, seguro e automático.
+             </p>
+             <div className="pt-2">
+                <a href="https://rclone.org/drive/" target="_blank" rel="noreferrer" className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider">Ver tutorial Rclone</a>
+             </div>
+          </div>
+        </div>
+      </Card>
 
       <div className="mt-8">
         <button 
