@@ -619,9 +619,41 @@ async function startServer() {
     if (userRole !== 'superadmin') return res.status(403).send("Acesso negado");
     
     const { exec } = await import('child_process');
+    
+    // Passo 0: Backup de Segurança (Snapshot antes da atualização)
+    const backupDir = path.join(process.cwd(), 'backups/system_snapshots');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    
+    const snapshotName = `safety-snapshot-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+    const snapshotPath = path.join(backupDir, snapshotName);
+    
+    try {
+      console.log('Criando snapshot de segurança...');
+      const zip = new AdmZip();
+      
+      // Adiciona arquivos do root (exceto pastas grandes/temp)
+      const files = fs.readdirSync(process.cwd());
+      for (const file of files) {
+          const fullPath = path.join(process.cwd(), file);
+          const stats = fs.statSync(fullPath);
+          
+          if (stats.isDirectory()) {
+              // Ignorar o que não precisa de backup ou é muito grande
+              if (['node_modules', '.git', 'dist', 'backups', 'uploads', '.next'].includes(file)) continue;
+              zip.addLocalFolder(fullPath, file);
+          } else {
+              zip.addLocalFile(fullPath);
+          }
+      }
+      zip.writeZip(snapshotPath);
+      console.log(`Snapshot criado: ${snapshotName}`);
+    } catch (e) {
+      console.error('Falha ao criar snapshot de segurança, mas prosseguindo com update:', e);
+    }
+
     // Comando mais robusto: limpa, puxa código, instala dependências e builda
     // Isso garante que mudanças no package.json ou no frontend sejam aplicadas
-    const command = 'git fetch origin main && git reset --hard origin/main && npm install && npm run build && (pm2 save || true)';
+    const command = 'git fetch origin main && git reset --hard origin/main && npm install --include=dev && npm run build && (pm2 save || true)';
     
     exec(command, (error, stdout, stderr) => {
       if (error) {
