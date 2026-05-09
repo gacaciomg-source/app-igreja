@@ -614,6 +614,19 @@ async function startServer() {
     res.json({ ok: true });
   });
 
+  app.get("/api/docs/:filename", authenticateToken, (req, res) => {
+    const { filename } = req.params;
+    const safeFilename = filename.replace(/[^a-zA-Z0-9_.-]/g, '');
+    const filePath = path.join(process.cwd(), 'docs', safeFilename);
+    
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      res.send(content);
+    } else {
+      res.status(404).send("Documento não encontrado");
+    }
+  });
+
   app.post("/api/system/update", authenticateToken, async (req, res) => {
     const userRole = (req as any).user?.role;
     if (userRole !== 'superadmin') return res.status(403).send("Acesso negado");

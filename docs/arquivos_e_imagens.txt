@@ -1,0 +1,32 @@
+# Guia de Ativos, Imagens e Dimensões
+
+Use este guia para personalizar a identidade visual da sua igreja no aplicativo.
+
+## 1. Logo e Identidade
+- **Logo Principal:** Usada na barra superior e telas de login.
+  - *Caminho sugerido:* `/public/logo.png`
+  - *Dimensão:* 512x512px (Quadrada) ou Proporcional (Transparente).
+- **Favicon:** Ícone da aba do navegador.
+  - *Caminho:* `/public/favicon.ico`
+  - *Dimensão:* 32x32px.
+
+## 2. Imagens de Fundo (Backdrops)
+As imagens usadas no app (como no mural de orações, versículos e Dashboard) são buscadas dinamicamente via **Unsplash**.
+
+Para alterar os temas de fundo dos versículos:
+- Localize a constante `SHARE_BACKGROUNDS` em `src/App.tsx`.
+- Lá você encontrará as URLs. Você pode substituir as URLs do Unsplash pelas suas próprias URLs (ex: do seu site ou Google Drive público).
+
+## 3. Avatares Padrão
+- Quando um membro não tem foto, o sistema usa as iniciais do nome ou uma imagem padrão.
+  - *Site base:* `https://images.unsplash.com/...` para capas de ministério.
+
+## 4. Dimensões Recomendadas
+- **Banners de Eventos:** 1200x600px (Proporção 2:1).
+- **Fotos de Membros:** 400x400px (Proporção 1:1).
+- **Imagens de Capa de Células:** 800x400px.
+
+## 5. Como Alterar
+Para trocar uma imagem fixa no código:
+1. Faça o upload do seu arquivo para a pasta `uploads/` do servidor (via Painel Admin > Hospedagem > Importar Backup ou via acesso direto se disponível).
+2. No código, referencie como `/uploads/nome_da_minha_imagem.jpg`.

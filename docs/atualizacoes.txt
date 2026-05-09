@@ -1,0 +1,23 @@
+# Log de Atualizações e Mudanças (Changelog)
+
+Acompanhe as melhorias feitas no seu sistema.
+
+## [2026-05-09] - Versão 2.3.0
+### ✨ Novas Funcionalidades
+- **Geração de Arte da Bíblia:** Adicionado ícone de "Câmera/Arte" em cada versículo na tela da Bíblia, permitindo gerar imagens de compartilhamento personalizadas de qualquer trecho.
+- **Backup via Telegram:** Integração com Bot do Telegram para envio automático de backups do banco de dados para grupos ou chats privados.
+- **Painel Hosting Pro:** Novo painel de controle do servidor com Uptime real e ferramentas de reset de WhatsApp.
+
+### 🚀 Melhorias Técnicas
+- **Update Inteligente:** O processo de atualização via Git agora realiza backup automático da pasta do app antes de puxar o código novo.
+- **Build Automático:** Agora o sistema instala dependências e reconstrói o frontend automaticamente durante a atualização.
+- **Escalabilidade de Arte:** Melhoria na legibilidade das imagens geradas; o texto agora diminui de tamanho automaticamente se o versículo for muito grande, evitando sobreposição com o rodapé.
+
+### 🔧 Correções
+- **Uptime do Processo:** Corrigido o cálculo de tempo online para mostrar o tempo desde o último reinício do app, não do servidor físico total.
+- **Traduções da Bíblia:** Removida a versão em inglês e otimizado o carregamento de traduções em Português.
+
+## [Anteriores]
+- Implementação inicial da gestão financeira.
+- Configuração do módulo de Células e Ministérios.
+- Integração com WhatsApp para notificações.

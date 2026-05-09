@@ -1922,7 +1922,6 @@ const BIBLE_TRANSLATIONS = [
   { id: 'almeida', name: 'Almeida ARA (Geral)', api: 'bible-api', translation: 'almeida' },
   { id: 'nvi', name: 'NVI (Nova Versão Internacional)', api: 'bolls', bollsId: 23 },
   { id: 'rc', name: 'Almeida RC (Tradicional)', api: 'bolls', bollsId: 22 },
-  { id: 'kjv', name: 'King James Version', api: 'bible-api', translation: 'kjv' },
 ];
 
 const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight, onShareVerse }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void, onShareVerse?: (v: {text: string, ref: string}) => void }) => {
@@ -3041,6 +3040,44 @@ const AdminHostingScreen = () => {
           </div>
         </Card>
       </div>
+
+      <Card className="p-6 mt-6">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
+            <FileText className="w-5 h-5" />
+          </div>
+          <div>
+             <h3 className="font-black text-slate-900 tracking-tight text-lg">Documentação do Sistema</h3>
+             <p className="text-xs text-slate-500 font-medium">Guias técnicos e log de mudanças</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            { id: 'funcionalidades.txt', label: 'Funcionalidades', icon: Database, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { id: 'arquivos_e_imagens.txt', label: 'Imagens e Ativos', icon: Image, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+            { id: 'atualizacoes.txt', label: 'Changelog', icon: RefreshCw, color: 'text-emerald-600', bg: 'bg-emerald-50' }
+          ].map(doc => (
+            <button
+              key={doc.id}
+              onClick={async () => {
+                try {
+                  const content = await api.request(`/docs/${doc.id}`);
+                  alert(`--- ${doc.label} ---\n\n${content}`);
+                } catch (e) {
+                  alert('Erro ao carregar documento.');
+                }
+              }}
+              className="flex flex-col items-center p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-100 group"
+            >
+              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform", doc.bg, doc.color)}>
+                <doc.icon className="w-6 h-6" />
+              </div>
+              <span className="text-xs font-bold text-slate-700">{doc.label}</span>
+            </button>
+          ))}
+        </div>
+      </Card>
 
       <Card className="p-6 mt-6">
         <div className="flex items-center justify-between mb-6">

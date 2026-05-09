@@ -1,0 +1,42 @@
+# Funcionalidades do Aplicativo - Igreja Digital
+
+Este documento lista as principais funcionalidades implementadas no sistema para referência e exportação.
+
+## 1. Gestão de Membros e Visitantes
+- Cadastro completo de membros com foto, dados pessoais e status (Ativo, Afastado, Visitante).
+- Filtros por ministérios, células e tempo de congregação.
+- Dashboard administrativo com gráficos de crescimento e demografia.
+
+## 2. Vida Espiritual e Bíblia
+- Bíblia Online Integrada: Múltiplas traduções em Português.
+- Planos de Leitura: Acompanhamento de progresso individual.
+- Mural de Orações: Pedidos públicos e privados com interações ("Orei por isso").
+- Versículo Diário: Geração automática de artes (imagens) para redes sociais.
+
+## 3. Pequenos Grupos (Células)
+- Localização no Mapa: Integração com Google Maps para visualização de células.
+- Gestão de Líderes e membros de cada grupo.
+- Mural de avisos internos por célula.
+
+## 4. Gestão Financeira (Dízimos e Ofertas)
+- Registro de entradas (Dízimos, Ofertas, Doações).
+- Configuração de metas financeiras e campanhas.
+- Relatórios mensais e anuais exportáveis.
+- Doação via PIX (Link e QR Code).
+
+## 5. Ministérios e Escalas
+- Cadastro de Ministérios (Música, Recepção, Infantil, etc.).
+- Gestão de escala de voluntários.
+- Solicitação de entrada em ministérios via app.
+
+## 6. Comunicação e Eventos
+- Quadro de Avisos Geral.
+- Agenda de Eventos com RSVP (Confirmação de presença).
+- Gravações e Vídeos de Sermões.
+- Notificações Web e Desktop.
+
+## 7. Administração e Servidor (Painel Hosting)
+- Status do Servidor (CPU, RAM, Uptime).
+- Backup em Nuvem automático via Telegram.
+- Atualização do Sistema em um clique via GitHub.
+- Logs de acesso e segurança.
