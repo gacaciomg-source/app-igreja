@@ -51,6 +51,7 @@ import {
   FileText,
   CheckCircle,
   XCircle,
+  Database,
   RefreshCw,
   Server,
   Shield,
@@ -2873,7 +2874,8 @@ const AdminHostingScreen = () => {
     setIsUpdating(true);
     try {
       const response = await api.request('/system/update', { method: 'POST' });
-      alert('Sistema atualizado com sucesso! \n\nResultado: ' + (response.output || 'Código sincronizado.'));
+      alert('Código sincronizado com sucesso!\n\nO servidor está reiniciando agora para aplicar as mudanças. Aguarde cerca de 10 segundos e atualize a página.');
+      window.location.reload();
     } catch (e: any) {
       alert('Erro ao atualizar: ' + (e.message || 'Falha na conexão'));
     } finally {
@@ -2896,28 +2898,6 @@ const AdminHostingScreen = () => {
             accept=".zip" 
             className="hidden" 
           />
-          <Button 
-            onClick={handleImportClick} 
-            disabled={isImporting}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            {isImporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            Importar Dados
-          </Button>
-          <Button 
-            onClick={handleGitUpdate} 
-            disabled={isUpdating}
-            variant="secondary" 
-            className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-200"
-          >
-            {isUpdating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
-            {isUpdating ? 'Puxando...' : 'Atualizar Sistema (Git)'}
-          </Button>
-          <Button onClick={handleResetWhatsApp} variant="secondary" className="flex items-center gap-2 bg-amber-50 text-amber-700 border-amber-200">
-            <RefreshCw className="w-4 h-4" />
-            Resetar WhatsApp
-          </Button>
           <Button onClick={handleBackup} disabled={isBackingUp} className="flex items-center gap-2">
             {isBackingUp ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Download Backup ZIP
@@ -2977,6 +2957,82 @@ const AdminHostingScreen = () => {
           </div>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center">
+              <RefreshCw className="w-5 h-5" />
+            </div>
+            <div>
+               <h3 className="font-black text-slate-900 tracking-tight text-lg">Controle de Serviços</h3>
+               <p className="text-xs text-slate-500 font-medium">Reinicialização de módulos</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Use esta opção se a conexão do WhatsApp travar ou o QR Code não aparecer.
+            </p>
+            <Button onClick={handleResetWhatsApp} variant="secondary" className="w-full flex items-center justify-center gap-2 bg-amber-50 text-amber-700 border-amber-200 h-12 rounded-xl">
+              <RefreshCw className="w-4 h-4" />
+              Resetar Conexão WhatsApp
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+               <h3 className="font-black text-slate-900 tracking-tight text-lg">Gestão de Código</h3>
+               <p className="text-xs text-slate-500 font-medium">Atualização via GitHub</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Sincroniza o servidor com a última versão do seu repositório Git.
+            </p>
+            <Button 
+              onClick={handleGitUpdate} 
+              disabled={isUpdating}
+              variant="secondary" 
+              className="w-full flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-200 h-12 rounded-xl"
+            >
+              {isUpdating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
+              {isUpdating ? 'Atualizando...' : 'Puxar Atualizações (Git)'}
+            </Button>
+          </div>
+        </Card>
+      </div>
+
+      <Card className="p-6 mt-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+               <h3 className="font-black text-slate-900 tracking-tight text-lg">Dados e Restauração</h3>
+               <p className="text-xs text-slate-500 font-medium">Importação manual de backups</p>
+            </div>
+          </div>
+          <Button 
+            onClick={handleImportClick} 
+            disabled={isImporting}
+            variant="outline"
+            className="flex items-center gap-2 rounded-xl"
+          >
+            {isImporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Importar Arquivo .ZIP
+          </Button>
+        </div>
+        <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-xs text-amber-800 flex gap-3">
+          <Shield className="w-5 h-5 shrink-0" />
+          <p><b>CUIDADO:</b> Ao importar um backup, todos os dados atuais (membros, finanças, configurações) serão <b>substituídos</b> permanentemente pelo conteúdo do arquivo.</p>
+        </div>
+      </Card>
 
       <Card className="p-6 mt-6">
         <div className="flex items-center gap-2 mb-6">

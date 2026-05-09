@@ -594,7 +594,7 @@ async function startServer() {
         freeMemory,
         totalMemory,
         loadAvg,
-        uptime: Math.floor(os.uptime())
+        uptime: Math.floor(process.uptime())
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao ler statos do sistema" });
@@ -629,7 +629,14 @@ async function startServer() {
         return res.status(500).json({ error: error.message, details: stderr });
       }
       console.log(`Sistema Atualizado via Git: ${stdout}`);
-      res.json({ ok: true, output: stdout });
+      
+      // Respond first, then restart
+      res.json({ ok: true, output: stdout, message: "O servidor irá reiniciar em 2 segundos para aplicar as mudanças." });
+      
+      setTimeout(() => {
+        console.log('Reiniciando processo para aplicação de atualizações...');
+        process.exit(0);
+      }, 2000);
     });
   });
 
