@@ -26,7 +26,13 @@ Para alterar os temas de fundo dos versículos:
 - **Fotos de Membros:** 400x400px (Proporção 1:1).
 - **Imagens de Capa de Células:** 800x400px.
 
-## 5. Como Alterar
-Para trocar uma imagem fixa no código:
+## 5. Ícones e Ilustrações
+O sistema utiliza principalmente a biblioteca **Lucide React** para ícones de interface.
+
+- **Ícones Padrão:** Para trocar um ícone de um botão ou menu (ex: trocar `Server` por `HardDrive`), é necessário alterar a referência no componente correspondente em `src/App.tsx`.
+- **Ícones Customizados:** Alguns ícones, como o de **Oração** (`PrayingHands`), são desenhados diretamente em código SVG dentro do `src/App.tsx`.
+  - *Como alterar:* Procure por `const PrayingHands = ...` no código. Você pode substituir o código SVG interno pelo de outro ícone que desejar.
+
+## 6. Como Alterar Imagens Fixas
 1. Faça o upload do seu arquivo para a pasta `uploads/` do servidor (via Painel Admin > Hospedagem > Importar Backup ou via acesso direto se disponível).
 2. No código, referencie como `/uploads/nome_da_minha_imagem.jpg`.
