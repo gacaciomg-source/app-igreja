@@ -594,7 +594,7 @@ async function startServer() {
         freeMemory,
         totalMemory,
         loadAvg,
-        uptime: Math.floor(process.uptime())
+        uptime: Math.floor(os.uptime())
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao ler statos do sistema" });
@@ -619,24 +619,28 @@ async function startServer() {
     if (userRole !== 'superadmin') return res.status(403).send("Acesso negado");
     
     const { exec } = await import('child_process');
-    // Comando mais seguro: fetch + reset (pula o merge interativo que trava em scripts)
-    // Isso garante que o código local fique IDÊNTICO ao do Git, mas NÃO mexe em pastas ignoradas (como data/)
-    const command = 'git fetch origin main && git reset --hard origin/main';
+    // Comando mais robusto: limpa, puxa código, instala dependências e builda
+    // Isso garante que mudanças no package.json ou no frontend sejam aplicadas
+    const command = 'git fetch origin main && git reset --hard origin/main && npm install && npm run build && (pm2 save || true)';
     
     exec(command, (error, stdout, stderr) => {
       if (error) {
         console.error(`Erro na Atualização: ${error.message}`);
         return res.status(500).json({ error: error.message, details: stderr });
       }
-      console.log(`Sistema Atualizado via Git: ${stdout}`);
+      console.log(`Sistema Atualizado e Buildado: ${stdout}`);
       
       // Respond first, then restart
-      res.json({ ok: true, output: stdout, message: "O servidor irá reiniciar em 2 segundos para aplicar as mudanças." });
+      res.json({ 
+        ok: true, 
+        output: stdout, 
+        message: "O servidor foi atualizado, as dependências instaladas e o build concluído. Reiniciando em 3 segundos..." 
+      });
       
       setTimeout(() => {
         console.log('Reiniciando processo para aplicação de atualizações...');
         process.exit(0);
-      }, 2000);
+      }, 3000);
     });
   });
 

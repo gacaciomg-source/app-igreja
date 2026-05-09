@@ -2950,10 +2950,11 @@ const AdminHostingScreen = () => {
             <Server className="w-16 h-16" />
           </div>
           <div className="relative z-10">
-            <h3 className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Tempo Online (Uptime)</h3>
-            <div className="text-3xl font-black text-amber-400">
-              {loading ? '--' : (sysInfo?.uptime ? formatUptime(sysInfo.uptime) : 'N/A')}
+            <h3 className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Status do Sistema</h3>
+            <div className="text-2xl font-black text-amber-400">
+              {loading ? '--' : (sysInfo?.uptime ? formatUptime(sysInfo.uptime) : 'Online')}
             </div>
+            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">Tempo Online (OS)</p>
           </div>
         </Card>
       </div>
@@ -3243,6 +3244,7 @@ const AdminAllScreens = ({ onTabChange, isTabAllowed }: { onTabChange: (tab: str
     { id: 'sermons', label: 'Gerenciar Sermões', icon: Mic, color: 'bg-orange-600' },
     { id: 'tithes', label: 'Configuração de Dízimos', icon: DollarSign, color: 'bg-emerald-600' },
     { id: 'admin_roles', label: 'Perfis de Acesso Adm', icon: Shield, color: 'bg-red-600' },
+    { id: 'hosting', label: 'Servidor e Backups', icon: Server, color: 'bg-slate-700' },
   ].filter(s => isTabAllowed(s.id));
 
   return (
