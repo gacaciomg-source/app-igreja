@@ -30,8 +30,8 @@ Para alterar os temas de fundo dos versículos:
 O sistema utiliza principalmente a biblioteca **Lucide React** para ícones de interface.
 
 - **Ícones Padrão:** Para trocar um ícone de um botão ou menu (ex: trocar `Server` por `HardDrive`), é necessário alterar a referência no componente correspondente em `src/App.tsx`.
-- **Ícones Customizados:** Alguns ícones, como o de **Oração** (`PrayingHands`), são desenhados diretamente em código SVG dentro do `src/App.tsx`.
-  - *Como alterar:* Procure por `const PrayingHands = ...` no código. Você pode substituir o código SVG interno pelo de outro ícone que desejar.
+- **Ícones Customizados:** Alguns ícones como o de **Oração** agora aceitam imagens físicas.
+  - *Como alterar:* Suba um arquivo chamado `logo_oracao.png` para a pasta raiz ou `public`. O sistema detectará automaticamente. Caso não exista, ele usará um ícone padrão da internet.
 
 ## 6. Como Alterar Imagens Fixas
 1. Faça o upload do seu arquivo para a pasta `uploads/` do servidor (via Painel Admin > Hospedagem > Importar Backup ou via acesso direto se disponível).

@@ -1714,19 +1714,16 @@ const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, showMessage }: 
   </div>
 );
 const PrayingHands = ({ className = "w-6 h-6" }: { className?: string }) => (
-  <svg 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={className}
-  >
-    <path d="M12 3L9 9v3l-4 6 3 3 4-2 4 2 3-3-4-6V9l-3-6z" />
-    <path d="M12 3v13" />
-    <path d="M9 18l3 2 3-2" />
-  </svg>
+  <img 
+    src="/logo_oracao.png" 
+    alt="Oração" 
+    className={cn("object-contain", className)} 
+    onError={(e) => {
+      // Fallback: se a imagem local não existir, usa um ícone padrão de mãos dadas
+      (e.target as HTMLImageElement).src = 'https://cdn-icons-png.flaticon.com/512/2906/2906232.png';
+      (e.target as HTMLImageElement).onerror = null; // evita loop se o fallback falhar
+    }}
+  />
 );
 
 const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, showMessage }: { events: Event[], isAdmin?: boolean, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onShowOrações?: () => void, showMessage?: (msg: string) => void }) => {
@@ -1918,24 +1915,24 @@ const PrayerWall = ({ prayers, cells, onAdd, onDelete, onTogglePrayed, onAddComm
 };
 
 const BIBLE_TRANSLATIONS = [
-  { id: 'naa', name: 'NAA (Nova Almeida Atualizada)', api: 'bolls', bollsId: 60 },
-  { id: 'almeida', name: 'Almeida ARA (Geral)', api: 'bible-api', translation: 'almeida' },
-  { id: 'nvi', name: 'NVI (Nova Versão Internacional)', api: 'bolls', bollsId: 23 },
-  { id: 'rc', name: 'Almeida RC (Tradicional)', api: 'bolls', bollsId: 22 },
+  { id: 'nvi', name: 'NVI (Nova Versão Internacional)', api: 'bolls', bollsId: 23, translation: 'nvi' },
+  { id: 'ara', name: 'Almeida ARA (Geral)', api: 'bolls', bollsId: 21, translation: 'almeida' },
+  { id: 'arc', name: 'Almeida RC (Tradicional)', api: 'bolls', bollsId: 22, translation: 'almeida' },
+  { id: 'naa', name: 'NAA (Nova Almeida Atualizada)', api: 'bolls', bollsId: 60, translation: 'almeida' },
 ];
 
 const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight, onShareVerse }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void, onShareVerse?: (v: {text: string, ref: string}) => void }) => {
   const [selectedBook, setSelectedBook] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [translation, setTranslation] = useState<string>(localStorage.getItem('bibleTranslation') || 'naa');
+  const [translation, setTranslation] = useState<string>(localStorage.getItem('bibleTranslation') || 'nvi');
   const [verses, setVerses] = useState<{verse: number, text: string}[]>([]);
   const [loadingVerses, setLoadingVerses] = useState(false);
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
   const [searchMode, setSearchMode] = useState<'books' | 'verses'>('books');
   const [searchResults, setSearchResults] = useState<{book: string, chapter: number, verse: number, text: string}[]>([]);
   const [searching, setSearching] = useState(false);
-  
+
   const currentTranslation = BIBLE_TRANSLATIONS.find(t => t.id === translation) || BIBLE_TRANSLATIONS[0];
 
   const colors = [
@@ -2039,6 +2036,12 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
     }
   };
 
+  useEffect(() => {
+    if (selectedBook && selectedChapter) {
+      handleSelectChapter(selectedBook, selectedChapter);
+    }
+  }, [translation]);
+
   const filteredBooks = BIBLE_BOOKS.filter(b => b.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   if (selectedChapter) {
@@ -2059,7 +2062,6 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
             onChange={(e) => {
               setTranslation(e.target.value);
               localStorage.setItem('bibleTranslation', e.target.value);
-              handleSelectChapter(selectedBook!, selectedChapter!, e.target.value);
             }}
             className="text-[10px] font-bold bg-slate-50 border-none rounded-lg py-2 px-3 focus:ring-0"
           >
@@ -3062,8 +3064,8 @@ const AdminHostingScreen = () => {
               key={doc.id}
               onClick={async () => {
                 try {
-                  const content = await api.request(`/docs/${doc.id}`);
-                  alert(`--- ${doc.label} ---\n\n${content}`);
+                  const data = await api.request(`/docs/${doc.id}`);
+                  alert(`--- ${doc.label} ---\n\n${data.content}`);
                 } catch (e) {
                   alert('Erro ao carregar documento.');
                 }

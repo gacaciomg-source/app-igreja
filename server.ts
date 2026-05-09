@@ -621,9 +621,9 @@ async function startServer() {
     
     if (fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf-8');
-      res.send(content);
+      res.json({ content });
     } else {
-      res.status(404).send("Documento não encontrado");
+      res.status(404).json({ error: "Documento não encontrado" });
     }
   });
 

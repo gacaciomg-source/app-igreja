@@ -30,13 +30,25 @@ Este documento lista as principais funcionalidades implementadas no sistema para
 - Solicitação de entrada em ministérios via app.
 
 ## 6. Comunicação e Eventos
-- Quadro de Avisos Geral.
-- Agenda de Eventos com RSVP (Confirmação de presença).
-- Gravações e Vídeos de Sermões.
+- Quadro de Avisos Geral: Notificações de interesse público.
+- Agenda de Eventos com RSVP: Confirmação de presença e gestão de convidados.
+- Gravações e Vídeos de Sermões: Podcast e vídeos incorporados.
 - Notificações Web e Desktop.
 
-## 7. Administração e Servidor (Painel Hosting)
-- Status do Servidor (CPU, RAM, Uptime).
-- Backup em Nuvem automático via Telegram.
-- Atualização do Sistema em um clique via GitHub.
-- Logs de acesso e segurança.
+## 7. Módulos Auxiliares
+- Aniversariantes do Mês: Listagem automática para congratulações.
+- Mural de Testemunhos: Espaço para compartilhar vitórias.
+- Cadastro de Visitantes: Fluxo simplificado para novos membros.
+- Mapa de Membros: Visualização geográfica da congregação.
+
+## 8. Administração e Servidor (Painel Hosting)
+- Status do Servidor: CPU, RAM, Uptime do processo.
+- Backup de Segurança: Snapshot automático antes de atualizações.
+- Backup via Telegram: Envio de dados para grupos seguros.
+- Log de Atualizações: Histórico de mudanças no código.
+- Gerenciamento de Permissões: Controle fino de quem pode ver o quê (Superadmin, Admin, Moderador, Membro).
+
+## 9. Personalização Visual
+- Geração de Artes: Ferramenta inteligente para criar imagens de compartilhamento.
+- Temas de Background: Múltiplos fundos fotográficos para citações.
+- Customização de Logos: Identidade visual adaptável.
