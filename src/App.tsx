@@ -637,8 +637,14 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
               </div>
             )}
             
-            <div className="space-y-6 z-10 pt-16">
-              <p className="text-white text-xl font-medium italic leading-relaxed drop-shadow-lg">
+    <div className="space-y-6 z-10 pt-16">
+              <p className={cn(
+                "text-white font-medium italic leading-relaxed drop-shadow-lg",
+                verse.text.length > 300 ? "text-xs" : 
+                verse.text.length > 200 ? "text-sm" : 
+                verse.text.length > 120 ? "text-base" : 
+                verse.text.length > 60 ? "text-lg" : "text-xl"
+              )}>
                 "{verse.text}"
               </p>
               <div className="h-0.5 w-12 bg-white/40 mx-auto rounded-full"></div>

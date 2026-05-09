@@ -594,7 +594,7 @@ async function startServer() {
         freeMemory,
         totalMemory,
         loadAvg,
-        uptime: Math.floor(os.uptime())
+        uptime: Math.floor(process.uptime())
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao ler statos do sistema" });
@@ -653,7 +653,7 @@ async function startServer() {
 
     // Comando mais robusto: limpa, puxa código, instala dependências e builda
     // Isso garante que mudanças no package.json ou no frontend sejam aplicadas
-    const command = 'git fetch origin main && git reset --hard origin/main && npm install --include=dev && npm run build && (pm2 save || true)';
+    const command = 'git fetch origin main && git reset --hard origin/main && npm install --include=dev && (npm list esbuild || npm install --include=dev esbuild) && npm run build && (pm2 save || true)';
     
     exec(command, (error, stdout, stderr) => {
       if (error) {
