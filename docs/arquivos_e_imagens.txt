@@ -29,10 +29,13 @@ Para alterar os temas de fundo dos versículos:
 ## 5. Ícones e Ilustrações
 O sistema utiliza principalmente a biblioteca **Lucide React** para ícones de interface.
 
-- **Ícones Padrão:** Para trocar um ícone de um botão ou menu (ex: trocar `Server` por `HardDrive`), é necessário alterar a referência no componente correspondente em `src/App.tsx`.
-- **Ícones Customizados:** Alguns ícones como o de **Oração** agora aceitam imagens físicas.
-  - *Como alterar:* Suba um arquivo chamado `logo_oracao.png` para a pasta raiz ou `public`. O sistema detectará automaticamente. Caso não exista, ele usará um ícone padrão da internet.
+- **Subpasta de Ícones:** Todos os ícones personalizados devem ser colocados em `/public/icons/`. Isso mantém o projeto organizado.
+- **Ícone de Oração (Dinâmico):** O ícone de oração agora suporta dois estados (Normal e Selecionado).
+  - *Normal:* `/public/icons/logo_oracao.png`
+  - *Selecionado (Ativo):* `/public/icons/logo_oracao_active.png`
+  - *Como funciona:* O sistema troca automaticamente a imagem quando o usuário clica na aba de Orações. Recomendamos usar uma versão colorida ou preenchida para o estado "active".
 
 ## 6. Como Alterar Imagens Fixas
-1. Faça o upload do seu arquivo para a pasta `uploads/` do servidor (via Painel Admin > Hospedagem > Importar Backup ou via acesso direto se disponível).
-2. No código, referencie como `/uploads/nome_da_minha_imagem.jpg`.
+1. Crie as pastas necessárias (ex: `public/icons`) se elas ainda não existirem no seu repositório Git.
+2. Suba seus arquivos para a pasta correspondente.
+3. Se for uma imagem de upload dinâmico (como fotos de membros), use a pasta `uploads/` do servidor.

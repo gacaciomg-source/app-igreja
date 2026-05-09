@@ -1713,9 +1713,9 @@ const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, showMessage }: 
     </div>
   </div>
 );
-const PrayingHands = ({ className = "w-6 h-6" }: { className?: string }) => (
+const PrayingHands = ({ className = "w-6 h-6", active = false }: { className?: string, active?: boolean }) => (
   <img 
-    src="/logo_oracao.png" 
+    src={active ? "/icons/logo_oracao_active.png" : "/icons/logo_oracao.png"} 
     alt="Oração" 
     className={cn("object-contain", className)} 
     onError={(e) => {
@@ -6415,7 +6415,10 @@ const joinCell = async (cellId: string) => {
                 "p-2 rounded-xl transition-all",
                 currentTab === tab.id ? "bg-primary-light" : "bg-transparent"
               )}>
-                <tab.icon className={cn("w-6 h-6", currentTab === tab.id ? "stroke-[2.5px]" : "stroke-[2px]")} />
+                <tab.icon 
+                  className={cn("w-6 h-6", currentTab === tab.id ? "stroke-[2.5px]" : "stroke-[2px]")} 
+                  active={currentTab === tab.id}
+                />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
             </button>

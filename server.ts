@@ -128,19 +128,27 @@ async function initWhatsApp() {
   whatsappError = null;
 
   const authPath = path.join(process.cwd(), '.wwebjs_auth');
-  const sessionPath = path.join(authPath, 'session');
+  const sessionName = 'session';
+  const sessionPath = path.join(authPath, `session-${sessionName}`);
   
   // Limpeza de arquivos de trava do Puppeteer que impedem reinicialização
   try {
     const lockFiles = [
       path.join(sessionPath, 'SingletonLock'),
       path.join(sessionPath, 'SingletonCookie'),
-      path.join(sessionPath, 'SingletonSocket')
+      path.join(sessionPath, 'SingletonSocket'),
+      path.join(sessionPath, 'Default', 'SingletonLock'),
+      path.join(sessionPath, 'Default', 'SingletonCookie'),
+      path.join(sessionPath, 'Default', 'SingletonSocket')
     ];
     lockFiles.forEach(file => {
       if (fs.existsSync(file)) {
         console.log(`Limpando arquivo de trava: ${file}`);
-        fs.unlinkSync(file);
+        try {
+          fs.unlinkSync(file);
+        } catch (err) {
+          console.error(`Erro ao remover trava ${file}:`, err);
+        }
       }
     });
   } catch (e) {
@@ -665,12 +673,13 @@ async function startServer() {
     }
 
     // Comando mais robusto: limpa, puxa código, instala dependências e builda
-    // Isso garante que mudanças no package.json ou no frontend sejam aplicadas
-    const command = 'git fetch origin main && git reset --hard origin/main && npm install --include=dev && (npm list esbuild || npm install --include=dev esbuild) && npm run build && (pm2 save || true)';
+    const command = 'git fetch origin main && git reset --hard origin/main && npm install --include=dev && npm run build && (pm2 save || true)';
     
     exec(command, (error, stdout, stderr) => {
       if (error) {
         console.error(`Erro na Atualização: ${error.message}`);
+        // Log de erro para depuração futura
+        try { fs.appendFileSync('update_error.log', `${new Date().toISOString()}: ${error.message}\n${stderr}\n`); } catch(e) {}
         return res.status(500).json({ error: error.message, details: stderr });
       }
       console.log(`Sistema Atualizado e Buildado: ${stdout}`);
