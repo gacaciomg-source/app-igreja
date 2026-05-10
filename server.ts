@@ -16,6 +16,7 @@ import cron from 'node-cron';
 import AdmZip from 'adm-zip';
 import multer from 'multer';
 import FormData from 'form-data';
+import webpush from 'web-push';
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -28,6 +29,56 @@ let whatsappStatus: 'DISCONNECTED' | 'INITIALIZING' | 'READY' | 'AUTHENTRICATING
 let whatsappError: string | null = null;
 
 const START_TIME = Date.now();
+
+// --- Web Push Setup ---
+let vapidKeys: { publicKey: string, privateKey: string } | null = null;
+
+async function initWebPush() {
+    try {
+        const configs = await storage.readCollection<any>("config");
+        let vapidConfig = configs.find((c: any) => c.id === "vapid");
+        
+        if (!vapidConfig) {
+            const keys = webpush.generateVAPIDKeys();
+            vapidConfig = { id: 'vapid', ...keys };
+            await storage.insert("config", vapidConfig);
+            console.log("VAPID keys generated and stored.");
+        }
+        
+        vapidKeys = { publicKey: vapidConfig.publicKey, privateKey: vapidConfig.privateKey };
+        webpush.setVapidDetails(
+            'mailto:gustavoacacio0711@gmail.com',
+            vapidKeys.publicKey,
+            vapidKeys.privateKey
+        );
+    } catch (e) {
+        console.error("Error initializing Web Push:", e);
+    }
+}
+initWebPush();
+
+async function sendPushNotification(title: string, body: string, url: string = '/') {
+    try {
+        const subscriptions = await storage.readCollection<any>("push_subscriptions");
+        console.log(`Sending push to ${subscriptions.length} subscribers: ${title}`);
+        
+        const payload = JSON.stringify({ title, body, url });
+        
+        const promises = subscriptions.map(sub => 
+            webpush.sendNotification(sub, payload).catch(err => {
+                if (err.statusCode === 404 || err.statusCode === 410) {
+                    console.log('Push subscription expired/unsubscribed:', sub.endpoint);
+                    return storage.remove("push_subscriptions", sub.id);
+                }
+                console.error('Error sending push:', err);
+            })
+        );
+        
+        await Promise.all(promises);
+    } catch (e) {
+        console.error("Failed to send push notifications:", e);
+    }
+}
 
 async function getWhatsAppChatId(phone: string) {
     if (!whatsappClient) return null;
@@ -839,9 +890,16 @@ async function startServer() {
       // WhatsApp Notification Trigger
       if (req.params.name === 'prayers') {
         const privacy = newItem.privacy === 'private' ? 'Privado' : 'Público';
-        sendWhatsAppNotifications(`🙏 *Novo Pedido de Oração*\n\n*Membro:* ${(req as any).user.name || 'Desconhecido'}\n*Privacidade:* ${privacy}\n*Mensagem:* ${newItem.content}`).catch(e => console.error("WhatsApp notification failed:", e));
+        const msg = `🙏 *Novo Pedido de Oração*\n\n*Membro:* ${(req as any).user.name || 'Desconhecido'}\n*Privacidade:* ${privacy}\n*Mensagem:* ${newItem.content}`;
+        sendWhatsAppNotifications(msg).catch(e => console.error("WhatsApp notification failed:", e));
+        sendPushNotification("Novo Pedido de Oração", `${(req as any).user.name || 'Alguém'} pediu oração: ${newItem.content.substring(0, 50)}...`, '/').catch(e => console.error("Push failed:", e));
       } else if (req.params.name === 'pastoralVisits') {
-        sendWhatsAppNotifications(`🏡 *Nova Visita Pastoral*\n\n*Solicitante:* ${(req as any).user.name || 'Desconhecido'}\n*Motivo:* ${newItem.reason || 'Não informado'}`).catch(e => console.error("WhatsApp notification failed:", e));
+        const msg = `🏡 *Nova Visita Pastoral*\n\n*Solicitante:* ${(req as any).user.name || 'Desconhecido'}\n*Motivo:* ${newItem.reason || 'Não informado'}`;
+        sendWhatsAppNotifications(msg).catch(e => console.error("WhatsApp notification failed:", e));
+      } else if (req.params.name === 'events') {
+        sendPushNotification("📅 Novo Evento!", `Participe: ${newItem.title}`, '/').catch(e => console.error("Push failed:", e));
+      } else if (req.params.name === 'announcements') {
+        sendPushNotification("📢 Comunicado", newItem.title, '/').catch(e => console.error("Push failed:", e));
       }
       
       res.json(newItem);
@@ -951,6 +1009,39 @@ async function startServer() {
     }
   });
 
+  // --- Web Push Endpoints ---
+  app.get("/api/push/public-key", (req, res) => {
+    if (!vapidKeys) return res.status(503).json({ error: "VAPID keys not initialized" });
+    res.json({ publicKey: vapidKeys.publicKey });
+  });
+
+  app.post("/api/push/subscribe", authenticateToken, async (req, res) => {
+    try {
+        const subscription = req.body;
+        if (!subscription || !subscription.endpoint) {
+            return res.status(400).json({ error: "Subscription object is required" });
+        }
+        
+        const subscriptions = await storage.readCollection<any>("push_subscriptions");
+        const exists = subscriptions.find(s => s.endpoint === subscription.endpoint);
+        
+        if (!exists) {
+            const sub = {
+                id: uuidv4(),
+                userId: (req as any).user.id,
+                createdAt: new Date().toISOString(),
+                ...subscription
+            };
+            await storage.insert("push_subscriptions", sub);
+        }
+        
+        res.status(201).json({ success: true });
+    } catch (error) {
+        console.error("Error subscribing:", error);
+        res.status(500).json({ error: "Failed to subscribe" });
+    }
+  });
+
   // --- Ministry Confirmation API ---
   app.post("/api/ministries/confirm", authenticateToken, async (req: any, res) => {
     try {
@@ -1006,6 +1097,28 @@ async function startServer() {
   }
 
   await ensureMinistries();
+
+  // Schedule Daily Verse at 09:00
+  cron.schedule('0 9 * * *', async () => {
+    console.log('Running daily verse notification...');
+    try {
+        const BIBLE_VERSES = [
+            { text: "Tudo posso naquele que me fortalece.", ref: "Filipenses 4:13" },
+            { text: "O Senhor é o meu pastor, nada me faltará.", ref: "Salmos 23:1" },
+            { text: "Bem-aventurados os limpos de coração, porque eles verão a Deus.", ref: "Mateus 5:8" },
+            { text: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito...", ref: "João 3:16" },
+            { text: "O meu socorro vem do Senhor, que fez o céu e a terra.", ref: "Salmos 121:2" },
+            { text: "Lâmpada para os meus pés é tua palavra, e luz para o meu caminho.", ref: "Salmos 119:105" },
+            { text: "Deleita-te também no Senhor, e te concederá os desejos do teu coração.", ref: "Salmos 37:4" }
+        ];
+        const verse = BIBLE_VERSES[Math.floor(Math.random() * BIBLE_VERSES.length)];
+        await sendPushNotification("📖 Versículo do Dia", `"${verse.text}" - ${verse.ref}`, '/bible');
+    } catch (e) {
+        console.error('Failed to send daily verse notification:', e);
+    }
+  }, {
+    timezone: "America/Sao_Paulo"
+  });
 
   app.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

@@ -84,7 +84,7 @@ import {
   YAxis,
   CartesianGrid
 } from 'recharts';
-import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction } from './types';
+import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction, FinancialRule } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
 import { api } from './services/apiService';
 import { ReadingPlansScreen } from './components/ReadingPlansScreen';
@@ -95,6 +95,68 @@ import { APP_CONFIG } from './themeConfig';
 // --- Error Handling ---
 let setGlobalErrorRef: (msg: string | null) => void = () => {};
 let setGlobalSuccessRef: (msg: string | null) => void = () => {};
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function registerPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.log('Push notifications not supported on this device/browser');
+    return;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    
+    // Request permission if not already granted
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+    }
+
+    let subscription = await registration.pushManager.getSubscription();
+    
+    if (!subscription) {
+      const response = await fetch('/api/push/public-key');
+      const { publicKey } = await response.json();
+      
+      const convertedVapidKey = urlBase64ToUint8Array(publicKey);
+      
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedVapidKey
+      });
+    }
+
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify(subscription),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    console.log('Unidade de Notificação Push registrada!');
+  } catch (error) {
+    console.error('Error during push registration:', error);
+  }
+}
 
 function handleApiError(error: unknown, context: string) {
   const message = error instanceof Error ? error.message : String(error);
@@ -5625,6 +5687,17 @@ export default function App() {
     }
     setLoading(false);
   }, []);
+
+  // Registry push notifications automatically when logged in
+  useEffect(() => {
+    if (isLoggedIn) {
+      // Delay slightly to ensure service worker is ready and UI is stable
+      const timer = setTimeout(() => {
+        registerPushNotifications();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (!isLoggedIn) {
