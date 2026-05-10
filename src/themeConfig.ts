@@ -42,7 +42,7 @@ export const APP_CONFIG = {
   // Coloque o seu domínio da Cloudflare ou da hospedagem final, SEM A PORTA E SEM BARRA NO FINAL.
   // Exemplo: apiUrl: "https://app-igreja-4pak.onrender.com"
   
-  apiUrl: "http://2.24.86.197:3000", // Altere aqui seguindo as regras acima
+  apiUrl: "https://app.igrejarenovar.com", // Altere aqui seguindo as regras acima
 
   // Redes Sociais
   social: {

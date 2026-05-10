@@ -37,7 +37,31 @@ Você pode usar o comando `npx cordova-res` para gerar todos os tamanhos automat
 
 ---
 
-## Sincronização em Tempo Real (Avançado)
+## Solução de Erros Comuns:
+
+### 1. Aplicativo "Não Compatível" (Xiaomi e outros)
+Se a Google Play ou o celular dizem que o app não é compatível:
+
+1. **Atualize o Target SDK:** A Google Play exige que novos apps usem a versão mais recente.
+   - Abra `android/variables.gradle` e altere:
+     ```gradle
+     targetSdkVersion = 34 // Ou a mais recente solicitada pela Google
+     compileSdkVersion = 34
+     ```
+2. **Arquitetura de Processador:** Garanta que você está gerando o App Bundle (.aab) que já inclui todas as arquiteturas (arm64, v7a, etc).
+3. **Versão Mínima:** Verifique se o seu `minSdkVersion` não está alto demais (o padrão 22 do Capacitor atende quase 100% dos aparelhos).
+
+### 2. Erro de API no Celular (Não faz Login)
+O seu aplicativo já está configurado para usar **HTTPS** (`https://app.igrejarenovar.com`). Isso resolve automaticamente o bloqueio do Android para conexões sem segurança.
+
+**Importante:**
+1. Certifique-se de que o seu servidor (VPS/Dedicado) tem um certificado SSL ativo para este domínio.
+2. Se você precisar voltar para um IP (ex: `http://2.24.86.197:3000`), lembre-se de que o Android bloqueará a conexão a menos que você adicione `android:usesCleartextTraffic="true"` no arquivo `AndroidManifest.xml`.
+
+### 3. Problemas de CORS (Acesso Negado)
+O servidor foi configurado para aceitar conexões a partir de aplicativos móveis. Se o erro persistir:
+- Certifique-se que o DNS do domínio `app.igrejarenovar.com` está apontando para o IP do seu servidor (`2.24.86.197`).
+- No console do servidor, verifique se as requisições estão chegando.
 Atualmente o app usa um servidor Express básico. Se você planeja ter milhares de usuários simultâneos:
 1. Recomendamos ativar o **Firebase**.
 2. Peça ao assistente do AI Studio: "Configure o Firebase para sincronização em tempo real".

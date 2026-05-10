@@ -43,10 +43,15 @@ class ApiService {
       return response.json();
     } catch (err) {
       if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
-         if (IS_CAPACITOR && BASE_URL.includes('ais-dev')) {
-             throw new Error('O servidor AI Studio não aceita conexões do celular. Hospede o app (ex: Render) e altere a apiUrl.');
+         if (IS_CAPACITOR) {
+             if (BASE_URL.startsWith('http://')) {
+                  throw new Error('Falha de conexão (HTTP detectado). Ative "usesCleartextTraffic" no AndroidManifest ou use HTTPS.');
+             }
+             if (BASE_URL.includes('ais-dev')) {
+                  throw new Error('O servidor AI Studio não aceita conexões do celular. Hospede o app e altere a apiUrl.');
+             }
          }
-         throw new Error('Sem conexão com o servidor. Verifique sua internet ou a apiUrl.');
+         throw new Error('Sem conexão com o servidor. Verifique sua internet ou o IP do servidor.');
       }
       if (err instanceof Error) throw err;
       throw new Error('Falha na comunicação com o servidor');
