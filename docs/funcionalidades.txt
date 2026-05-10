@@ -11,17 +11,19 @@ Este documento lista as principais funcionalidades implementadas no sistema para
 - Bíblia Online Integrada: Múltiplas traduções em Português.
 - Planos de Leitura: Acompanhamento de progresso individual.
 - Mural de Orações: Pedidos públicos e privados com interações ("Orei por isso").
-- Versículo Diário: Geração automática de artes (imagens) para redes sociais.
+- Versículo Diário: Geração automática de artes (imagens) para redes sociais e notificações push diárias às 09:00.
 
 ## 3. Pequenos Grupos (Células)
 - Localização no Mapa: Integração com Google Maps para visualização de células.
 - Gestão de Líderes e membros de cada grupo.
 - Mural de avisos internos por célula.
 
-## 4. Gestão Financeira (Dízimos e Ofertas)
+## 4. Gestão Financeira (Central Avançada)
+- Multi-Caixas/Fundos: Criação de caixas separados (Geral, Missões, Reforma, etc.) para controle específico de saldos.
+- Importação Bancária (CSV): Importação direta de extratos bancários com detecção automática de entradas e saídas.
+- Categorização Inteligente: O sistema aprende com suas correções manuais e passa a categorizar gastos automaticamente (Luz, Água, Aluguel, etc).
+- Dashboards Gráficos: Visualização de distribuição por categorias (Pizza) e comparativo mensal (Barras).
 - Registro de entradas (Dízimos, Ofertas, Doações).
-- Configuração de metas financeiras e campanhas.
-- Relatórios mensais e anuais exportáveis.
 - Doação via PIX (Link e QR Code).
 
 ## 5. Ministérios e Escalas
@@ -33,7 +35,7 @@ Este documento lista as principais funcionalidades implementadas no sistema para
 - Quadro de Avisos Geral: Notificações de interesse público.
 - Agenda de Eventos com RSVP: Confirmação de presença e gestão de convidados.
 - Gravações e Vídeos de Sermões: Podcast e vídeos incorporados.
-- Notificações Web e Desktop.
+- Notificações Push (Web Push): Notificações em tempo real no navegador e celular para novos eventos, pedidos de oração, avisos e versículo do dia.
 
 ## 7. Módulos Auxiliares
 - Aniversariantes do Mês: Listagem automática para congratulações.

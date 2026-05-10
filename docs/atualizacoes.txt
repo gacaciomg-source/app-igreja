@@ -2,6 +2,21 @@
 
 Acompanhe as melhorias feitas no seu sistema.
 
+## [2026-05-10] - Versão 2.4.0
+### ✨ Novas Funcionalidades
+- **Gestão Financeira Avançada:** Importação de extratos via CSV, criação de múltiplos caixas/fundos (Missões, Geral, etc.), gráficos de distribuição por categoria e comparativo mensal.
+- **Aprendizado de Máquina (Financeiro):** O sistema agora "aprende" as categorias ao você corrigir importações manualmente, facilitando o próximo mês.
+- **Notificações Push (Web):** Implementação de notificações de navegador para Eventos, Pedidos de Oração, Comunicados e Versículo do Dia (agendado diariamente).
+- **Favicons Dinâmicos:** Suporte para ícones externos via link no `themeConfig.ts` para evitar substituições indesejadas pelo Git.
+
+### 🚀 Melhorias Técnicas
+- **Integração Web-Push:** Configuração de chaves VAPID automáticas no servidor e Service Worker para notificações em background.
+- **Deduplicação de Extratos:** Algoritmo inteligente que evita importar a mesma transação duas vezes ao cruzar dados de Data, Valor e Descrição.
+- **Recharts Integration:** Adicionada biblioteca de gráficos Recharts para melhor visualização dos dados financeiros.
+
+### 🔧 Correções
+- **Fallback de Ícones:** Melhoria no sistema de carregamento de imagens para evitar "ícones quebrados" caso o link externo falhe.
+
 ## [2026-05-09] - Versão 2.3.0
 ### ✨ Novas Funcionalidades
 - **Geração de Arte da Bíblia:** Adicionado ícone de "Câmera/Arte" em cada versículo na tela da Bíblia, permitindo gerar imagens de compartilhamento personalizadas de qualquer trecho.
