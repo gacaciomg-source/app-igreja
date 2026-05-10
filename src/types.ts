@@ -187,6 +187,24 @@ export interface MinistrySchedule {
   notes?: string;
 }
 
+export interface FinancialFund {
+  id: string;
+  name: string;
+  description?: string;
+  balance: number;
+}
+
+export interface FinancialTransaction {
+  id: string;
+  label: string;
+  value: number;
+  date: string;
+  type: 'in' | 'out';
+  category?: string;
+  fundId?: string; // Links to a FinancialFund
+  externalId?: string; // Useful for deduplication during bank imports
+}
+
 export interface WhatsAppConfig {
   phoneNumberId: string;
   isEnabled: boolean;

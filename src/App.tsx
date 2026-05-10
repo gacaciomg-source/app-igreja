@@ -63,9 +63,14 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
-  Image
+  Image,
+  CreditCard,
+  FileUp,
+  Layers,
+  Table
 } from 'lucide-react';
-import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole } from './types';
+import Papa from 'papaparse';
+import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
 import { api } from './services/apiService';
 import { ReadingPlansScreen } from './components/ReadingPlansScreen';
@@ -1713,18 +1718,24 @@ const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, showMessage }: 
     </div>
   </div>
 );
-const PrayingHands = ({ className = "w-6 h-6", active = false }: { className?: string, active?: boolean }) => (
-  <img 
-    src={active ? "/icons/logo_oracao_active.png" : "/icons/logo_oracao.png"} 
-    alt="Oração" 
-    className={cn("object-contain", className)} 
-    onError={(e) => {
-      // Fallback: se a imagem local não existir, usa um ícone padrão de mãos dadas
-      (e.target as HTMLImageElement).src = 'https://cdn-icons-png.flaticon.com/512/2906/2906232.png';
-      (e.target as HTMLImageElement).onerror = null; // evita loop se o fallback falhar
-    }}
-  />
-);
+const PrayingHands = ({ className = "w-6 h-6", active = false }: { className?: string, active?: boolean }) => {
+  const iconSrc = active 
+    ? (APP_CONFIG.customIcons?.prayerActive || "/icons/logo_oracao_active.png")
+    : (APP_CONFIG.customIcons?.prayer || "/icons/logo_oracao.png");
+
+  return (
+    <img 
+      src={iconSrc} 
+      alt="Oração" 
+      className={cn("object-contain", className)} 
+      onError={(e) => {
+        // Fallback: se a imagem não existir, usa um ícone padrão de mãos dadas
+        (e.target as HTMLImageElement).src = 'https://cdn-icons-png.flaticon.com/512/2906/2906232.png';
+        (e.target as HTMLImageElement).onerror = null; 
+      }}
+    />
+  );
+};
 
 const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, showMessage }: { events: Event[], isAdmin?: boolean, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onShowOrações?: () => void, showMessage?: (msg: string) => void }) => {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
@@ -3349,62 +3360,386 @@ const AdminAllScreens = ({ onTabChange, isTabAllowed }: { onTabChange: (tab: str
   );
 };
 
-const AdminFinancial = ({ transactions, balance, onAdd, onDelete, showMessage }: { transactions: any[], balance: number, onAdd: () => void, onDelete: (id: string) => void, showMessage?: (msg: string) => void }) => (
-  <div className="space-y-6 pb-24">
-    <header className="flex items-center justify-between">
-      <h2 className="text-2xl font-bold text-slate-900">Financeiro</h2>
-      <Button className="rounded-full w-10 h-10 p-0" onClick={onAdd}>
-        <Plus className="w-6 h-6" />
-      </Button>
-    </header>
+const AdminFinancial = ({ 
+  transactions, 
+  funds,
+  balance, 
+  onAdd, 
+  onDelete, 
+  onAddFund,
+  onDeleteFund,
+  onImportTransactions,
+  showMessage 
+}: { 
+  transactions: FinancialTransaction[], 
+  funds: FinancialFund[],
+  balance: number, 
+  onAdd: () => void, 
+  onDelete: (id: string) => void,
+  onAddFund: (name: string, description: string) => Promise<void>,
+  onDeleteFund: (id: string) => Promise<void>,
+  onImportTransactions: (newTransactions: Partial<FinancialTransaction>[]) => Promise<void>,
+  showMessage?: (msg: string) => void 
+}) => {
+  const [activeTab, setActiveTab] = useState<'summary' | 'funds' | 'import'>('summary');
+  const [showAddFund, setShowAddFund] = useState(false);
+  const [newFundName, setNewFundName] = useState('');
+  const [newFundDesc, setNewFundDesc] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
 
-    <Card className="bg-primary text-white p-6 space-y-4">
-      <p className="text-sm font-medium opacity-80">Saldo Total em Caixa</p>
-      <h3 className="text-3xl font-bold">R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-      <div className="flex gap-4 pt-4 border-t border-white/20">
-        <div className="flex-1">
-          <p className="text-[10px] font-bold uppercase opacity-70">Entradas</p>
-          <p className="text-sm font-bold text-emerald-300">+ R$ {transactions.filter(t => t.type === 'in').reduce((acc, t) => acc + t.value, 0).toLocaleString()}</p>
-        </div>
-        <div className="flex-1">
-          <p className="text-[10px] font-bold uppercase opacity-70">Saídas</p>
-          <p className="text-sm font-bold text-red-300">- R$ {transactions.filter(t => t.type === 'out').reduce((acc, t) => acc + t.value, 0).toLocaleString()}</p>
-        </div>
-      </div>
-    </Card>
+  // Import related state
+  const [importData, setImportData] = useState<any[]>([]);
+  const [importMapping, setImportMapping] = useState({
+    date: '',
+    label: '',
+    value: '',
+    type: ''
+  });
 
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-slate-900">Últimas Transações</h3>
-        <button onClick={() => showMessage?.('Funcionalidade em desenvolvimento')} className="text-primary text-sm font-bold">Ver tudo</button>
-      </div>
-      <div className="space-y-3">
-        {transactions.map((t, i) => (
-          <div key={t.id} className="flex items-center gap-4 p-3 bg-white rounded-xl border border-slate-50 group">
-            <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", t.type === 'in' ? "bg-emerald-50 text-emerald-500" : "bg-red-50 text-red-500")}>
-              {t.type === 'in' ? <Plus className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-slate-900 text-sm">{t.label}</p>
-              <p className="text-[10px] text-slate-400">{t.date}</p>
-            </div>
-            <div className="text-right flex items-center gap-3">
-              <p className={cn("font-bold text-sm whitespace-nowrap", t.type === 'in' ? "text-emerald-500" : "text-red-500")}>
-                {t.type === 'in' ? '+' : '-'} R$ {t.value.toLocaleString()}
-              </p>
-              <button 
-                onClick={() => onDelete(t.id)}
-                className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-              >
-                <Plus className="w-4 h-4 rotate-45" />
-              </button>
-            </div>
-          </div>
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        setImportData(results.data);
+        // Try to auto-detect columns
+        const first = results.data[0] || {};
+        const keys = Object.keys(first).map(k => k.toLowerCase());
+        const mapping = { date: '', label: '', value: '', type: '' };
+        
+        keys.forEach((k, i) => {
+          const originalKey = Object.keys(first)[i];
+          if (k.includes('dat')) mapping.date = originalKey;
+          if (k.includes('desc') || k.includes('hist') || k.includes('label')) mapping.label = originalKey;
+          if (k.includes('val') || k.includes('valor') || k.includes('quant')) mapping.value = originalKey;
+          if (k.includes('tipo') || k.includes('oper')) mapping.type = originalKey;
+        });
+        setImportMapping(mapping);
+      }
+    });
+  };
+
+  const processImport = async () => {
+    if (!importMapping.date || !importMapping.label || !importMapping.value) {
+      showMessage?.('Mapeie as colunas obrigatórias (Data, Descrição, Valor)');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const processed = importData.map(row => {
+        const valueRaw = String(row[importMapping.value]).replace(/[^0-9,.-]/g, '').replace(',', '.');
+        const valueNum = Math.abs(parseFloat(valueRaw));
+        let type: 'in' | 'out' = parseFloat(valueRaw) >= 0 ? 'in' : 'out';
+        
+        // Manual override if type column exists
+        if (importMapping.type && row[importMapping.type]) {
+          const t = String(row[importMapping.type]).toLowerCase();
+          if (t.includes('c') || t.includes('ent') || t.includes('in')) type = 'in';
+          if (t.includes('d') || t.includes('sai') || t.includes('out')) type = 'out';
+        }
+
+        // Auto tagging/categorization
+        let category = 'Geral';
+        const label = String(row[importMapping.label]).toLowerCase();
+        if (label.includes('luz') || label.includes('enel') || label.includes('energia')) category = 'Utilidades';
+        if (label.includes('agua') || label.includes('sabesp')) category = 'Utilidades';
+        if (label.includes('aluguel')) category = 'Aluguel';
+        if (label.includes('pix') || label.includes('transf')) category = 'Transferência';
+
+        return {
+          label: row[importMapping.label],
+          value: valueNum,
+          date: row[importMapping.date],
+          type,
+          category,
+          externalId: `${row[importMapping.date]}-${row[importMapping.label]}-${valueNum}` // Basic deduplication key
+        };
+      });
+
+      await onImportTransactions(processed);
+      setImportData([]);
+      showMessage?.('Importação concluída com sucesso!');
+      setActiveTab('summary');
+    } catch (e) {
+      showMessage?.('Erro ao importar transações.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 pb-24">
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Financeiro</h2>
+          <p className="text-sm font-medium text-slate-500">Gestão de entradas, saídas e fundos</p>
+        </div>
+        <div className="flex gap-2">
+          {activeTab === 'summary' && (
+            <button onClick={onAdd} className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white active:scale-95 transition-all shadow-lg shadow-primary/30">
+              <Plus className="w-6 h-6" />
+            </button>
+          )}
+          {activeTab === 'funds' && (
+            <button onClick={() => setShowAddFund(true)} className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center text-white active:scale-95 transition-all shadow-lg shadow-teal-500/30">
+              <Plus className="w-6 h-6" />
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl">
+        {[
+          { id: 'summary', label: 'Resumo', icon: PieChart },
+          { id: 'funds', label: 'Fundos/Caixas', icon: Layers },
+          { id: 'import', label: 'Importar', icon: FileUp },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all",
+              activeTab === tab.id ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
         ))}
       </div>
-    </section>
-  </div>
-);
+
+      <AnimatePresence mode="wait">
+        {activeTab === 'summary' && (
+          <motion.div 
+            key="summary"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <Card className="bg-gradient-to-br from-primary to-indigo-600 text-white p-6 space-y-4 shadow-xl shadow-primary/20 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16" />
+              <p className="text-sm font-bold uppercase tracking-widest opacity-80">Saldo Total Consolidado</p>
+              <h3 className="text-4xl font-black tracking-tight">R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              <div className="flex gap-4 pt-6 border-t border-white/10">
+                <div className="flex-1">
+                  <p className="text-[10px] font-black uppercase opacity-60">Entradas Mensais</p>
+                  <p className="text-lg font-bold text-emerald-300">
+                    + R$ {transactions.filter(t => t.type === 'in').reduce((acc, t) => acc + t.value, 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[10px] font-black uppercase opacity-60">Saídas Mensais</p>
+                  <p className="text-lg font-bold text-red-300">
+                    - R$ {transactions.filter(t => t.type === 'out').reduce((acc, t) => acc + t.value, 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-900">Histórico Recente</h3>
+                <button className="text-primary text-sm font-bold hover:underline">Exportar PDF</button>
+              </div>
+              <div className="space-y-3">
+                {transactions.slice(0, 15).map((t) => (
+                  <div key={t.id} className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-100 group hover:shadow-md transition-all">
+                    <div className={cn(
+                      "w-12 h-12 rounded-xl flex items-center justify-center shadow-sm",
+                      t.type === 'in' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                    )}>
+                      {t.type === 'in' ? <Plus className="w-6 h-6" /> : <AlertCircle className="w-6 h-6 rotate-180" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-slate-800 text-sm truncate">{t.label}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase">{t.category || 'Geral'}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{t.date}</span>
+                      </div>
+                    </div>
+                    <div className="text-right flex items-center gap-3">
+                      <p className={cn("font-black text-sm whitespace-nowrap", t.type === 'in' ? "text-emerald-600" : "text-red-600")}>
+                        {t.type === 'in' ? '+' : '-'} R$ {t.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                      <button 
+                        onClick={() => onDelete(t.id)}
+                        className="p-2 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      >
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </motion.div>
+        )}
+
+        {activeTab === 'funds' && (
+          <motion.div 
+            key="funds"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="grid grid-cols-1 gap-4"
+          >
+            {funds.map(fund => {
+              const fundTransactions = transactions.filter(t => t.fundId === fund.id);
+              const fundBalance = fundTransactions.reduce((acc, t) => t.type === 'in' ? acc + t.value : acc - t.value, 0);
+              
+              return (
+                <Card key={fund.id} className="relative group overflow-hidden border-2 border-transparent hover:border-teal-100 transition-all">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center">
+                      <Layers className="w-6 h-6" />
+                    </div>
+                    {fund.id !== 'main' && (
+                      <button onClick={() => onDeleteFund(fund.id)} className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-lg">{fund.name}</h4>
+                  <p className="text-xs text-slate-500 mb-4">{fund.description || 'Fundo reservado para despesas gerais.'}</p>
+                  <div className="p-3 bg-slate-50 rounded-xl">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Saldo do Fundo</p>
+                    <p className="text-xl font-black text-slate-800">R$ {fundBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </Card>
+              );
+            })}
+          </motion.div>
+        )}
+
+        {activeTab === 'import' && (
+          <motion.div 
+            key="import"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-6"
+          >
+            <Card className="border-dashed border-2 border-slate-200 bg-slate-50 flex flex-col items-center justify-center p-8 text-center gap-4 hover:border-primary transition-colors cursor-pointer relative">
+              <FileUp className="w-12 h-12 text-slate-400" />
+              <div>
+                <h4 className="font-bold text-slate-900">Importar Extrato Bancário</h4>
+                <p className="text-xs text-slate-500">Selecione um arquivo CSV exportado do seu banco</p>
+              </div>
+              <input 
+                type="file" 
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              />
+            </Card>
+
+            {importData.length > 0 && (
+              <Card className="space-y-4 p-6">
+                <h4 className="font-black text-slate-800 flex items-center gap-2">
+                  <Table className="w-5 h-5 text-primary" />
+                  Mapear Colunas
+                </h4>
+                <div className="space-y-4">
+                  {[
+                    { key: 'date', label: 'Data da Transação' },
+                    { key: 'label', label: 'Descrição/Histórico' },
+                    { key: 'value', label: 'Valor (R$)' },
+                    { key: 'type', label: 'Tipo (Opcional)' },
+                  ].map(field => (
+                    <div key={field.key}>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">{field.label}</label>
+                      <select 
+                        value={(importMapping as any)[field.key]}
+                        onChange={(e) => setImportMapping({...importMapping, [field.key]: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none focus:border-primary"
+                      >
+                        <option value="">Selecione a coluna...</option>
+                        {Object.keys(importData[0] || {}).map(k => (
+                          <option key={k} value={k}>{k}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 space-y-3">
+                  <div className="p-3 bg-amber-50 text-amber-700 text-xs rounded-xl flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>O sistema irá ignorar automaticamente transações que já foram registradas (baseado em Data, Descrição e Valor).</span>
+                  </div>
+                  <Button 
+                    onClick={processImport} 
+                    className="w-full h-14"
+                    disabled={isImporting}
+                  >
+                    {isImporting ? 'Processando...' : `Confirmar Importação (${importData.length} linhas)`}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setImportData([])} className="w-full">Cancelar</Button>
+                </div>
+              </Card>
+            )}
+
+            <div className="p-4 bg-slate-100 rounded-2xl">
+              <h5 className="font-bold text-slate-700 text-sm mb-2">Orientações:</h5>
+              <ul className="text-xs text-slate-500 space-y-2">
+                <li>• No seu Internet Banking, escolha "Exportar para CSV".</li>
+                <li>• O sistema aceita valores positivos (entradas) e negativos (saídas).</li>
+                <li>• Identificamos automaticamente contas de Luz, Água e Aluguel.</li>
+              </ul>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAddFund && (
+          <Modal title="Novo Fundo/Caixa" onClose={() => setShowAddFund(false)}>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Nome do Fundo</label>
+                <input 
+                  type="text" 
+                  value={newFundName}
+                  onChange={e => setNewFundName(e.target.value)}
+                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-800 outline-none focus:border-primary"
+                  placeholder="Ex: Ministério Infantil"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Descrição (Opcional)</label>
+                <textarea 
+                  value={newFundDesc}
+                  onChange={e => setNewFundDesc(e.target.value)}
+                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-800 outline-none focus:border-primary"
+                  placeholder="Finalidade deste caixa..."
+                  rows={3}
+                />
+              </div>
+              <Button 
+                className="w-full"
+                onClick={async () => {
+                  if (!newFundName) return;
+                  await onAddFund(newFundName, newFundDesc);
+                  setNewFundName('');
+                  setNewFundDesc('');
+                  setShowAddFund(false);
+                }}
+              >
+                Criar Fundo
+              </Button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const AdminRolesScreen = ({ 
   roles, 
@@ -4950,7 +5285,8 @@ export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [prayers, setPrayers] = useState<PrayerRequest[]>([]);
   const [cells, setCells] = useState<CellGroup[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
+  const [funds, setFunds] = useState<FinancialFund[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [readingPlans, setReadingPlans] = useState<ReadingPlan[]>([]);
@@ -5030,8 +5366,19 @@ export default function App() {
       if (wConfig) setWhatsappConfig(wConfig);
 
       if (userRole === 'admin' || userRole === 'superadmin') {
-        const trans = await api.list('transactions');
+        const [trans, fds] = await Promise.all([
+          api.list('transactions'),
+          api.list('funds')
+        ]);
         setTransactions(trans);
+        setFunds(fds);
+
+        // Ensure at least one fund exists
+        if (fds.length === 0) {
+          const defaultFund = { id: 'main', name: 'Caixa Geral', balance: 0 };
+          await api.create('funds', defaultFund);
+          setFunds([defaultFund]);
+        }
       }
     } catch (err) {
       console.error('Refresh failed:', err);
@@ -5560,6 +5907,62 @@ export default function App() {
     }
   };
 
+  const handleAddFund = async (name: string, description: string) => {
+    try {
+      const newFund = { id: 'fund-' + Date.now(), name, description, balance: 0 };
+      await api.create('funds', newFund);
+      setFunds(prev => [...prev, newFund]);
+      showMessage('Novo fundo criado com sucesso!');
+    } catch (e) {
+      handleApiError(e, 'Criar Fundo');
+    }
+  };
+
+  const handleDeleteFund = async (id: string) => {
+    if (id === 'main') {
+      showMessage('O Caixa Geral não pode ser excluído.');
+      return;
+    }
+    if (!confirm('Deseja realmente excluir este fundo? Transações associadas serão mantidas mas ficarão sem categoria de fundo.')) return;
+    try {
+      await api.delete('funds', id);
+      setFunds(prev => prev.filter(f => f.id !== id));
+      showMessage('Fundo removido.');
+    } catch (e) {
+      handleApiError(e, 'Remover Fundo');
+    }
+  };
+
+  const handleImportTransactions = async (newTrans: Partial<FinancialTransaction>[]) => {
+    try {
+      // Deduplication: check if externalId OR (date+label+value) already exists
+      const existingKeys = new Set(transactions.map(t => t.externalId || `${t.date}-${t.label}-${t.value}`));
+      
+      const filtered = newTrans.filter(t => {
+        const key = t.externalId || `${t.date}-${t.label}-${t.value}`;
+        return !existingKeys.has(key);
+      });
+
+      if (filtered.length === 0) {
+        showMessage('Nenhuma nova transação encontrada (todas já importadas).');
+        return;
+      }
+
+      // Create them
+      for (const t of filtered) {
+        await api.create('transactions', {
+          ...t,
+          fundId: 'main' // Default to main fund
+        });
+      }
+      
+      await refreshData();
+      showMessage(`${filtered.length} novas transações importadas!`);
+    } catch (e) {
+      handleApiError(e, 'Importar Transações');
+    }
+  };
+
   const addCell = async (newCell: Omit<CellGroup, 'id'>) => {
     const original = [...cells];
     if (!editingCell) {
@@ -5980,7 +6383,19 @@ const joinCell = async (cellId: string) => {
       switch (currentTab) {
         case 'home': return <AdminDashboard stats={stats} users={visibleUsers} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
         case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} />;
-        case 'financial': return <AdminFinancial transactions={transactions} balance={totalBalance} onAdd={() => setShowAddTransaction(true)} onDelete={deleteTransaction} showMessage={showMessage} />;
+        case 'financial': return (
+          <AdminFinancial 
+            transactions={transactions} 
+            funds={funds}
+            balance={totalBalance} 
+            onAdd={() => setShowAddTransaction(true)} 
+            onDelete={deleteTransaction} 
+            onAddFund={handleAddFund}
+            onDeleteFund={handleDeleteFund}
+            onImportTransactions={handleImportTransactions}
+            showMessage={showMessage} 
+          />
+        );
         case 'hosting': return <AdminHostingScreen />;
         case 'admin_roles': return <AdminRolesScreen roles={adminRoles} onAddRole={handleAddAdminRole} onDeleteRole={handleDeleteAdminRole} showMessage={showMessage} />;
         case 'tithes': return <TithesAdminScreen config={titheConfig} onUpdate={updateTitheConfig} showMessage={showMessage} />;
@@ -6252,11 +6667,11 @@ const joinCell = async (cellId: string) => {
               <EventForm onSubmit={addEvent} initialData={editingEvent || undefined} />
             </Modal>
           )}
-          {showAddTransaction && (
-            <Modal title="Nova Transação" onClose={() => setShowAddTransaction(false)}>
-              <TransactionForm onSubmit={addTransaction} />
-            </Modal>
-          )}
+           {showAddTransaction && (
+             <Modal title="Nova Transação" onClose={() => setShowAddTransaction(false)}>
+               <TransactionForm onSubmit={addTransaction} funds={funds} />
+             </Modal>
+           )}
           {showAddCell && (
             <Modal title={editingCell ? "Editar PG" : "Novo PG"} onClose={() => { setShowAddCell(false); setEditingCell(null); }}>
               <CellForm onSubmit={addCell} initialData={editingCell || undefined} />
@@ -6569,27 +6984,67 @@ const PrayerForm = ({ onSubmit }: { onSubmit: (content: string, privacy: 'public
   );
 };
 
-const TransactionForm = ({ onSubmit }: { onSubmit: (t: any) => void }) => {
-  const [form, setForm] = useState({ label: '', value: '', type: 'in' as 'in' | 'out' });
+const TransactionForm = ({ onSubmit, funds }: { onSubmit: (t: any) => void, funds: FinancialFund[] }) => {
+  const [form, setForm] = useState({ 
+    label: '', 
+    value: '', 
+    type: 'in' as 'in' | 'out', 
+    fundId: funds[0]?.id || 'main',
+    category: 'Geral' 
+  });
+
+  const categories = ['Geral', 'Dízimo', 'Oferta', 'Missões', 'Utilidades', 'Aluguel', 'Evento', 'Outros'];
+
   return (
     <div className="space-y-4">
-      <input placeholder="Descrição (ex: Dízimo Maria)" className="w-full p-3 rounded-xl border" value={form.label} onChange={e => setForm({...form, label: e.target.value})} />
-      <input type="number" placeholder="Valor (R$)" className="w-full p-3 rounded-xl border" value={form.value} onChange={e => setForm({...form, value: e.target.value})} />
+      <div>
+        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Descrição</label>
+        <input placeholder="Ex: Dízimo Maria" className="w-full p-3 rounded-xl border font-bold text-slate-800" value={form.label} onChange={e => setForm({...form, label: e.target.value})} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Valor (R$)</label>
+          <input type="number" placeholder="0.00" className="w-full p-3 rounded-xl border font-bold text-slate-800" value={form.value} onChange={e => setForm({...form, value: e.target.value})} />
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Categoria</label>
+          <select 
+            className="w-full p-3 rounded-xl border font-bold text-slate-800"
+            value={form.category}
+            onChange={e => setForm({...form, category: e.target.value})}
+          >
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Fundo / Caixa</label>
+        <select 
+          className="w-full p-3 rounded-xl border font-bold text-slate-800"
+          value={form.fundId}
+          onChange={e => setForm({...form, fundId: e.target.value})}
+        >
+          {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+      </div>
+
       <div className="flex gap-2">
         <button 
-          className={cn("flex-1 py-3 rounded-xl border font-bold", form.type === 'in' ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-slate-400")}
+          className={cn("flex-1 py-3 rounded-xl border font-bold transition-all", form.type === 'in' ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-slate-400")}
           onClick={() => setForm({...form, type: 'in'})}
         >
           Entrada (+)
         </button>
         <button 
-          className={cn("flex-1 py-3 rounded-xl border font-bold", form.type === 'out' ? "bg-red-500 text-white border-red-500" : "bg-white text-slate-400")}
+          className={cn("flex-1 py-3 rounded-xl border font-bold transition-all", form.type === 'out' ? "bg-red-500 text-white border-red-500" : "bg-white text-slate-400")}
           onClick={() => setForm({...form, type: 'out'})}
         >
           Saída (-)
         </button>
       </div>
-      <Button className="w-full py-4" onClick={() => onSubmit({ ...form, value: Number(form.value) })}>Lançar no Caixa</Button>
+      <Button className="w-full py-4 h-14" onClick={() => onSubmit({ ...form, value: Number(form.value) })}>Concluir Lançamento</Button>
     </div>
   );
 };

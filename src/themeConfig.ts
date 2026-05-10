@@ -44,6 +44,14 @@ export const APP_CONFIG = {
   
   apiUrl: "https://app.igrejarenovar.com", // Altere aqui seguindo as regras acima
 
+  // Ícones Personalizados (Links Externos)
+  // Se você subir a imagem para um site como ImgBB ou Cloudinary, cole o link direto aqui.
+  // Se deixar vazio, o sistema tentará usar os arquivos da pasta /public/icons/
+  customIcons: {
+    prayer: "https://renovar.warpserver.com.br/logo_oracao.png", 
+    prayerActive: "https://renovar.warpserver.com.br/logo_oracao_active.png", 
+  },
+
   // Redes Sociais
   social: {
     instagram: "https://instagram.com/igrejarenovar",
