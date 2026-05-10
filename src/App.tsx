@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Component, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   BrowserRouter,
@@ -67,9 +67,23 @@ import {
   CreditCard,
   FileUp,
   Layers,
-  Table
+  Table,
+  BarChart as BarChartIcon
 } from 'lucide-react';
 import Papa from 'papaparse';
+import { 
+  PieChart as RePieChart, 
+  Pie, 
+  Cell, 
+  ResponsiveContainer, 
+  Tooltip as ReTooltip, 
+  Legend as ReLegend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid
+} from 'recharts';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
 import { api } from './services/apiService';
@@ -3369,6 +3383,7 @@ const AdminFinancial = ({
   onAddFund,
   onDeleteFund,
   onImportTransactions,
+  onSaveRule,
   showMessage 
 }: { 
   transactions: FinancialTransaction[], 
@@ -3379,6 +3394,7 @@ const AdminFinancial = ({
   onAddFund: (name: string, description: string) => Promise<void>,
   onDeleteFund: (id: string) => Promise<void>,
   onImportTransactions: (newTransactions: Partial<FinancialTransaction>[]) => Promise<void>,
+  onSaveRule: (keyword: string, category: string) => Promise<void>,
   showMessage?: (msg: string) => void 
 }) => {
   const [activeTab, setActiveTab] = useState<'summary' | 'funds' | 'import'>('summary');
@@ -3386,6 +3402,31 @@ const AdminFinancial = ({
   const [newFundName, setNewFundName] = useState('');
   const [newFundDesc, setNewFundDesc] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+
+  const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+
+  const categoryData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    transactions.forEach(t => {
+      const cat = t.category || 'Geral';
+      counts[cat] = (counts[cat] || 0) + (t.type === 'in' ? t.value : -t.value);
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value: Math.abs(value), originalValue: value }))
+      .sort((a, b) => b.value - a.value);
+  }, [transactions]);
+
+  const monthlyData = useMemo(() => {
+    const groups: Record<string, { in: number, out: number }> = {};
+    transactions.slice(0, 100).forEach(t => {
+      const date = new Date(t.date);
+      const key = isNaN(date.getTime()) ? t.date.split('/')[1] || 'Mês' : date.toLocaleString('pt-BR', { month: 'short' });
+      if (!groups[key]) groups[key] = { in: 0, out: 0 };
+      if (t.type === 'in') groups[key].in += t.value;
+      else groups[key].out += t.value;
+    });
+    return Object.entries(groups).map(([name, data]) => ({ name, ...data })).reverse();
+  }, [transactions]);
 
   // Import related state
   const [importData, setImportData] = useState<any[]>([]);
@@ -3445,10 +3486,19 @@ const AdminFinancial = ({
         // Auto tagging/categorization
         let category = 'Geral';
         const label = String(row[importMapping.label]).toLowerCase();
+        
         if (label.includes('luz') || label.includes('enel') || label.includes('energia')) category = 'Utilidades';
-        if (label.includes('agua') || label.includes('sabesp')) category = 'Utilidades';
-        if (label.includes('aluguel')) category = 'Aluguel';
-        if (label.includes('pix') || label.includes('transf')) category = 'Transferência';
+        else if (label.includes('agua') || label.includes('sabesp')) category = 'Utilidades';
+        else if (label.includes('aluguel')) category = 'Aluguel';
+        else if (label.includes('pix') || label.includes('transf')) {
+          if (label.includes('dizimo') || label.includes('dízimo')) category = 'Dízimo';
+          else if (label.includes('oferta')) category = 'Oferta';
+          else category = 'Transferência';
+        }
+        else if (label.includes('missao') || label.includes('missão')) category = 'Missões';
+        else if (label.includes('evento') || label.includes('festa')) category = 'Evento';
+        else if (label.includes('reforma') || label.includes('obra')) category = 'Manutenção';
+        else if (label.includes('salario') || label.includes('salário') || label.includes('pgto')) category = 'Pessoal';
 
         return {
           label: row[importMapping.label],
@@ -3542,6 +3592,65 @@ const AdminFinancial = ({
               </div>
             </Card>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="p-6">
+                <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <PieChart className="w-4 h-4 text-primary" />
+                  Distribuição por Categoria
+                </h4>
+                <div className="h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RePieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <ReTooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        formatter={(value: number) => `R$ ${value.toLocaleString()}`}
+                      />
+                    </RePieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  {categoryData.slice(0, 4).map((item, i) => (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                      <span className="text-[10px] font-bold text-slate-500 truncate">{item.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="p-6">
+                <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <BarChartIcon className="w-4 h-4 text-primary" />
+                  Entradas vs Saídas
+                </h4>
+                <div className="h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
+                      <YAxis hide />
+                      <ReTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Bar dataKey="in" fill="#10b981" radius={[4, 4, 0, 0]} name="Entradas" />
+                      <Bar dataKey="out" fill="#ef4444" radius={[4, 4, 0, 0]} name="Saídas" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </div>
+
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-slate-900">Histórico Recente</h3>
@@ -3559,7 +3668,36 @@ const AdminFinancial = ({
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-slate-800 text-sm truncate">{t.label}</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase">{t.category || 'Geral'}</span>
+                        <select 
+                          value={t.category || 'Geral'}
+                          onChange={async (e) => {
+                            // Update transaction category
+                            try {
+                              const newCat = e.target.value;
+                              await api.update('transactions', t.id, { category: newCat });
+                              
+                              // Learn: if the user manually changes the category, save a rule for this label
+                              // We clean up the label a bit (e.g. "PIX REC GUSTAVO" -> "GUSTAVO" or just the whole label)
+                              // For now, let's learn the WHOLE label words to avoid collision but still be useful.
+                              // Actually, if they categorize "PIX ENVIADO PARA ENEL", they want "ENEL" to be "Utilidades".
+                              // But just storing the whole label is safer for 1-to-1 matching.
+                              if (t.label) {
+                                await onSaveRule(t.label, newCat);
+                              }
+                              
+                              showMessage?.('Categoria atualizada e sistema aprendeu a regra!');
+                              // Trigger a local UI update or refresh
+                              window.dispatchEvent(new CustomEvent('refresh-financial'));
+                            } catch(err) {
+                              showMessage?.('Erro ao atualizar categoria');
+                            }
+                          }}
+                          className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase border-none outline-none cursor-pointer hover:bg-slate-200 transition-colors"
+                        >
+                          {['Geral', 'Dízimo', 'Oferta', 'Missões', 'Utilidades', 'Aluguel', 'Pessoal', 'Manutenção', 'Transferência', 'Evento', 'Outros'].map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
                         <span className="text-[10px] text-slate-400 font-medium">{t.date}</span>
                       </div>
                     </div>
@@ -5287,6 +5425,7 @@ export default function App() {
   const [cells, setCells] = useState<CellGroup[]>([]);
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [funds, setFunds] = useState<FinancialFund[]>([]);
+  const [financialRules, setFinancialRules] = useState<FinancialRule[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [readingPlans, setReadingPlans] = useState<ReadingPlan[]>([]);
@@ -5366,12 +5505,14 @@ export default function App() {
       if (wConfig) setWhatsappConfig(wConfig);
 
       if (userRole === 'admin' || userRole === 'superadmin') {
-        const [trans, fds] = await Promise.all([
+        const [trans, fds, rules] = await Promise.all([
           api.list('transactions'),
-          api.list('funds')
+          api.list('funds'),
+          api.list('financialRules').catch(() => [])
         ]);
         setTransactions(trans);
         setFunds(fds);
+        setFinancialRules(rules);
 
         // Ensure at least one fund exists
         if (fds.length === 0) {
@@ -5388,7 +5529,11 @@ export default function App() {
   useEffect(() => {
     setGlobalErrorRef = setGlobalError;
     setGlobalSuccessRef = setGlobalMessage;
-  }, []);
+
+    const handleRefreshFinancial = () => refreshData();
+    window.addEventListener('refresh-financial', handleRefreshFinancial);
+    return () => window.removeEventListener('refresh-financial', handleRefreshFinancial);
+  }, [refreshData]);
 
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const sermonsRef = useRef<Sermon[]>([]);
@@ -5933,6 +6078,21 @@ export default function App() {
     }
   };
 
+  const handleAddFinancialRule = async (keyword: string, category: string) => {
+    try {
+      const existing = financialRules.find(r => r.keyword.toLowerCase() === keyword.toLowerCase());
+      if (existing) {
+        if (existing.category === category) return;
+        await api.update('financialRules', existing.id, { category });
+      } else {
+        await api.create('financialRules', { id: 'rule-' + Date.now(), keyword, category });
+      }
+      refreshData();
+    } catch (e) {
+      console.error('Failed to save rule:', e);
+    }
+  };
+
   const handleImportTransactions = async (newTrans: Partial<FinancialTransaction>[]) => {
     try {
       // Deduplication: check if externalId OR (date+label+value) already exists
@@ -5943,13 +6103,23 @@ export default function App() {
         return !existingKeys.has(key);
       });
 
+      // Apply learned rules
+      const processed = filtered.map(t => {
+        const label = (t.label || '').toLowerCase();
+        const matchedRule = financialRules.find(r => label.includes(r.keyword.toLowerCase()));
+        if (matchedRule) {
+          return { ...t, category: matchedRule.category };
+        }
+        return t;
+      });
+
       if (filtered.length === 0) {
         showMessage('Nenhuma nova transação encontrada (todas já importadas).');
         return;
       }
 
       // Create them
-      for (const t of filtered) {
+      for (const t of processed) {
         await api.create('transactions', {
           ...t,
           fundId: 'main' // Default to main fund
@@ -6393,6 +6563,7 @@ const joinCell = async (cellId: string) => {
             onAddFund={handleAddFund}
             onDeleteFund={handleDeleteFund}
             onImportTransactions={handleImportTransactions}
+            onSaveRule={handleAddFinancialRule}
             showMessage={showMessage} 
           />
         );
@@ -6993,7 +7164,7 @@ const TransactionForm = ({ onSubmit, funds }: { onSubmit: (t: any) => void, fund
     category: 'Geral' 
   });
 
-  const categories = ['Geral', 'Dízimo', 'Oferta', 'Missões', 'Utilidades', 'Aluguel', 'Evento', 'Outros'];
+  const categories = ['Geral', 'Dízimo', 'Oferta', 'Missões', 'Utilidades', 'Aluguel', 'Pessoal', 'Manutenção', 'Transferência', 'Evento', 'Outros'];
 
   return (
     <div className="space-y-4">

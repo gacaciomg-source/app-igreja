@@ -210,3 +210,9 @@ export interface WhatsAppConfig {
   isEnabled: boolean;
   adminPhones?: string[];
 }
+
+export interface FinancialRule {
+  id: string;
+  keyword: string; // The label or part of it
+  category: string;
+}
