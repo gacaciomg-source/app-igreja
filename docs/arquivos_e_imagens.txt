@@ -30,6 +30,7 @@ Para alterar os temas de fundo dos versículos:
 O sistema utiliza principalmente a biblioteca **Lucide React** para ícones de interface.
 
 - **Subpasta de Ícones:** Todos os ícones personalizados devem ser colocados em `/public/icons/`. Isso mantém o projeto organizado.
+- **Dimensões:** Recomendamos **512x512 pixels** (mínimo 128x128) em formato **PNG Transparente**.
 - **Ícone de Oração (Dinâmico):** O ícone de oração agora suporta dois estados (Normal e Selecionado).
   - *Normal:* `/public/icons/logo_oracao.png`
   - *Selecionado (Ativo):* `/public/icons/logo_oracao_active.png`
