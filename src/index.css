@@ -10,8 +10,117 @@
 
 @layer base {
   body {
-    @apply bg-secondary text-slate-900 font-sans;
+    @apply bg-secondary text-slate-900 font-sans transition-colors duration-300;
   }
+}
+
+.dark body {
+  @apply bg-[#050a05] text-[#f8fafc];
+}
+
+/* Force dark backgrounds on common light utility classes */
+.dark .bg-white,
+.dark .bg-slate-50,
+.dark .bg-slate-100,
+.dark .bg-slate-200,
+.dark .glass-card,
+.dark .bg-white\/80,
+.dark .bg-white\/90,
+.dark .bg-secondary {
+  background-color: #0d1a0d !important;
+  color: #f8fafc !important;
+  border-color: #1a331a !important;
+}
+
+/* Fix shadows */
+.dark .shadow-sm, .dark .shadow-md, .dark .shadow-lg, .dark .shadow-xl, .dark .shadow-2xl, .dark .shadow-primary\/5 {
+  box-shadow: none !important;
+}
+
+/* Text color overrides with better contrast */
+.dark .text-slate-900, .dark .text-slate-800, .dark .text-slate-700 {
+  color: #f8fafc !important;
+}
+.dark .text-slate-600, .dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* Specific Dashboard & Admin Color fix */
+.dark .bg-amber-50, .dark .bg-amber-100 { background-color: rgba(69, 39, 0, 0.25) !important; border-color: rgba(146, 64, 14, 0.3) !important; color: #fef3c7 !important; }
+.dark .bg-blue-50, .dark .bg-blue-100 { background-color: rgba(30, 58, 138, 0.25) !important; border-color: rgba(30, 64, 175, 0.3) !important; color: #dbeafe !important; }
+.dark .bg-sky-50, .dark .bg-sky-100 { background-color: rgba(12, 74, 110, 0.25) !important; border-color: rgba(7, 89, 133, 0.3) !important; color: #e0f2fe !important; }
+.dark .bg-emerald-50, .dark .bg-emerald-100 { background-color: rgba(6, 78, 59, 0.25) !important; border-color: rgba(6, 95, 70, 0.3) !important; color: #ecfdf5 !important; }
+.dark .bg-indigo-50, .dark .bg-indigo-100 { background-color: rgba(49, 46, 129, 0.25) !important; border-color: rgba(55, 48, 163, 0.3) !important; color: #e0e7ff !important; }
+.dark .bg-rose-50, .dark .bg-rose-100 { background-color: rgba(136, 19, 55, 0.25) !important; border-color: rgba(159, 18, 57, 0.3) !important; color: #fff1f2 !important; }
+.dark .bg-purple-50, .dark .bg-purple-100 { background-color: rgba(88, 28, 135, 0.25) !important; border-color: rgba(107, 33, 168, 0.3) !important; color: #f3e8ff !important; }
+
+/* Text colors for colored sections */
+.dark .text-amber-900, .dark .text-amber-800, .dark .text-amber-700, .dark .text-amber-600, .dark .text-amber-500 { color: #fbbf24 !important; }
+.dark .text-blue-900, .dark .text-blue-800, .dark .text-blue-700, .dark .text-blue-600, .dark .text-blue-500 { color: #60a5fa !important; }
+.dark .text-sky-900, .dark .text-sky-700, .dark .text-sky-600, .dark .text-sky-500 { color: #38bdf8 !important; }
+.dark .text-emerald-900, .dark .text-emerald-800, .dark .text-emerald-700, .dark .text-emerald-600, .dark .text-emerald-500 { color: #34d399 !important; }
+.dark .text-indigo-900, .dark .text-indigo-800, .dark .text-indigo-700, .dark .text-indigo-600, .dark .text-indigo-500 { color: #818cf8 !important; }
+.dark .text-rose-900, .dark .text-rose-800, .dark .text-rose-700, .dark .text-rose-600, .dark .text-rose-500 { color: #fb7185 !important; }
+.dark .text-purple-600, .dark .text-purple-700, .dark .text-purple-800, .dark .text-purple-900, .dark .text-purple-500 { color: #c084fc !important; }
+ .dark .text-orange-500, .dark .text-orange-600 { color: #fb923c !important; }
+ .dark .text-teal-500, .dark .text-teal-600 { color: #2dd4bf !important; }
+
+/* Sidebar Gray Tone for Admin & Main */
+.dark nav.md\:bg-white {
+  background-color: #1a1a1a !important;
+  border-right-color: #2d2d2d !important;
+}
+.dark nav.md\:bg-white .text-slate-800,
+.dark nav.md\:bg-white .text-slate-500 {
+  color: #a3a3a3 !important;
+}
+.dark nav.md\:bg-white .hover\:bg-slate-50:hover {
+  background-color: #262626 !important;
+}
+
+/* Border overrides */
+.dark .border-slate-100, .dark .border-slate-200, .dark .border-slate-300, .dark .border-primary\/20, .dark .border-white\/20 {
+  border-color: #1a331a !important;
+}
+
+/* Specific fixes for buttons and inputs */
+.dark .bg-primary-light {
+  background-color: rgba(0, 110, 28, 0.2) !important;
+  color: #34d399 !important;
+}
+
+.dark input, .dark select, .dark textarea {
+  background-color: #1a331a !important;
+  color: #f8fafc !important;
+  border-color: #2a4d2a !important;
+}
+.dark input::placeholder {
+  color: #4b5563 !important;
+}
+
+.dark .hover\:bg-slate-50:hover, .dark .hover\:bg-slate-100:hover, .dark .hover\:bg-white\/5:hover {
+  background-color: #152a15 !important;
+}
+
+/* Custom scrollbar for dark mode */
+.dark .bg-yellow-200, 
+.dark .bg-green-200, 
+.dark .bg-blue-200, 
+.dark .bg-pink-200, 
+.dark .bg-orange-200,
+.dark .bg-yellow-200 *, 
+.dark .bg-green-200 *, 
+.dark .bg-blue-200 *, 
+.dark .bg-pink-200 *, 
+.dark .bg-orange-200 * {
+  color: #000000 !important;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-slate-700;
 }
 
 .glass-card {

@@ -101,5 +101,42 @@ export const READING_PLAN_TEMPLATES = [
     duration: '150 dias',
     imageUrl: 'https://picsum.photos/seed/psalms/400/200',
     chapters: Array.from({ length: 150 }, (_, i) => `Salmos ${i + 1}`)
+  },
+  {
+    title: 'Os Evangelhos em 30 Dias',
+    description: 'Conheça a vida e os ensinamentos de Jesus através dos quatro evangelhos.',
+    duration: '30 dias',
+    imageUrl: 'https://picsum.photos/seed/gospels/400/200',
+    chapters: BIBLE_BOOKS
+      .filter(b => ['Mateus', 'Marcos', 'Lucas', 'João'].includes(b.name))
+      .flatMap(book => 
+        Array.from({ length: book.chapters }, (_, i) => `${book.name} ${i + 1}`)
+      )
+  },
+  {
+    title: 'Cartas de Paulo em 45 Dias',
+    description: 'Estude as epístolas paulinas e as bases da doutrina cristã.',
+    duration: '45 dias',
+    imageUrl: 'https://picsum.photos/seed/paulo/400/200',
+    chapters: BIBLE_BOOKS
+      .filter(b => [
+        'Romanos', '1 Coríntios', '2 Coríntios', 'Gálatas', 'Efésios', 
+        'Filipenses', 'Colossenses', '1 Tessalonicenses', '2 Tessalonicenses', 
+        '1 Timóteo', '2 Timóteo', 'Tito', 'Filemom'
+      ].includes(b.name))
+      .flatMap(book => 
+        Array.from({ length: book.chapters }, (_, i) => `${book.name} ${i + 1}`)
+      )
+  },
+  {
+    title: 'Pentateuco em 60 Dias',
+    description: 'Os cinco primeiros livros da Bíblia, a base da Lei e da história da criação.',
+    duration: '60 dias',
+    imageUrl: 'https://picsum.photos/seed/pentateuco/400/200',
+    chapters: BIBLE_BOOKS
+      .filter(b => ['Gênesis', 'Êxodo', 'Levítico', 'Números', 'Deuteronômio'].includes(b.name))
+      .flatMap(book => 
+        Array.from({ length: book.chapters }, (_, i) => `${book.name} ${i + 1}`)
+      )
   }
 ];

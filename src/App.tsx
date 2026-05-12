@@ -24,7 +24,11 @@ import {
   Bell, 
   Search, 
   Plus, 
+  Sun,
+  Moon,
+  Type,
   Heart, 
+  Check,
   Share2, 
   ChevronRight, 
   TrendingUp, 
@@ -1645,8 +1649,8 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
           </button>
         </div>
       </header>
-
-    {user?.memberStatus === 'new_member' && (
+      
+      {user?.memberStatus === 'new_member' && (
       <Card className="bg-amber-50 border-amber-200 border-2 relative overflow-hidden group">
         <div className="relative z-10 flex gap-4">
           <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 shrink-0">
@@ -1672,7 +1676,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
         <h3 className="text-lg font-bold text-slate-900">Ações Rápidas</h3>
         <button className="text-primary text-sm font-bold">Ver todas</button>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
         {[
           { icon: BookOpen, label: 'Planos', color: 'bg-emerald-500', action: onShowReadingPlans },
           { icon: Mic, label: 'Sermões', color: 'bg-orange-500', action: () => onTabChange('sermons') },
@@ -1697,9 +1701,9 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
         <h3 className="text-lg font-bold text-slate-900">Avisos</h3>
         <button onClick={() => onTabChange('announcements')} className="text-primary text-sm font-bold">Ver todos</button>
       </div>
-        <div className="flex gap-4 overflow-x-auto pb-2 snap-x no-scrollbar">
+        <div className="flex gap-4 md:grid md:grid-cols-2 lg:grid-cols-3 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 snap-x no-scrollbar">
           {announcements.map((announcement) => (
-            <Card key={announcement.id} className="min-w-[280px] snap-start overflow-hidden border-slate-100 p-0">
+            <Card key={announcement.id} className="min-w-[280px] md:min-w-0 snap-start overflow-hidden border-slate-100 p-0">
               {announcement.imageUrl && (
                 <img src={getCacheBustedUrl(announcement.imageUrl, cacheVersion)} alt={announcement.title} className="w-full h-32 object-cover" referrerPolicy="no-referrer" />
               )}
@@ -1712,60 +1716,62 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
         </div>
       </section>
 
-    <section className="space-y-4">
-      <h3 className="text-lg font-bold text-slate-900">Versículo do Dia</h3>
-      <Card className="bg-primary text-white relative overflow-hidden">
-        <div className="relative z-10 space-y-4">
-          <p className="text-lg italic font-medium leading-relaxed">
-            "{dailyVerse.text}"
-          </p>
-          <div className="flex justify-between items-center">
-            <span className="font-bold">{dailyVerse.ref}</span>
-            <Button 
-              variant="secondary" 
-              className="bg-white/20 text-white hover:bg-white/30 border-none"
-              onClick={() => onShareVerse(dailyVerse)}
-            >
-              <Share2 className="w-4 h-4" />
-              Compartilhar
-            </Button>
+    <div className="grid md:grid-cols-2 gap-6">
+      <section className="space-y-4">
+        <h3 className="text-lg font-bold text-slate-900">Versículo do Dia</h3>
+        <Card className="bg-primary text-white h-full relative overflow-hidden">
+          <div className="relative z-10 space-y-4 flex flex-col justify-between h-full">
+            <p className="text-lg italic font-medium leading-relaxed">
+              "{dailyVerse.text}"
+            </p>
+            <div className="flex justify-between items-center mt-auto">
+              <span className="font-bold">{dailyVerse.ref}</span>
+              <Button 
+                variant="secondary" 
+                className="bg-white/20 text-white hover:bg-white/30 border-none"
+                onClick={() => onShareVerse(dailyVerse)}
+              >
+                <Share2 className="w-4 h-4" />
+                Compartilhar
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
-      </Card>
-    </section>
+          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+        </Card>
+      </section>
 
       <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-slate-900">Próximos Eventos</h3>
-        <button onClick={() => onTabChange('events')} className="text-primary text-sm font-bold">Ver todos</button>
-      </div>
-      <div className="space-y-4">
-        {events.slice(0, 2).map(event => (
-          <Card key={event.id} className="p-0 overflow-hidden">
-            <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-full h-40 object-cover" alt={event.title} />
-            <div className="p-4 space-y-2">
-              <div className="flex justify-between items-start">
-                <span className="px-2 py-1 bg-primary-light text-primary text-[10px] font-bold rounded-md uppercase tracking-wider">{event.category}</span>
-                <div className="flex items-center text-slate-400 text-xs gap-1">
-                  <Clock className="w-3 h-3" />
-                  {event.time}
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-slate-900">Próximos Eventos</h3>
+          <button onClick={() => onTabChange('events')} className="text-primary text-sm font-bold">Ver todos</button>
+        </div>
+        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+          {events.slice(0, 2).map(event => (
+            <Card key={event.id} className="p-0 overflow-hidden h-full">
+              <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-full h-40 object-cover" alt={event.title} />
+              <div className="p-4 space-y-2">
+                <div className="flex justify-between items-start">
+                  <span className="px-2 py-1 bg-primary-light text-primary text-[10px] font-bold rounded-md uppercase tracking-wider">{event.category}</span>
+                  <div className="flex items-center text-slate-400 text-xs gap-1">
+                    <Clock className="w-3 h-3" />
+                    {event.time}
+                  </div>
+                </div>
+                <h4 className="font-bold text-slate-900">{event.title}</h4>
+                <div className="flex items-center text-slate-500 text-sm gap-1">
+                  <MapPin className="w-4 h-4" />
+                  {event.location}
+                </div>
+                <div className="flex items-center text-primary text-sm font-semibold gap-1">
+                  <Calendar className="w-4 h-4" />
+                  {event.date}
                 </div>
               </div>
-              <h4 className="font-bold text-slate-900">{event.title}</h4>
-              <div className="flex items-center text-slate-500 text-sm gap-1">
-                <MapPin className="w-4 h-4" />
-                {event.location}
-              </div>
-              <div className="flex items-center text-primary text-sm font-semibold gap-1">
-                <Calendar className="w-4 h-4" />
-                {event.date}
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </section>
+            </Card>
+          ))}
+        </div>
+      </section>
+    </div>
   </div>
 );
 }
@@ -1860,9 +1866,9 @@ const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, show
       ))}
     </div>
 
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {filteredEvents.map(event => (
-        <Card key={event.id} className="flex gap-4 p-3">
+        <Card key={event.id} className="flex gap-4 p-3 h-full">
           <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-24 h-24 rounded-xl object-cover" alt={event.title} />
           <div className="flex-1 flex flex-col justify-between py-1">
             <div>
@@ -2039,7 +2045,7 @@ const BIBLE_TRANSLATIONS = [
   { id: 'arc', name: 'Almeida RC (Tradicional)', api: 'bible-api', bollsId: 22, bollsStr: 'ARC', translation: 'almeida' },
 ];
 
-const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight, onShareVerse }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void, onShareVerse?: (v: {text: string, ref: string}) => void }) => {
+const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight, onShareVerse, fontSize }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void, onShareVerse?: (v: {text: string, ref: string}) => void, fontSize?: 'small' | 'normal' | 'large' | 'xl' }) => {
   const [selectedBook, setSelectedBook] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2054,6 +2060,15 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   const [comparingVerse, setComparingVerse] = useState<{book: string, chapter: number, verse: number, text: string} | null>(null);
   const [comparingTexts, setComparingTexts] = useState<Record<string, string>>({});
   const [loadingCompare, setLoadingCompare] = useState(false);
+
+  const verseFontSizeClasses = {
+    small: 'text-[0.9rem]',
+    normal: 'text-[1.05rem]',
+    large: 'text-[1.3rem]',
+    xl: 'text-[1.6rem]'
+  };
+
+  const currentVerseSize = verseFontSizeClasses[fontSize || 'normal'];
 
   const currentTranslation = BIBLE_TRANSLATIONS.find(t => t.id === translation) || BIBLE_TRANSLATIONS[0];
 
@@ -2312,12 +2327,13 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
                   <div key={v.verse} className="relative group">
                     <p 
                       className={cn(
-                        "text-slate-700 leading-relaxed p-1 rounded transition-colors cursor-pointer hover:bg-slate-50",
+                        "text-slate-700 leading-relaxed p-1 rounded transition-all cursor-pointer hover:bg-slate-50",
+                        currentVerseSize,
                         highlight?.color
                       )}
                       onClick={() => setSelectedVerse(selectedVerse === v.verse ? null : v.verse)}
                     >
-                      <span className="font-bold text-primary mr-2 text-xs">{v.verse}</span>
+                      <span className="font-bold text-primary mr-2 text-[0.8em]">{v.verse}</span>
                       {v.text}
                     </p>
                     {selectedVerse === v.verse && (
@@ -2439,14 +2455,22 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
-              placeholder={searchMode === 'books' ? "Buscar livro..." : "Buscar nos versículos..."}
+              placeholder={searchMode === 'books' ? "Buscar livro ou trecho..." : "Buscar nos versículos..."}
               className="w-full pl-9 pr-4 py-2 bg-white rounded-xl border border-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               value={searchQuery}
               onChange={e => {
                 setSearchQuery(e.target.value);
                 if (searchMode === 'verses' && e.target.value === '') setSearchMode('books');
               }}
-              onKeyDown={e => e.key === 'Enter' && handleSearchVerses()}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  if (filteredBooks.length === 1 && searchQuery.toLowerCase() === filteredBooks[0].name.toLowerCase()) {
+                    setSelectedBook(filteredBooks[0].name);
+                  } else {
+                    handleSearchVerses();
+                  }
+                }
+              }}
             />
           </div>
           <button 
@@ -2592,7 +2616,24 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
 
           <section className="space-y-4">
             <h3 className="text-lg font-bold text-slate-900">{searchQuery ? 'Resultados da Busca' : 'Livros'}</h3>
-            <div className="grid grid-cols-2 gap-4">
+            {searchQuery && searchQuery.length >= 3 && (
+              <Card 
+                className="p-4 flex items-center justify-between bg-primary/5 border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
+                onClick={handleSearchVerses}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                    <Search className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 text-sm">Pesquisar nos versículos</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Procurar por "{searchQuery}" em toda a Bíblia</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-primary" />
+              </Card>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {filteredBooks.map((book, i) => (
                 <Card 
                   key={i} 
@@ -2802,7 +2843,7 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
       </div>
     </header>
 
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <Card className="bg-emerald-50 border-emerald-100 p-4 space-y-2 cursor-pointer hover:bg-emerald-100 transition-colors" onClick={() => onTabChange?.('users_members')}>
         <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white">
           <Users className="w-6 h-6" />
@@ -2926,7 +2967,7 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
         <h3 className="text-lg font-bold text-slate-900">Ações Rápidas</h3>
         <button onClick={() => onTabChange?.('all_screens')} className="text-primary text-sm font-bold">Ver todas</button>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-5 gap-3">
         {[
           { icon: Plus, label: 'Evento', color: 'bg-primary', action: onAddEvent },
           { icon: MessageSquare, label: 'Aviso', color: 'bg-blue-500', action: onAddAnnouncement },
@@ -3959,7 +4000,7 @@ const AdminFinancial = ({
                   Ver Todos
                 </button>
               </div>
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {transactions.slice(0, 15).map((t) => (
                   <div key={t.id} className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-100 group hover:shadow-md transition-all">
                     <div className={cn(
@@ -4836,7 +4877,7 @@ const MySchedulesScreen = ({ schedules, ministries, currentUser, onConfirm, onDe
   );
 };
 
-const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastoralVisits, schedules, ministries, whatsappConfig, onUpdateWhatsApp, isAdmin, onSwitchToAdmin, onSwitchToMember, showMessage, onOpenNotifications, initialIsEditing = false }: { onLogout: () => void, user: UserType | null, onUpdateProfile: (data: Partial<UserType>) => Promise<void>, stats: { cells: number, prayers: number }, prayers?: PrayerRequest[], pastoralVisits?: PastoralVisit[], schedules?: MinistrySchedule[], ministries?: Ministry[], whatsappConfig?: WhatsAppConfig, onUpdateWhatsApp?: (data: WhatsAppConfig) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, onSwitchToMember?: () => void, showMessage: (msg: string) => void, onOpenNotifications?: () => void, initialIsEditing?: boolean }) => {
+const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastoralVisits, schedules, ministries, whatsappConfig, onUpdateWhatsApp, isAdmin, onSwitchToAdmin, onSwitchToMember, showMessage, onOpenNotifications, initialIsEditing = false, darkMode, onToggleDarkMode, fontSize, onToggleFontSize }: { onLogout: () => void, user: UserType | null, onUpdateProfile: (data: Partial<UserType>) => Promise<void>, stats: { cells: number, prayers: number }, prayers?: PrayerRequest[], pastoralVisits?: PastoralVisit[], schedules?: MinistrySchedule[], ministries?: Ministry[], whatsappConfig?: WhatsAppConfig, onUpdateWhatsApp?: (data: WhatsAppConfig) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, onSwitchToMember?: () => void, showMessage: (msg: string) => void, onOpenNotifications?: () => void, initialIsEditing?: boolean, darkMode: boolean, onToggleDarkMode: () => void, fontSize?: 'small' | 'normal' | 'large' | 'xl', onToggleFontSize?: (size: any) => void }) => {
   const [isEditing, setIsEditing] = useState(initialIsEditing);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -4851,6 +4892,14 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
   const [showMyPrayers, setShowMyPrayers] = useState(false);
   const [showMyVisits, setShowMyVisits] = useState(false);
   const [showMySchedules, setShowMySchedules] = useState(false);
+  const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
+
+  const fontSizeOptions = [
+    { id: 'small', label: 'Pequena', size: 'text-sm' },
+    { id: 'normal', label: 'Padrão', size: 'text-base' },
+    { id: 'large', label: 'Grande', size: 'text-lg' },
+    { id: 'xl', label: 'Extra Grande', size: 'text-xl' },
+  ];
 
   const handleUpdate = async () => {
     try {
@@ -5042,6 +5091,55 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
 
   return (
     <div className="space-y-8 pb-24">
+      {/* Font Size Selector Modal */}
+      {showFontSizeMenu && (
+        <Modal title="Tamanho da Letra" onClose={() => setShowFontSizeMenu(false)}>
+          <div className="space-y-4">
+            <p className="text-slate-500 text-sm">Escolha o tamanho que fica melhor para sua leitura:</p>
+            <div className="grid grid-cols-1 gap-3">
+              {fontSizeOptions.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => {
+                    onToggleFontSize?.(opt.id as any);
+                  }}
+                  className={cn(
+                    "flex items-center justify-between p-4 rounded-2xl border-2 transition-all",
+                    fontSize === opt.id 
+                      ? "border-primary bg-primary/5 text-primary" 
+                      : "border-slate-100 bg-white text-slate-600 hover:border-slate-200"
+                  )}
+                >
+                  <span className={cn("font-medium", opt.size)}>
+                    {opt.label}
+                  </span>
+                  {fontSize === opt.id && <Check className="w-5 h-5" />}
+                </button>
+              ))}
+            </div>
+            
+            <div className="mt-6 p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <p className="text-[10px] uppercase font-bold text-slate-400 mb-2">Exemplo de leitura:</p>
+              <p className={cn(
+                "text-slate-700 leading-relaxed transition-all",
+                fontSize === 'small' && "text-[0.85rem]",
+                fontSize === 'normal' && "text-[1rem]",
+                fontSize === 'large' && "text-[1.15rem]",
+                fontSize === 'xl' && "text-[1.3rem]"
+              )}>
+                "Lâmpada para os meus pés é tua palavra, e luz para o meu caminho."
+              </p>
+            </div>
+
+            <Button 
+              className="w-full h-12 mt-4" 
+              onClick={() => setShowFontSizeMenu(false)}
+            >
+              Concluir e Salvar
+            </Button>
+          </div>
+        </Modal>
+      )}
       <header className="text-center pt-8 space-y-4">
         <div className="relative inline-block">
           <img src={form.avatar || user?.avatar || 'https://picsum.photos/seed/user/100/100'} className="w-32 h-32 rounded-full border-4 border-white shadow-xl mx-auto object-cover" alt="Profile" />
@@ -5123,6 +5221,8 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
           { icon: Lock, label: 'Alterar Senha', action: () => setShowChangePassword(true) },
           user?.id && ministries?.some(m => m.memberIds.includes(user.id) || m.leaderIds.includes(user.id)) && { icon: Calendar, label: 'Minhas Escalas', action: () => setShowMySchedules(true) },
           user?.role === 'superadmin' && { icon: MessageSquare, label: 'Configurar WhatsApp', action: () => setShowWhatsAppConfig(true) },
+          { icon: darkMode ? Sun : Moon, label: darkMode ? 'Modo Claro' : 'Modo Noturno', action: onToggleDarkMode },
+          { icon: Type, label: 'Tamanho da Letra', action: () => setShowFontSizeMenu(true) },
           { icon: PrayingHands, label: 'Minhas Orações', action: () => setShowMyPrayers(true) },
           { icon: Heart, label: 'Minhas Solicitações de Visita', action: () => setShowMyVisits(true) },
           { icon: Settings, label: 'Privacidade', action: () => setShowPrivacy(true) },
@@ -5878,6 +5978,13 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [cacheVersion, setCacheVersion] = useState(new Date().getTime());
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem('theme') === 'dark' || 
+           (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  });
+  const [fontSize, setFontSize] = useState<'small' | 'normal' | 'large' | 'xl'>(() => {
+    return (localStorage.getItem('font-size') as any) || 'normal';
+  });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('member');
   const [currentUserData, setCurrentUserData] = useState<UserType | null>(null);
@@ -5927,6 +6034,20 @@ export default function App() {
     setGlobalMessage(msg);
     setTimeout(() => setGlobalMessage(null), 3000);
   };
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
+
+  useEffect(() => {
+    localStorage.setItem('font-size', fontSize);
+  }, [fontSize]);
 
   const refreshData = useCallback(async () => {
     if (!isLoggedIn) return;
@@ -7082,7 +7203,7 @@ const joinCell = async (cellId: string) => {
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
         case 'pastoral': return <AdminPastoralVisits visits={pastoralVisits} onUpdateStatus={updatePastoralVisitStatus} />;
-        case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} />;
+        case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} fontSize={fontSize} />;
         case 'profile': {
           const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
           const userPrayers = prayers.filter(p => p.uid === currentUserData?.id);
@@ -7102,6 +7223,10 @@ const joinCell = async (cellId: string) => {
               onSwitchToMember={() => navigate('/')} 
               showMessage={showMessage} 
               initialIsEditing={profileAutoEdit}
+              darkMode={darkMode}
+              onToggleDarkMode={() => setDarkMode(!darkMode)}
+              fontSize={fontSize}
+              onToggleFontSize={(size: any) => setFontSize(size)}
               onOpenNotifications={async () => {
                 setShowNotificationSettings(true);
                 // Also request permission in background
@@ -7120,7 +7245,7 @@ const joinCell = async (cellId: string) => {
       case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
       case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onDelete={deleteAnnouncement} showMessage={showMessage} cacheVersion={cacheVersion} />;
       case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} progress={userReadingProgress} onToggleChapter={toggleChapter} isAdmin={false} showMessage={showMessage} />;
-      case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} />;
+      case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} fontSize={fontSize} />;
       case 'sermons': return <SermonsScreen sermons={sermons} />;
       case 'tithes': return <TithesScreen config={titheConfig} onConfirmDonation={(val, label) => addTransaction({ label, value: val, type: 'in' })} showMessage={showMessage} currentUserData={currentUserData} />;
       case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
@@ -7146,6 +7271,10 @@ const joinCell = async (cellId: string) => {
             onSwitchToAdmin={() => navigate('/admin')} 
             showMessage={showMessage} 
             initialIsEditing={profileAutoEdit}
+            darkMode={darkMode}
+            onToggleDarkMode={() => setDarkMode(!darkMode)}
+            fontSize={fontSize}
+            onToggleFontSize={(size: any) => setFontSize(size)}
             onOpenNotifications={async () => {
               setShowNotificationSettings(true);
               // Also request permission in background
@@ -7219,14 +7348,19 @@ const joinCell = async (cellId: string) => {
       onSwitchToAdmin: () => navigate('/admin'),
       showMessage,
       onRefresh: refreshData,
-      cacheVersion
+      cacheVersion,
+      darkMode,
+      onToggleDarkMode: () => setDarkMode(!darkMode)
     };
 
   return (
     <ErrorBoundary>
       <div className={cn(
-        "min-h-screen bg-secondary mx-auto relative shadow-2xl overflow-hidden",
-        isAdminPanel ? "w-full md:max-w-none md:flex md:flex-row shadow-none" : "max-w-md"
+        "min-h-screen bg-secondary mx-auto relative shadow-2xl overflow-hidden transition-all",
+        fontSize === 'small' && "text-[0.85rem]",
+        fontSize === 'large' && "text-[1.1rem]",
+        fontSize === 'xl' && "text-[1.25rem]",
+        isAdminPanel ? "w-full md:max-w-none md:flex md:flex-row shadow-none" : "w-full md:max-w-5xl md:shadow-none"
       )}>
         
         {/* Desktop Admin Sidebar (Hidden on Mobile) */}
