@@ -173,6 +173,8 @@ export interface Ministry {
   pendingRequestIds: string[];
   imageUrl?: string;
   category: string;
+  allowedRoleIds?: string[]; // IDs of AdminRole that can be assigned within this ministry
+  memberRoles?: Record<string, string>; // Maps userId to one AdminRole id
 }
 
 export interface MinistrySchedule {

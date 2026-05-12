@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import * as storage from "./src/lib/storage";
+import { seedVerses } from "./src/lib/seedVerses";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode';
@@ -494,6 +495,19 @@ async function startServer() {
 
   await ensureMinistries();
 
+  const ensureVerses = async () => {
+    try {
+      const result = await seedVerses();
+      if (result.status === 'success') {
+        console.log(`Seeding de versículos concluído: ${result.count} versículos cadastrados.`);
+      }
+    } catch (e) {
+      console.error("Erro ao garantir versículos:", e);
+    }
+  };
+
+  await ensureVerses();
+
   // Logging middleware
   app.use((req, res, next) => {
     console.log(`${req.method} ${req.url}`);
@@ -544,7 +558,7 @@ async function startServer() {
   // --- Auth API ---
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { name, email, password, age, address, phone } = req.body;
+      const { name, email, password, birthDate, address, phone } = req.body;
       const normalizedEmail = email.toLowerCase();
       const users = await storage.readCollection<any>("users");
       
@@ -571,7 +585,7 @@ async function startServer() {
             name: name || existingUser.name,
             email: normalizedEmail,
             password: hashedPassword,
-            age: parseInt(age) || existingUser.age || 0,
+            birthDate: birthDate || existingUser.birthDate || "",
             address: address || existingUser.address || "",
             phone: phone || existingUser.phone || "",
             memberStatus: "new_member", 
@@ -600,7 +614,7 @@ async function startServer() {
         email: normalizedEmail,
         password: hashedPassword,
         role: "member",
-        age: parseInt(age) || 0,
+        birthDate: birthDate || "",
         address: address || "",
         phone: phone || "",
         memberStatus: "new_member",
@@ -868,6 +882,45 @@ async function startServer() {
     }
   });
 
+  // --- Verse of the Day API ---
+  app.get("/api/verses/today", async (req, res) => {
+    try {
+      const verses = await storage.readCollection<any>("verses");
+      if (verses.length === 0) return res.status(404).json({ error: "Nenhum versículo cadastrado" });
+
+      // Deterministic selection based on days since epoch (2024-01-01)
+      const epoch = new Date('2024-01-01').getTime();
+      const today = new Date().getTime();
+      const dayIndex = Math.floor((today - epoch) / (1000 * 60 * 60 * 24));
+      
+      const verse = verses[dayIndex % verses.length];
+      res.json(verse);
+    } catch (e) {
+      res.status(500).json({ error: "Erro ao buscar versículo do dia" });
+    }
+  });
+
+  app.get("/api/verses/stats", authenticateToken, async (req, res) => {
+    try {
+      const verses = await storage.readCollection<any>("verses");
+      
+      const epoch = new Date('2024-01-01').getTime();
+      const today = new Date().getTime();
+      const tomorrow = today + (1000 * 60 * 60 * 24);
+      
+      const todayIdx = Math.floor((today - epoch) / (1000 * 60 * 60 * 24));
+      const tomorrowIdx = Math.floor((tomorrow - epoch) / (1000 * 60 * 60 * 24));
+
+      res.json({
+        total: verses.length,
+        today: verses[todayIdx % verses.length],
+        tomorrow: verses[tomorrowIdx % verses.length]
+      });
+    } catch (e) {
+      res.status(500).json({ error: "Erro ao buscar estatísticas de versículos" });
+    }
+  });
+
   app.get("/api/collections/:name", authenticateToken, async (req, res) => {
     try {
       const data = await storage.readCollection(req.params.name);
@@ -1101,16 +1154,14 @@ async function startServer() {
   cron.schedule('0 9 * * *', async () => {
     console.log('Running daily verse notification...');
     try {
-        const BIBLE_VERSES = [
-            { text: "Tudo posso naquele que me fortalece.", ref: "Filipenses 4:13" },
-            { text: "O Senhor é o meu pastor, nada me faltará.", ref: "Salmos 23:1" },
-            { text: "Bem-aventurados os limpos de coração, porque eles verão a Deus.", ref: "Mateus 5:8" },
-            { text: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito...", ref: "João 3:16" },
-            { text: "O meu socorro vem do Senhor, que fez o céu e a terra.", ref: "Salmos 121:2" },
-            { text: "Lâmpada para os meus pés é tua palavra, e luz para o meu caminho.", ref: "Salmos 119:105" },
-            { text: "Deleita-te também no Senhor, e te concederá os desejos do teu coração.", ref: "Salmos 37:4" }
-        ];
-        const verse = BIBLE_VERSES[Math.floor(Math.random() * BIBLE_VERSES.length)];
+        const verses = await storage.readCollection<any>("verses");
+        if (verses.length === 0) return;
+
+        const epoch = new Date('2024-01-01').getTime();
+        const today = new Date().getTime();
+        const dayIndex = Math.floor((today - epoch) / (1000 * 60 * 60 * 24));
+        
+        const verse = verses[dayIndex % verses.length];
         await sendPushNotification("📖 Versículo do Dia", `"${verse.text}" - ${verse.ref}`, '/bible');
     } catch (e) {
         console.error('Failed to send daily verse notification:', e);

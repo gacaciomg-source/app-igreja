@@ -9,6 +9,7 @@ import {
   useLocation
 } from 'react-router-dom';
 import { toPng } from 'html-to-image';
+import AdminVerses from './components/AdminVerses';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { 
@@ -41,6 +42,7 @@ import {
   CheckCircle2, 
   CheckSquare,
   History,
+  Archive,
   AlertCircle,
   Mail,
   Lock,
@@ -67,6 +69,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Cake,
   Image,
   CreditCard,
   FileUp,
@@ -92,6 +95,31 @@ import {
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction, FinancialRule } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
 import { api } from './services/apiService';
+
+const DEFAULT_AVATAR = "https://renovar.warpserver.com.br/avatar.png";
+
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-');
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    return `${d} ${months[parseInt(m) - 1]}`;
+  }
+  return dateStr;
+};
+
+const isPastDate = (dateStr: string) => {
+  if (!dateStr) return false;
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Supondo que dateStr seja YYYY-MM-DD
+    const eventDate = new Date(dateStr + 'T00:00:00');
+    return eventDate < today;
+  } catch (e) {
+    return false;
+  }
+};
 
 // --- Cache Buster ---
 const getCacheBustedUrl = (url: string | undefined, version: number) => {
@@ -248,7 +276,7 @@ const currentUser: UserType = {
   name: 'Gustavo Acácio',
   email: 'gustavo@example.com',
   role: 'member',
-  avatar: 'https://picsum.photos/seed/gustavo/100/100'
+  avatar: DEFAULT_AVATAR
 };
 
 const mockEvents: Event[] = [
@@ -337,7 +365,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [age, setAge] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
@@ -360,11 +388,12 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
         onAuthSuccess(loggedUser);
       } else if (mode === 'signup') {
         if (!phone) throw new Error("O número de WhatsApp é obrigatório.");
+        if (!birthDate) throw new Error("A data de nascimento é obrigatória.");
         const { user: newUser } = await api.register({
           name,
           email: normalizedEmail,
           password,
-          age,
+          birthDate,
           address,
           phone
         });
@@ -435,15 +464,14 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Idade</label>
+                <label className="text-sm font-medium text-slate-700">Data de Nascimento (Obrigatório)</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input 
-                    type="number" 
+                    type="date" 
                     required
-                    placeholder="Sua idade"
-                    value={age}
-                    onChange={e => setAge(e.target.value)}
+                    value={birthDate}
+                    onChange={e => setBirthDate(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
                 </div>
@@ -560,18 +588,6 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
     </div>
   );
 };
-
-const DAILY_VERSES = [
-  { text: "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.", ref: "João 3:16" },
-  { text: "O Senhor é o meu pastor, nada me faltará.", ref: "Salmos 23:1" },
-  { text: "Posso todas as coisas naquele que me fortalece.", ref: "Filipenses 4:13" },
-  { text: "O Senhor é a minha luz e a minha salvação; a quem temerei?", ref: "Salmos 27:1" },
-  { text: "Buscai primeiro o Reino de Deus e a sua justiça, e todas estas coisas vos serão acrescentadas.", ref: "Mateus 6:33" },
-  { text: "Não fui eu que lhe ordenei? Seja forte e corajoso! Não se apavore nem desanime, pois o Senhor, o seu Deus, estará com você por onde você andar.", ref: "Josué 1:9" },
-  { text: "Confie no Senhor de todo o seu coração e não se apoie em seu próprio entendimento.", ref: "Provérbios 3:5" },
-  { text: "Alegrem-se sempre no Senhor. Novamente direi: Alegrem-se!", ref: "Filipenses 4:4" },
-  { text: "O meu Deus suprirá todas as necessidades de vocês, de acordo com as suas gloriosas riquezas em Cristo Jesus.", ref: "Filipenses 4:19" }
-];
 
 const SHARE_BACKGROUNDS = [
   { id: 'gradient-blue', gradient: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)', name: 'Azul Moderno' },
@@ -829,10 +845,11 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
   );
 };
 
-const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onManageRequest, onAddSchedule, schedules, onAdd, onUpdate, isAdmin, showMessage }: { 
+const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJoinRequest, onManageRequest, onAddSchedule, schedules, onAdd, onUpdate, isAdmin, showMessage }: { 
   ministries: Ministry[], 
   users: UserType[], 
   currentUser: UserType | null, 
+  adminRoles?: AdminRole[],
   onJoinRequest: (ministryId: string) => void,
   onManageRequest: (ministryId: string, userId: string, action: 'approve' | 'reject') => void,
   onAddSchedule: (schedule: Partial<MinistrySchedule>) => void,
@@ -852,7 +869,11 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
   });
 
   const [newSchedule, setNewSchedule] = useState<Partial<MinistrySchedule>>({
-    title: '', date: '', time: '', location: '', assignedUserIds: []
+    title: '', 
+    date: new Date().toISOString().split('T')[0], 
+    time: '19:00', 
+    location: '', 
+    assignedUserIds: []
   });
 
   const isLeader = (m: Ministry) => currentUser?.id && (m.leaderIds.includes(currentUser.id) || isAdmin);
@@ -880,6 +901,20 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
     setShowMinistryForm(false);
     setEditingMinistry(null);
     setNewMinistry({ name: '', description: '', category: 'Geral', imageUrl: '' });
+  };
+
+  const [selectedMemberForRole, setSelectedMemberForRole] = useState<UserType | null>(null);
+
+  const handleUpdateMemberRole = (userId: string, roleId: string) => {
+    if (!selectedMinistry) return;
+    const memberRoles = { ...(selectedMinistry.memberRoles || {}) };
+    if (roleId === 'none') {
+      delete memberRoles[userId];
+    } else {
+      memberRoles[userId] = roleId;
+    }
+    onUpdate(selectedMinistry.id, { memberRoles });
+    setSelectedMemberForRole(null);
   };
 
   if (selectedMinistry) {
@@ -918,7 +953,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
             </h3>
             {pendingUsers.map(user => (
               <Card key={user.id} className="flex items-center gap-4">
-                <img src={user.avatar || `https://picsum.photos/seed/${user.id}/100/100`} className="w-10 h-10 rounded-full" alt={user.name} />
+                <img src={user.avatar || DEFAULT_AVATAR} className="w-10 h-10 rounded-full" alt={user.name} />
                 <div className="flex-1">
                   <p className="font-bold text-sm">{user.name}</p>
                   <p className="text-xs text-slate-400">{user.email}</p>
@@ -950,7 +985,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
                     <div>
                       <h4 className="font-bold text-slate-900">{sch.title}</h4>
                       <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                        <Calendar className="w-3 h-3" /> {new Date(sch.date).toLocaleDateString('pt-BR')} às {sch.time}
+                        <Calendar className="w-3 h-3" /> {formatDate(sch.date)} às {sch.time}
                       </p>
                       <p className="text-xs text-slate-500 flex items-center gap-1">
                         <MapPin className="w-3 h-3" /> {sch.location}
@@ -963,7 +998,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
                       const status = sch.confirmations?.[uid];
                       return (
                         <div key={uid} className="relative">
-                          <img src={u?.avatar || `https://picsum.photos/seed/${uid}/100/100`} className="w-8 h-8 rounded-full border-2 border-white object-cover" title={u?.name} />
+                          <img src={u?.avatar || DEFAULT_AVATAR} className="w-8 h-8 rounded-full border-2 border-white object-cover" title={u?.name} />
                           {status && (
                             <div className={cn(
                               "absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center",
@@ -987,14 +1022,99 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
         <div className="space-y-4">
           <h3 className="font-bold text-slate-900">Equipe ({ministryMembers.length})</h3>
           <div className="grid grid-cols-2 gap-3">
-            {ministryMembers.map(member => (
-              <div key={member.id} className="flex items-center gap-2 p-2 bg-white border border-slate-100 rounded-xl">
-                <img src={member.avatar || `https://picsum.photos/seed/${member.id}/100/100`} className="w-8 h-8 rounded-full" alt={member.name} />
-                <span className="text-xs font-medium truncate">{member.name}</span>
-              </div>
-            ))}
+            {ministryMembers.map(member => {
+              const roleId = selectedMinistry.memberRoles?.[member.id];
+              const role = adminRoles.find(r => r.id === roleId);
+              const isLead = selectedMinistry.leaderIds.includes(member.id);
+
+              return (
+                <div 
+                  key={member.id} 
+                  onClick={() => isLeader(selectedMinistry) && !isLead && setSelectedMemberForRole(member)}
+                  className={cn(
+                    "flex flex-col gap-2 p-3 bg-white border border-slate-100 rounded-xl transition-all",
+                    isLeader(selectedMinistry) && !isLead && "hover:border-primary/30 cursor-pointer active:scale-95"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <img src={member.avatar || DEFAULT_AVATAR} className="w-8 h-8 rounded-full" alt={member.name} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold truncate">{member.name}</p>
+                      {isLead ? (
+                        <p className="text-[8px] font-bold text-primary uppercase">Líder</p>
+                      ) : role ? (
+                        <p className="text-[8px] font-bold text-amber-500 uppercase">{role.name}</p>
+                      ) : (
+                        <p className="text-[8px] font-medium text-slate-400 uppercase">Voluntário</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+
+        {selectedMemberForRole && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-end animate-in fade-in">
+            <Card className="w-full rounded-t-3xl rounded-b-none p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+              <header className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-full">
+                    <Shield className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold">Perfil de Acesso</h3>
+                    <p className="text-xs text-slate-500">Definir permissões para {selectedMemberForRole.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedMemberForRole(null)} className="p-2 bg-slate-100 rounded-full"><LogOut className="w-5 h-5 rotate-180" /></button>
+              </header>
+
+              <div className="space-y-2">
+                <button 
+                  onClick={() => handleUpdateMemberRole(selectedMemberForRole.id, 'none')}
+                  className={cn(
+                    "w-full p-4 rounded-2xl text-left border transition-all",
+                    !selectedMinistry.memberRoles?.[selectedMemberForRole.id] ? "bg-primary/5 border-primary" : "bg-slate-50 border-slate-100"
+                  )}
+                >
+                  <p className="text-sm font-bold">Sem perfil especial</p>
+                  <p className="text-[10px] text-slate-500">Acesso padrão de voluntário do ministério</p>
+                </button>
+
+                {(selectedMinistry.allowedRoleIds || []).map(roleId => {
+                  const role = adminRoles.find(r => r.id === roleId);
+                  if (!role) return null;
+                  const isSelected = selectedMinistry.memberRoles?.[selectedMemberForRole.id] === roleId;
+
+                  return (
+                    <button 
+                      key={roleId}
+                      onClick={() => handleUpdateMemberRole(selectedMemberForRole.id, roleId)}
+                      className={cn(
+                        "w-full p-4 rounded-2xl text-left border transition-all",
+                        isSelected ? "bg-primary/5 border-primary text-primary" : "bg-slate-50 border-slate-100"
+                      )}
+                    >
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm font-bold">{role.name}</p>
+                        {isSelected && <Check className="w-4 h-4" />}
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1">Permissões: {role.permissions.join(', ')}</p>
+                    </button>
+                  );
+                })}
+
+                {(!selectedMinistry.allowedRoleIds || selectedMinistry.allowedRoleIds.length === 0) && (
+                  <p className="text-center text-xs text-slate-400 py-4 italic">
+                    Nenhum perfil de acesso foi disponibilizado para este ministério pelo administrador.
+                  </p>
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
 
         {showAddSchedule && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-end animate-in fade-in">
@@ -1004,12 +1124,51 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
                 <button onClick={() => setShowAddSchedule(false)} className="p-2 bg-slate-100 rounded-full"><LogOut className="w-5 h-5 rotate-180" /></button>
               </header>
               <div className="space-y-3">
-                <input type="text" placeholder="Título da Atividade" value={newSchedule.title} onChange={e => setNewSchedule({...newSchedule, title: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
-                <div className="grid grid-cols-2 gap-3">
-                  <input type="date" value={newSchedule.date} onChange={e => setNewSchedule({...newSchedule, date: e.target.value})} className="p-3 bg-slate-50 rounded-xl" />
-                  <input type="time" value={newSchedule.time} onChange={e => setNewSchedule({...newSchedule, time: e.target.value})} className="p-3 bg-slate-50 rounded-xl" />
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Título da Atividade</label>
+                  <input type="text" placeholder="Ex: Recepção, Louvor..." value={newSchedule.title} onChange={e => setNewSchedule({...newSchedule, title: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" />
                 </div>
-                <input type="text" placeholder="Local" value={newSchedule.location} onChange={e => setNewSchedule({...newSchedule, location: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Data</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <input 
+                        type="date" 
+                        value={newSchedule.date} 
+                        onChange={e => setNewSchedule({...newSchedule, date: e.target.value})} 
+                        className="w-full pl-10 p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Horário</label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <input 
+                        type="time" 
+                        value={newSchedule.time} 
+                        onChange={e => setNewSchedule({...newSchedule, time: e.target.value})} 
+                        className="w-full pl-10 p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Local</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Templo Principal" 
+                      value={newSchedule.location} 
+                      onChange={e => setNewSchedule({...newSchedule, location: e.target.value})} 
+                      className="w-full pl-10 p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
+                    />
+                  </div>
+                </div>
                 
                 <p className="text-xs font-bold text-slate-400 mt-4 uppercase">Escalar Membros</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -1023,7 +1182,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
                       }}
                       className={cn("p-2 rounded-xl text-xs flex items-center gap-2 border transition-all", newSchedule.assignedUserIds?.includes(m.id) ? "bg-primary text-white border-primary" : "bg-slate-50 text-slate-600 border-slate-100")}
                     >
-                      <img src={m.avatar || `https://picsum.photos/seed/${m.id}/100/100`} className="w-5 h-5 rounded-full" />
+                      <img src={m.avatar || DEFAULT_AVATAR} className="w-5 h-5 rounded-full" />
                       <span className="truncate">{m.name}</span>
                     </button>
                   ))}
@@ -1032,7 +1191,13 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
               <Button className="w-full" onClick={() => { 
                 onAddSchedule({...newSchedule, ministryId: selectedMinistry.id}); 
                 setShowAddSchedule(false);
-                setNewSchedule({ title: '', date: '', time: '', location: '', assignedUserIds: [] });
+                setNewSchedule({ 
+                  title: '', 
+                  date: new Date().toISOString().split('T')[0], 
+                  time: '19:00', 
+                  location: '', 
+                  assignedUserIds: [] 
+                });
               }}>Salvar Escala</Button>
             </Card>
           </div>
@@ -1164,6 +1329,33 @@ const MinistriesScreen = ({ ministries, users, currentUser, onJoinRequest, onMan
                   </div>
                 )}
               </div>
+
+              {isAdmin && adminRoles.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase">Perfis de Acesso permitidos para este Ministério</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {adminRoles.map(role => (
+                      <button 
+                        key={role.id}
+                        onClick={() => {
+                          const current = newMinistry.allowedRoleIds || [];
+                          const next = current.includes(role.id) ? current.filter(id => id !== role.id) : [...current, role.id];
+                          setNewMinistry({...newMinistry, allowedRoleIds: next});
+                        }}
+                        className={cn(
+                          "p-3 rounded-xl text-xs font-bold border transition-all text-left flex items-center justify-between",
+                          newMinistry.allowedRoleIds?.includes(role.id) 
+                            ? "bg-primary/5 border-primary text-primary" 
+                            : "bg-slate-50 border-slate-100 text-slate-500"
+                        )}
+                      >
+                        {role.name}
+                        {newMinistry.allowedRoleIds?.includes(role.id) && <Check className="w-3 h-3" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <Button className="w-full" onClick={handleSaveMinistry}>
@@ -1188,7 +1380,7 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
     name: '',
     email: '',
     phone: '',
-    age: '',
+    birthDate: '',
     address: ''
   });
 
@@ -1215,7 +1407,6 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
 
     onAddUser({
       ...visitorForm,
-      age: parseInt(visitorForm.age) || 0,
       memberStatus: 'visitor',
       joinedAt: new Date().toISOString(),
       role: 'member',
@@ -1224,7 +1415,7 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
     });
 
     setShowAddVisitor(false);
-    setVisitorForm({ name: '', email: '', phone: '', age: '', address: '' });
+    setVisitorForm({ name: '', email: '', phone: '', birthDate: '', address: '' });
   };
 
   const handleUpdateStatus = (userId: string, status: MemberStatus) => {
@@ -1309,7 +1500,15 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-700 font-medium">{selectedUser.phone || 'N/A'}</p>
-                <p className="text-slate-500 text-sm">{selectedUser.email}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-slate-500 text-sm">{selectedUser.email}</p>
+                  {selectedUser.birthDate && (
+                    <span className="text-xs text-primary font-bold flex items-center gap-1">
+                      <Cake className="w-3 h-3" />
+                      {selectedUser.birthDate.split('-').reverse().join('/')}
+                    </span>
+                  )}
+                </div>
               </div>
               {selectedUser.phone && (
                 <a href={`https://wa.me/${selectedUser.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="p-3 bg-emerald-500 text-white rounded-full">
@@ -1416,10 +1615,18 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
             if (activeTab === 'integration') setSelectedUser(user);
             else handleStartEdit(user);
           }}>
-            <img src={user.avatar || `https://picsum.photos/seed/${user.id}/100/100`} className="w-12 h-12 rounded-full object-cover shadow-sm" alt={user.name} />
+            <img src={user.avatar || DEFAULT_AVATAR} className="w-12 h-12 rounded-full object-cover shadow-sm" alt={user.name} />
             <div className="flex-1">
               <h4 className="font-bold text-slate-900 text-sm">{user.name}</h4>
-              <p className="text-[10px] text-slate-400">{user.email}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] text-slate-400">{user.email}</p>
+                {user.birthDate && (
+                  <span className="text-[9px] text-primary flex items-center gap-0.5 font-bold">
+                    <Cake className="w-2.5 h-2.5" />
+                    {user.birthDate.split('-').reverse().slice(0, 2).join('/')}
+                  </span>
+                )}
+              </div>
               {activeTab === 'members' && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {user.role === 'leader' && user.leaderOf && (
@@ -1466,9 +1673,22 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
               <button onClick={() => setShowAddVisitor(false)} className="p-2 bg-slate-100 rounded-full"><LogOut className="w-5 h-5 rotate-180" /></button>
             </header>
             <div className="space-y-4">
-              <input type="text" placeholder="Nome" value={visitorForm.name} onChange={e => setVisitorForm({...visitorForm, name: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
-              <input type="tel" placeholder="Telefone" value={visitorForm.phone} onChange={e => setVisitorForm({...visitorForm, phone: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
-              <input type="email" placeholder="E-mail" value={visitorForm.email} onChange={e => setVisitorForm({...visitorForm, email: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome</label>
+                <input type="text" placeholder="Nome" value={visitorForm.name} onChange={e => setVisitorForm({...visitorForm, name: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Data de Nascimento (Opcional)</label>
+                <input type="date" value={visitorForm.birthDate} onChange={e => setVisitorForm({...visitorForm, birthDate: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
+                <input type="tel" placeholder="Telefone" value={visitorForm.phone} onChange={e => setVisitorForm({...visitorForm, phone: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">E-mail</label>
+                <input type="email" placeholder="E-mail" value={visitorForm.email} onChange={e => setVisitorForm({...visitorForm, email: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+              </div>
               <Button className="w-full" onClick={handleAddVisitor}>Salvar</Button>
             </div>
           </Card>
@@ -1585,6 +1805,10 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
                 </div>
               )}
               <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Data de Nascimento</label>
+                <input type="date" value={editForm.birthDate || ''} onChange={e => setEditForm({...editForm, birthDate: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+              </div>
+              <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Telefone</label>
                 <input type="tel" value={editForm.phone || ''} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
               </div>
@@ -1602,7 +1826,7 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
 };
 
 
-const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, isAdmin, onSwitchToAdmin, showMessage, onRefresh, cacheVersion }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void, onRefresh?: () => Promise<void>, cacheVersion: number }) => {
+const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, dailyVerse, isAdmin, onSwitchToAdmin, showMessage, onRefresh, cacheVersion }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, dailyVerse: any, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void, onRefresh?: () => Promise<void>, cacheVersion: number }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -1615,11 +1839,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
     }
   };
 
-  const dailyVerse = React.useMemo(() => {
-    const today = new Date();
-    const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-    return DAILY_VERSES[seed % DAILY_VERSES.length];
-  }, []);
+  const verseDisplay = dailyVerse || { text: "Carregando palavra do dia...", ref: "..." };
 
   return (
     <div className="space-y-6 pb-24">
@@ -1642,7 +1862,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
           </button>
           <button onClick={() => onTabChange('profile')} className="p-0.5 bg-white rounded-full shadow-sm border-2 border-primary/20">
             <img 
-              src={user?.avatar || `https://picsum.photos/seed/${user?.id}/100/100`} 
+              src={user?.avatar || DEFAULT_AVATAR} 
               className="w-9 h-9 rounded-full object-cover" 
               alt="Perfil" 
             />
@@ -1722,14 +1942,14 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
         <Card className="bg-primary text-white h-full relative overflow-hidden">
           <div className="relative z-10 space-y-4 flex flex-col justify-between h-full">
             <p className="text-lg italic font-medium leading-relaxed">
-              "{dailyVerse.text}"
+              "{verseDisplay.text}"
             </p>
             <div className="flex justify-between items-center mt-auto">
-              <span className="font-bold">{dailyVerse.ref}</span>
+              <span className="font-bold">{verseDisplay.ref}</span>
               <Button 
                 variant="secondary" 
                 className="bg-white/20 text-white hover:bg-white/30 border-none"
-                onClick={() => onShareVerse(dailyVerse)}
+                onClick={() => onShareVerse(verseDisplay)}
               >
                 <Share2 className="w-4 h-4" />
                 Compartilhar
@@ -1746,8 +1966,12 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
           <button onClick={() => onTabChange('events')} className="text-primary text-sm font-bold">Ver todos</button>
         </div>
         <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
-          {events.slice(0, 2).map(event => (
-            <Card key={event.id} className="p-0 overflow-hidden h-full">
+          {events
+            .filter(event => !isPastDate(event.date))
+            .sort((a, b) => new Date(a.date + 'T00:00:00').getTime() - new Date(b.date + 'T00:00:00').getTime())
+            .slice(0, 2)
+            .map(event => (
+            <Card key={event.id} className="p-0 overflow-hidden h-full relative">
               <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-full h-40 object-cover" alt={event.title} />
               <div className="p-4 space-y-2">
                 <div className="flex justify-between items-start">
@@ -1776,13 +2000,20 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
 );
 }
 
-const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, showMessage, cacheVersion }: { announcements: Announcement[], isAdmin?: boolean, onDelete?: (id: string) => void, showMessage?: (msg: string) => void, cacheVersion: number }) => (
+const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, onAdd, showMessage, cacheVersion }: { announcements: Announcement[], isAdmin?: boolean, onDelete?: (id: string) => void, onAdd?: () => void, showMessage?: (msg: string) => void, cacheVersion: number }) => (
   <div className="space-y-6 pb-24">
     <header className="flex items-center justify-between">
       <h2 className="text-2xl font-bold text-slate-900">Avisos</h2>
-      <button onClick={() => showMessage?.('Filtro em desenvolvimento')} className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
-        <Filter className="w-5 h-5 text-slate-600" />
-      </button>
+      <div className="flex gap-2">
+        <button onClick={() => showMessage?.('Filtro em desenvolvimento')} className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
+          <Filter className="w-5 h-5 text-slate-600" />
+        </button>
+        {isAdmin && (
+          <button onClick={onAdd} className="p-2 bg-primary text-white rounded-xl shadow-lg flex items-center justify-center">
+            <Plus className="w-5 h-5" />
+          </button>
+        )}
+      </div>
     </header>
 
     <div className="space-y-4">
@@ -1838,19 +2069,65 @@ const PrayingHands = ({ className = "w-6 h-6", active = false, cacheVersion = ne
   );
 };
 
-const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, showMessage, cacheVersion }: { events: Event[], isAdmin?: boolean, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onShowOrações?: () => void, showMessage?: (msg: string) => void, cacheVersion: number }) => {
+const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onAdd, onShowOrações, showMessage, cacheVersion }: { events: Event[], isAdmin?: boolean, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onAdd?: () => void, onShowOrações?: () => void, showMessage?: (msg: string) => void, cacheVersion: number }) => {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
-  const filteredEvents = selectedCategory === 'Todos' ? events : events.filter(e => e.category === selectedCategory);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const filteredEvents = events.filter(e => {
+    const matchesCategory = selectedCategory === 'Todos' || e.category === selectedCategory;
+    const isPast = isPastDate(e.date);
+    
+    if (isAdmin) {
+      if (showArchived) return matchesCategory && isPast;
+      return matchesCategory && !isPast;
+    }
+    
+    return matchesCategory && !isPast;
+  }).sort((a, b) => {
+    const dateA = new Date(a.date + 'T00:00:00').getTime();
+    const dateB = new Date(b.date + 'T00:00:00').getTime();
+    return showArchived ? dateB - dateA : dateA - dateB;
+  });
 
   return (
   <div className="space-y-6 pb-24">
     <header className="flex items-center justify-between">
-      <h2 className="text-2xl font-bold text-slate-900">Agenda</h2>
+      <div className="flex flex-col">
+        <h2 className="text-2xl font-bold text-slate-900">Agenda</h2>
+        {isAdmin && (
+          <div className="flex bg-slate-100 p-1 rounded-xl mt-2 w-fit">
+            <button 
+              onClick={() => setShowArchived(false)}
+              className={cn(
+                "px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-1.5",
+                !showArchived ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700 font-medium"
+              )}
+            >
+              <Calendar className="w-3 h-3" />
+              Atuais
+            </button>
+            <button 
+              onClick={() => setShowArchived(true)}
+              className={cn(
+                "px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all flex items-center gap-1.5",
+                showArchived ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700 font-medium"
+              )}
+            >
+              <Archive className="w-3 h-3" />
+              Arquivados
+            </button>
+          </div>
+        )}
+      </div>
       <div className="flex gap-2">
         <button onClick={() => showMessage?.('Funcionalidade em desenvolvimento')} className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
           <Filter className="w-5 h-5 text-slate-600" />
         </button>
-        {!isAdmin && (
+        {isAdmin ? (
+          <button onClick={onAdd} className="p-2 bg-primary text-white rounded-xl shadow-lg flex items-center justify-center">
+            <Plus className="w-5 h-5" />
+          </button>
+        ) : (
           <button onClick={onShowOrações} className="p-2 bg-primary-light text-primary rounded-xl shadow-sm border border-primary/10">
             <PrayingHands className="w-5 h-5 text-primary" />
           </button>
@@ -1868,7 +2145,15 @@ const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, show
 
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {filteredEvents.map(event => (
-        <Card key={event.id} className="flex gap-4 p-3 h-full">
+        <Card key={event.id} className={cn(
+          "flex gap-4 p-3 h-full relative",
+          isPastDate(event.date) && "opacity-75 grayscale-[0.3] bg-slate-50"
+        )}>
+          {isPastDate(event.date) && (
+            <div className="absolute top-2 right-2 bg-slate-600 text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest z-10">
+              Arquivado
+            </div>
+          )}
           <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-24 h-24 rounded-xl object-cover" alt={event.title} />
           <div className="flex-1 flex flex-col justify-between py-1">
             <div>
@@ -1878,7 +2163,7 @@ const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, show
             <div className="flex items-center justify-between">
               <div className="text-primary text-xs font-bold flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
-                {event.date}
+                {formatDate(event.date)} {event.time ? `• ${event.time}` : ''}
               </div>
               {isAdmin && (
                 <div className="flex gap-1">
@@ -2797,7 +3082,7 @@ const UserPastoralVisitsScreen = ({ visits, onAddRequest }: { visits: PastoralVi
   );
 };
 
-const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage }: { stats: any, users: UserType[], onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void }) => {
+const AdminDashboard = ({ stats, users, verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void }) => {
   const [showBirthdays, setShowBirthdays] = useState<'today' | 'month' | null>(null);
 
   const birthdays = React.useMemo(() => {
@@ -2886,6 +3171,15 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
           <p className="text-2xl font-bold text-slate-900">{stats.events}</p>
         </div>
       </Card>
+      <Card className="bg-indigo-50 border-indigo-100 p-4 space-y-2 cursor-pointer hover:bg-indigo-100 transition-colors" onClick={() => onTabChange?.('bible')}>
+        <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center text-white">
+          <BookOpen className="w-6 h-6" />
+        </div>
+        <div>
+          <p className="text-xs text-indigo-600 font-bold uppercase tracking-wider">Versículos</p>
+          <p className="text-2xl font-bold text-slate-900">{verseStats?.total || 0}</p>
+        </div>
+      </Card>
     </div>
 
     <section className="space-y-4">
@@ -2917,7 +3211,7 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
             {birthdays.today.length > 0 ? (
               birthdays.today.slice(0, 3).map(u => (
                 <div key={u.id} className="flex items-center gap-2">
-                  <img src={u.avatar || `https://picsum.photos/seed/${u.id}/100/100`} alt={u.name} className="w-6 h-6 rounded-full object-cover" />
+                  <img src={u.avatar || DEFAULT_AVATAR} alt={u.name} className="w-6 h-6 rounded-full object-cover" />
                   <span className="text-xs font-medium text-slate-700 truncate">{u.name}</span>
                 </div>
               ))
@@ -2943,7 +3237,7 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
           {birthdays[showBirthdays].length > 0 ? (
             birthdays[showBirthdays].map(u => (
               <div key={u.id} className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl">
-                <img src={u.avatar || `https://picsum.photos/seed/${u.id}/100/100`} alt={u.name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" />
+                <img src={u.avatar || DEFAULT_AVATAR} alt={u.name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" />
                 <div>
                   <h4 className="font-bold text-slate-900">{u.name}</h4>
                   <p className="text-xs text-slate-500 flex items-center gap-1">
@@ -2986,6 +3280,37 @@ const AdminDashboard = ({ stats, users, onAddEvent, onAddAnnouncement, onAddRead
     </section>
 
     <section className="space-y-4">
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-slate-900">Palavra do Dia</h3>
+          <button onClick={() => onTabChange?.('bible')} className="text-xs font-bold text-primary px-3 py-1 bg-primary/10 rounded-lg">Gerenciar Todos</button>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+           <Card className="p-4 border-slate-100 space-y-2">
+             <div className="flex items-center gap-2 mb-1">
+               <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">De Hoje</span>
+             </div>
+             <p className="text-sm font-medium text-slate-700 italic">"{verseStats?.today?.text || 'Não definido'}"</p>
+             <p className="text-xs font-bold text-slate-400">{verseStats?.today?.ref}</p>
+           </Card>
+           <Card className="p-4 border-slate-100 space-y-2 group relative">
+             <div className="flex items-center gap-2 mb-1">
+               <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">De Amanhã</span>
+             </div>
+             <p className="text-sm font-medium text-slate-700 italic">"{verseStats?.tomorrow?.text || 'Não definido'}"</p>
+             <p className="text-xs font-bold text-slate-400">{verseStats?.tomorrow?.ref}</p>
+             <button 
+               onClick={() => showMessage?.('Para trocar o versículo de amanhã, edite-o na lista de versículos ou adicione um novo para alterar a ordem.')}
+               className="absolute top-2 right-2 p-1.5 bg-slate-50 text-slate-400 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:text-primary"
+             >
+               <Edit2 className="w-3.5 h-3.5" />
+             </button>
+           </Card>
+        </div>
+      </section>
+
       <h3 className="text-lg font-bold text-slate-900">Atividade Recente</h3>
       <Card className="divide-y divide-slate-50 p-0 overflow-hidden">
         {stats.events > 0 ? (
@@ -5142,7 +5467,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
       )}
       <header className="text-center pt-8 space-y-4">
         <div className="relative inline-block">
-          <img src={form.avatar || user?.avatar || 'https://picsum.photos/seed/user/100/100'} className="w-32 h-32 rounded-full border-4 border-white shadow-xl mx-auto object-cover" alt="Profile" />
+          <img src={form.avatar || user?.avatar || DEFAULT_AVATAR} className="w-32 h-32 rounded-full border-4 border-white shadow-xl mx-auto object-cover" alt="Profile" />
           <label className="absolute bottom-1 right-1 p-2 bg-primary text-white rounded-full shadow-lg border-2 border-white cursor-pointer">
             <Settings className="w-5 h-5" />
             <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
@@ -5501,14 +5826,17 @@ const AttendanceForm = ({ cell, users, onSubmit, onCancel }: { cell: CellGroup, 
 
       <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto px-1">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-400 uppercase">Data</label>
-          <input 
-            type="date" 
-            required
-            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
+          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Data</label>
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+            <input 
+              type="date" 
+              required
+              className="w-full pl-11 p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -5554,7 +5882,7 @@ const AttendanceForm = ({ cell, users, onSubmit, onCancel }: { cell: CellGroup, 
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <img src={member.avatar || `https://picsum.photos/seed/${member.id}/100/100`} className="w-8 h-8 rounded-full" alt="" />
+                  <img src={member.avatar || DEFAULT_AVATAR} className="w-8 h-8 rounded-full" alt="" />
                   <span className="font-bold text-sm">{member.name}</span>
                 </div>
                 {presentMembers.includes(member.id) ? (
@@ -5628,14 +5956,17 @@ const PastoralVisitForm = ({ user, onSubmit, onCancel }: { user: UserType | null
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-400 uppercase">Data Sugerida</label>
-          <input 
-            type="date" 
-            required
-            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-            value={preferredDate}
-            onChange={(e) => setPreferredDate(e.target.value)}
-          />
+          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Data Sugerida</label>
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+            <input 
+              type="date" 
+              required
+              className="w-full pl-11 p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              value={preferredDate}
+              onChange={(e) => setPreferredDate(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -5708,7 +6039,7 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
             <div className="p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-primary uppercase tracking-wider">{sermon.preacher}</span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">{sermon.date}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">{formatDate(sermon.date)}</span>
               </div>
               <h4 className="font-bold text-slate-900 group-hover:text-primary transition-colors">{sermon.title}</h4>
               <p className="text-xs text-slate-500 line-clamp-2">{sermon.description}</p>
@@ -5768,7 +6099,7 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-slate-900">{selectedSermon.preacher}</h3>
-                    <p className="text-xs text-slate-500">{selectedSermon.date}</p>
+                    <p className="text-xs text-slate-500">{formatDate(selectedSermon.date)}</p>
                   </div>
                   <div className="flex gap-2">
                     {selectedSermon.videoUrl && (
@@ -5911,7 +6242,7 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
               </div>
               <div>
                 <h4 className="font-bold text-slate-900">{sermon.title}</h4>
-                <p className="text-xs text-slate-500">{sermon.preacher} • {sermon.date}</p>
+                <p className="text-xs text-slate-500">{sermon.preacher} • {formatDate(sermon.date)}</p>
               </div>
             </div>
             <button onClick={() => window.confirm('Excluir sermão?') && onDelete(sermon.id)} className="p-2 text-slate-300 hover:text-red-500">
@@ -6020,6 +6351,8 @@ export default function App() {
   const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
   const [showAddReadingPlan, setShowAddReadingPlan] = useState(false);
   const [showAttendance, setShowAttendance] = useState(false);
+  const [dailyVerse, setDailyVerse] = useState<{text: string, ref: string} | null>(null);
+  const [verseStats, setVerseStats] = useState<{total: number, today: any, tomorrow: any} | null>(null);
   const [selectedAttendanceCell, setSelectedAttendanceCell] = useState<CellGroup | null>(null);
   const [showDonationModal, setShowDonationModal] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -6054,7 +6387,7 @@ export default function App() {
     setCacheVersion(new Date().getTime());
     try {
       const [
-        e, p, c, u, a, r, s, h, at, pv, m, ms, config, roles
+        e, p, c, u, a, r, s, h, at, pv, m, ms, config, roles, verseToday, vStats
       ] = await Promise.all([
         api.list('events'),
         api.list('prayers'),
@@ -6069,9 +6402,13 @@ export default function App() {
         api.list('ministries'),
         api.list('ministrySchedules'),
         api.list('config'),
-        api.list('adminRoles').catch(() => []) // Handle if doesn't exist
+        api.list('adminRoles').catch(() => []), // Handle if doesn't exist
+        fetch('/api/verses/today').then(r => r.json()).catch(() => null),
+        fetch('/api/verses/stats', { headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` } }).then(r => r.json()).catch(() => null)
       ]);
 
+      setDailyVerse(verseToday);
+      setVerseStats(vStats);
       setEvents(e);
       setPrayers(p.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
       setCells(c);
@@ -6188,8 +6525,7 @@ export default function App() {
       
       const lastNotified = localStorage.getItem('last_word_notification_day');
       
-      if (currentTimeStr === currentUserData.notificationSettings.wordOfDayTime && lastNotified !== currentDayStr) {
-        const dailyVerse = DAILY_VERSES[now.getDate() % DAILY_VERSES.length];
+      if (currentTimeStr === currentUserData.notificationSettings.wordOfDayTime && lastNotified !== currentDayStr && dailyVerse) {
         showWebNotification("Palavra do Dia", `"${dailyVerse.text}" - ${dailyVerse.ref}`);
         localStorage.setItem('last_word_notification_day', currentDayStr);
       }
@@ -7154,7 +7490,8 @@ const joinCell = async (cellId: string) => {
       };
 
       switch (currentTab) {
-        case 'home': return <AdminDashboard stats={stats} users={visibleUsers} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
+        case 'home': return <AdminDashboard stats={stats} users={visibleUsers} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
+        case 'bible': return <AdminVerses onBack={() => setCurrentTab('home')} showMessage={showMessage} />;
         case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} />;
         case 'financial': return (
           <AdminFinancial 
@@ -7173,8 +7510,8 @@ const joinCell = async (cellId: string) => {
         case 'hosting': return <AdminHostingScreen />;
         case 'admin_roles': return <AdminRolesScreen roles={adminRoles} onAddRole={handleAddAdminRole} onDeleteRole={handleDeleteAdminRole} showMessage={showMessage} />;
         case 'tithes': return <TithesAdminScreen config={titheConfig} onUpdate={updateTitheConfig} showMessage={showMessage} />;
-        case 'events': return <EventsScreen events={events} isAdmin onDelete={deleteEvent} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} showMessage={showMessage} cacheVersion={cacheVersion} />;
-        case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} showMessage={showMessage} cacheVersion={cacheVersion} />;
+        case 'events': return <EventsScreen events={events} isAdmin onDelete={deleteEvent} onAdd={() => setShowAddEvent(true)} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} showMessage={showMessage} cacheVersion={cacheVersion} />;
+        case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} onAdd={() => setShowAddAnnouncement(true)} showMessage={showMessage} cacheVersion={cacheVersion} />;
         case 'groups': return <GroupsScreen cells={cells} users={users} isAdmin currentUser={currentUserData} onAdd={() => setShowAddCell(true)} onDelete={deleteCell} onEdit={(c) => { setEditingCell(c); setShowAddCell(true); }} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
         case 'users':
         case 'users_members':
@@ -7198,12 +7535,11 @@ const joinCell = async (cellId: string) => {
         case 'integration':
           setCurrentTab('users');
           return null;
-        case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
+        case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
         case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
         case 'pastoral': return <AdminPastoralVisits visits={pastoralVisits} onUpdateStatus={updatePastoralVisitStatus} />;
-        case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} fontSize={fontSize} />;
         case 'profile': {
           const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
           const userPrayers = prayers.filter(p => p.uid === currentUserData?.id);
@@ -7235,20 +7571,20 @@ const joinCell = async (cellId: string) => {
             />
           );
         }
-        default: return <AdminDashboard stats={stats} users={users} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
+        default: return <AdminDashboard stats={stats} users={users} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
       }
     }
 
     switch (currentTab) {
       case 'home': return <Dashboard {...dashboardProps} />;
-      case 'events': return <EventsScreen events={events} onShowOrações={() => setCurrentTab('prayer')} showMessage={showMessage} cacheVersion={cacheVersion} />;
+      case 'events': return <EventsScreen events={events} isAdmin={isAdmin} onDelete={deleteEvent} onAdd={() => setShowAddEvent(true)} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} onShowOrações={() => setCurrentTab('prayer')} showMessage={showMessage} cacheVersion={cacheVersion} />;
       case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
-      case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onDelete={deleteAnnouncement} showMessage={showMessage} cacheVersion={cacheVersion} />;
+      case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onAdd={() => setShowAddAnnouncement(true)} onDelete={deleteAnnouncement} showMessage={showMessage} cacheVersion={cacheVersion} />;
       case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} progress={userReadingProgress} onToggleChapter={toggleChapter} isAdmin={false} showMessage={showMessage} />;
       case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} fontSize={fontSize} />;
       case 'sermons': return <SermonsScreen sermons={sermons} />;
       case 'tithes': return <TithesScreen config={titheConfig} onConfirmDonation={(val, label) => addTransaction({ label, value: val, type: 'in' })} showMessage={showMessage} currentUserData={currentUserData} />;
-      case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
+      case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
       case 'groups': return <GroupsScreen cells={cells} users={users} currentUser={currentUserData} onJoin={joinCell} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
       case 'media': return <MediaScreen showMessage={showMessage} />;
       case 'pastoral': return <UserPastoralVisitsScreen visits={pastoralVisits.filter(v => v.uid === currentUserData?.id)} onAddRequest={() => setShowAddPastoralVisit(true)} />;
@@ -7297,12 +7633,37 @@ const joinCell = async (cellId: string) => {
 
   const getAdminPermissions = () => {
     if (userRole === 'superadmin') return null; // All access
+    
+    const permissions = new Set<string>();
+
+    // 1. Global Admin Role
     if (userRole === 'admin') {
       if (!currentUserData?.adminRoleId) return null; // Full access for old admins
       const role = adminRoles.find(r => r.id === currentUserData.adminRoleId);
-      return role?.permissions || [];
+      role?.permissions.forEach(p => permissions.add(p));
     }
-    return []; // No access
+
+    // 2. Ministry-based Roles
+    if (currentUserData) {
+      ministries.forEach(ministry => {
+        const isLeader = ministry.leaderIds.includes(currentUserData.id);
+        
+        if (isLeader) {
+          // Leaders get ALL permissions assigned to their ministry
+          ministry.allowedRoleIds?.forEach(roleId => {
+            const role = adminRoles.find(r => r.id === roleId);
+            role?.permissions.forEach(p => permissions.add(p));
+          });
+        } else if (ministry.memberRoles?.[currentUserData.id]) {
+          // Regular members get permissions from their assigned role in the ministry
+          const roleId = ministry.memberRoles[currentUserData.id];
+          const role = adminRoles.find(r => r.id === roleId);
+          role?.permissions.forEach(p => permissions.add(p));
+        }
+      });
+    }
+
+    return Array.from(permissions);
   };
 
   const adminPermissions = getAdminPermissions();
@@ -7344,6 +7705,7 @@ const joinCell = async (cellId: string) => {
       onShowReadingPlans: () => setCurrentTab('readingPlans'),
       onRequestPastoralVisit: () => setShowAddPastoralVisit(true),
       onShareVerse: setSelectedShareVerse,
+      dailyVerse,
       isAdmin,
       onSwitchToAdmin: () => navigate('/admin'),
       showMessage,
@@ -7527,7 +7889,7 @@ const joinCell = async (cellId: string) => {
                       const user = users.find(u => u.id === uid);
                       return (
                         <div key={uid} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100">
-                          <img src={user?.avatar || `https://picsum.photos/seed/${uid}/100/100`} className="w-8 h-8 rounded-full" alt="" />
+                          <img src={user?.avatar || DEFAULT_AVATAR} className="w-8 h-8 rounded-full" alt="" />
                           <span className="text-sm font-bold text-slate-700">{user?.name || 'Membro removido'}</span>
                           <CheckCircle2 className="ml-auto w-4 h-4 text-emerald-500" />
                         </div>
@@ -7662,7 +8024,14 @@ const Modal = ({ title, children, onClose }: { title: string, children: React.Re
 );
 
 const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, initialData?: Event }) => {
-  const [form, setForm] = useState(initialData || { title: '', date: '', time: '', location: '', category: 'Culto', image: 'https://picsum.photos/seed/newevent/400/200' });
+  const [form, setForm] = useState(initialData || { 
+    title: '', 
+    date: new Date().toISOString().split('T')[0], 
+    time: '19:00', 
+    location: '', 
+    category: 'Cultos', 
+    image: 'https://picsum.photos/seed/newevent/400/200' 
+  });
   
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -7684,10 +8053,32 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
           <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs" />
         </div>
       </div>
-      <input placeholder="Título do Evento" className="w-full p-3 rounded-xl border" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
-      <div className="flex gap-2">
-        <input placeholder="Ex: Dom, 22 Mar" className="flex-1 p-3 rounded-xl border" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
-        <input placeholder="Ex: 19:00" className="flex-1 p-3 rounded-xl border" value={form.time} onChange={e => setForm({...form, time: e.target.value})} />
+      <input placeholder="Título do Evento" className="w-full p-3 rounded-xl border bg-slate-50 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-primary/20" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
+      <div className="flex gap-3">
+        <div className="flex-1 space-y-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Data</label>
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input 
+              type="date" 
+              className="w-full pl-10 p-3 rounded-xl border bg-slate-50 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-primary/20" 
+              value={form.date} 
+              onChange={e => setForm({...form, date: e.target.value})} 
+            />
+          </div>
+        </div>
+        <div className="flex-1 space-y-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Horário</label>
+          <div className="relative">
+            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input 
+              type="time" 
+              className="w-full pl-10 p-3 rounded-xl border bg-slate-50 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-primary/20" 
+              value={form.time} 
+              onChange={e => setForm({...form, time: e.target.value})} 
+            />
+          </div>
+        </div>
       </div>
       <input placeholder="Local" className="w-full p-3 rounded-xl border" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
       <select className="w-full p-3 rounded-xl border" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
@@ -7707,17 +8098,31 @@ const CellForm = ({ onSubmit, initialData }: { onSubmit: (c: any) => void, initi
     <div className="space-y-4">
       <input placeholder="Nome do PG" className="w-full p-3 rounded-xl border" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
       <input placeholder="Líder" className="w-full p-3 rounded-xl border" value={form.leader} onChange={e => setForm({...form, leader: e.target.value})} />
-      <div className="flex gap-2">
-        <select className="flex-1 p-3 rounded-xl border" value={form.day} onChange={e => setForm({...form, day: e.target.value})}>
-          <option>Segunda-feira</option>
-          <option>Terça-feira</option>
-          <option>Quarta-feira</option>
-          <option>Quinta-feira</option>
-          <option>Sexta-feira</option>
-          <option>Sábado</option>
-          <option>Domingo</option>
-        </select>
-        <input placeholder="Horário" className="flex-1 p-3 rounded-xl border" value={form.time} onChange={e => setForm({...form, time: e.target.value})} />
+      <div className="flex gap-3">
+        <div className="flex-2 space-y-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Dia da Semana</label>
+          <select className="w-full p-3 rounded-xl border bg-slate-50 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-primary/20" value={form.day} onChange={e => setForm({...form, day: e.target.value})}>
+            <option>Segunda-feira</option>
+            <option>Terça-feira</option>
+            <option>Quarta-feira</option>
+            <option>Quinta-feira</option>
+            <option>Sexta-feira</option>
+            <option>Sábado</option>
+            <option>Domingo</option>
+          </select>
+        </div>
+        <div className="flex-1 space-y-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Horário</label>
+          <div className="relative">
+            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input 
+              type="time" 
+              className="w-full pl-10 p-3 rounded-xl border bg-slate-50 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-primary/20" 
+              value={form.time} 
+              onChange={e => setForm({...form, time: e.target.value})} 
+            />
+          </div>
+        </div>
       </div>
       <input placeholder="Bairro/Local" className="w-full p-3 rounded-xl border" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
       <Button className="w-full py-4" onClick={() => onSubmit(form)}>{initialData ? 'Salvar Alterações' : 'Criar PG'}</Button>
