@@ -96,7 +96,7 @@ import {
 } from 'recharts';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction, FinancialRule } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
-import { api } from './services/apiService';
+import { api, getApiUrl } from './services/apiService';
 
 const DEFAULT_AVATAR = "https://renovar.warpserver.com.br/avatar.png";
 
@@ -182,7 +182,7 @@ async function registerPushNotifications() {
     let subscription = await registration.pushManager.getSubscription();
     
     if (!subscription) {
-      const response = await fetch('/api/push/public-key');
+      const response = await fetch(getApiUrl('/push/public-key'));
       const { publicKey } = await response.json();
       
       const convertedVapidKey = urlBase64ToUint8Array(publicKey);
@@ -196,7 +196,7 @@ async function registerPushNotifications() {
     const token = localStorage.getItem('auth_token');
     if (!token) return;
 
-    await fetch('/api/push/subscribe', {
+    await fetch(getApiUrl('/push/subscribe'), {
       method: 'POST',
       body: JSON.stringify(subscription),
       headers: {
@@ -1889,6 +1889,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
         setCurrentVerseText(dailyVerse.text);
       } else {
         // Fetch text
+        setCurrentVerseText('Carregando...');
         fetchVerseText(dailyVerse.ref, 'acf').then(text => {
           if (text) setCurrentVerseText(text);
         });
@@ -3471,7 +3472,7 @@ const AdminHostingScreen = () => {
   const handleBackup = async () => {
     setIsBackingUp(true);
     try {
-      const response = await fetch('/api/backup/zip', {
+      const response = await fetch(getApiUrl('/backup/zip'), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         }
@@ -3519,7 +3520,7 @@ const AdminHostingScreen = () => {
     formData.append('file', file);
 
     try {
-      const response = await fetch('/api/backup/import', {
+      const response = await fetch(getApiUrl('/backup/import'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
@@ -6500,8 +6501,8 @@ export default function App() {
         api.list('ministrySchedules'),
         api.list('config'),
         api.list('adminRoles').catch(() => []), // Handle if doesn't exist
-        fetch('/api/verses/today').then(r => r.json()).catch(() => null),
-        fetch('/api/verses/stats', { headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` } }).then(r => r.json()).catch(() => null)
+        api.request('/verses/today').catch(() => null),
+        api.request('/verses/stats').catch(() => null)
       ]);
 
       setDailyVerse(verseToday);

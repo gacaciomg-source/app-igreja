@@ -19,8 +19,10 @@ const AdminVerseRow = ({ verse, index, onEdit, onDelete }: { verse: any, index: 
 
   useEffect(() => {
     if (verse.text?.startsWith('Carregando') || verse.text?.startsWith('Texto será')) {
+      setDisplayText('Carregando...');
       fetchVerseText(verse.ref, 'acf').then(fetched => {
         if (fetched) setDisplayText(fetched);
+        else setDisplayText(verse.text); // fallback if it fails
       });
     } else {
       setDisplayText(verse.text);

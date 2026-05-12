@@ -40,8 +40,8 @@ export async function fetchVerseText(reference: string, translationId: string = 
   try {
     const t = BIBLE_TRANSLATIONS.find(tr => tr.id === translationId) || BIBLE_TRANSLATIONS[0];
     
-    // Parse reference: "John 3:16" or "João 3:16" or "1 João 1:9"
-    const refMatch = reference.match(/^((?:\d\s)?[^0-9:]+?)\s+(\d+):(\d+(?:-\d+)?)$/i);
+    // Parse reference: "John 3:16" or "João 3:16" or "1 João 1:9" or "Joel 2 13"
+    const refMatch = reference.match(/^((?:\d\s)?[^0-9:]+?)\s+(\d+)[:\s]+(\d+(?:-\d+)?)$/i);
     if (!refMatch) {
        // Fallback to simple bible-api for unstructured strings
        const cleanRef = reference.replace(/\s+/g, ' ');
@@ -63,21 +63,24 @@ export async function fetchVerseText(reference: string, translationId: string = 
           const response = await fetch(`https://bolls.life/get-chapter/${t.bollsStr}/${bookId}/${chapter}/`);
           if (response.ok) {
             const data = await response.json();
-            const verses = data.filter((v: any) => v.verse >= startV && v.verse <= endV);
-            return stripHtml(verses.map((v: any) => v.text).join(' '));
+            if (Array.isArray(data) && data.length > 0) {
+              const verses = data.filter((v: any) => v.verse >= startV && v.verse <= endV);
+              if (verses.length > 0) return stripHtml(verses.map((v: any) => v.text).join(' '));
+            }
           }
         } else {
           const response = await fetch(`https://bolls.life/get-verse/${t.bollsStr}/${bookId}/${chapter}/${verseStr}/`);
           if (response.ok) {
             const data = await response.json();
-            return stripHtml(data.text);
+            if (data.text) return stripHtml(data.text);
           }
         }
       }
     }
 
     // Fallback or explicit bible-api
-    const response = await fetch(`https://bible-api.com/${encodeURIComponent(bookName)}+${chapter}:${verseStr}?translation=${t.translation || 'almeida'}`);
+    const url = `https://bible-api.com/${encodeURIComponent(bookName)}+${chapter}:${verseStr}?translation=${t.translation || 'almeida'}`;
+    const response = await fetch(url);
     if (response.ok) {
         const data = await response.json();
         return stripHtml(data.text);

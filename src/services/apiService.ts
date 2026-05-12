@@ -2,8 +2,10 @@ import { User as UserType } from '../types';
 import { APP_CONFIG } from '../themeConfig';
 
 const IS_CAPACITOR = typeof window !== 'undefined' && !!(window as any).Capacitor;
-const BASE_URL = IS_CAPACITOR ? APP_CONFIG.apiUrl : '';
+export const BASE_URL = IS_CAPACITOR ? APP_CONFIG.apiUrl : '';
 const API_URL = `${BASE_URL}/api`;
+
+export const getApiUrl = (path: string) => `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
 
 interface AuthResponse {
   user: UserType;
