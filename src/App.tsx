@@ -2065,7 +2065,7 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
     small: 'text-[0.9rem]',
     normal: 'text-[1.05rem]',
     large: 'text-[1.3rem]',
-    xl: 'text-[1.6rem]'
+    xl: 'text-[2.2rem]'
   };
 
   const currentVerseSize = verseFontSizeClasses[fontSize || 'normal'];
@@ -2251,7 +2251,7 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md overflow-hidden max-h-[85vh] flex flex-col"
+            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md md:max-w-xl overflow-hidden max-h-[85vh] flex flex-col"
           >
             <div className="p-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
               <h3 className="font-bold text-slate-900 flex-1">
@@ -5125,7 +5125,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
                 fontSize === 'small' && "text-[0.85rem]",
                 fontSize === 'normal' && "text-[1rem]",
                 fontSize === 'large' && "text-[1.15rem]",
-                fontSize === 'xl' && "text-[1.3rem]"
+                fontSize === 'xl' && "text-[1.8rem]"
               )}>
                 "Lâmpada para os meus pés é tua palavra, e luz para o meu caminho."
               </p>
@@ -7359,7 +7359,7 @@ const joinCell = async (cellId: string) => {
         "min-h-screen bg-secondary mx-auto relative shadow-2xl overflow-hidden transition-all",
         fontSize === 'small' && "text-[0.85rem]",
         fontSize === 'large' && "text-[1.1rem]",
-        fontSize === 'xl' && "text-[1.25rem]",
+        fontSize === 'xl' && "text-[1.5rem]",
         isAdminPanel ? "w-full md:max-w-none md:flex md:flex-row shadow-none" : "w-full md:max-w-5xl md:shadow-none"
       )}>
         
@@ -7595,7 +7595,7 @@ const joinCell = async (cellId: string) => {
       </div>
 
         <nav className={cn(
-          "fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-3 flex justify-between items-center z-50",
+          "fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-5xl bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-3 flex justify-between items-center z-50",
           isAdminPanel ? "md:hidden" : ""
         )}>
           {tabs.map(tab => (
@@ -7647,7 +7647,7 @@ const Modal = ({ title, children, onClose }: { title: string, children: React.Re
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
       exit={{ y: "100%" }}
-      className="bg-white w-full max-w-md rounded-t-3xl p-6 space-y-6 shadow-2xl"
+      className="bg-white w-full max-w-md md:max-w-xl rounded-t-3xl md:rounded-3xl p-6 space-y-6 shadow-2xl"
       onClick={e => e.stopPropagation()}
     >
       <div className="flex items-center justify-between">
