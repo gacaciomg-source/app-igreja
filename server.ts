@@ -215,7 +215,6 @@ async function initWhatsApp() {
     },
     puppeteer: {
       headless: true,
-      executablePath: process.env.CHROME_PATH || '/usr/bin/chromium-browser',
       handleSIGINT: false,
       handleSIGTERM: false,
       args: [

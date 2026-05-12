@@ -2,6 +2,28 @@
 
 Acompanhe as melhorias feitas no seu sistema.
 
+## [2026-05-11] - Versão 2.4.2
+### ✨ Novas Funcionalidades
+- **Novas Versões Bíblicas:** Adicionadas traduções NAA (Nova Almeida Atualizada - Principal), King James Atualizada (KJA) e Almeida Corrigida Fiel (ACF).
+- **Correção do Seletor de Bíblia:** O seletor de traduções agora atualiza os versículos instantaneamente ao trocar a versão.
+- **Identidade Visual no Compartilhamento:** Logo agora possui fundo transparente e escala 50% maior para melhor harmonia com os backgrounds de compartilhamento.
+
+### 🚀 Melhorias Técnicas
+- **Limpeza de Formatação (API Bíblica):** Adicionada função utilitária para remover tags HTML (como `</i>`, `<br>`) residuais que vinham da API Bolls Life, melhorando a leitura e correta gravação em artes de compartilhamento.
+- **Controle de Aborto (API):** Implementado AbortController nas requisições da bíblia para evitar sobreposição de dados ao trocar de capítulo ou versão rapidamente.
+- **Sincronização de Estado:** Melhorada a dependência do useEffect para garantir que o texto bíblico reflita sempre a tradução selecionada.
+- **Comparador de Traduções Bíblicas:** Adicionado botão lateral no menu de ações do versículo (ícone de comparação) para comparar instantaneamente a mesma passagem nas 6 traduções disponíveis, facilitando o estudo.
+- **Correção de Componentização (Comparador):** Resolvido problema onde a janela flutuante com a comparação não aparecia ao clicar no botão.
+- **Estabilidade do Push Notification:** Evita de acionar permissão de API de serviceWorker de notificações push se o usuário tiver bloqueado as notificações antecipadamente, removendo erros críticos que travavam o console.
+- **Estabilidade do WhatsApp Bot:** O WebWhatsApp não procurará o navegador injetado no sistema Linux caso esteve não seja instalado e tentará utilizar o puppeteer local como fallback de forma inteligente, evitando queda do servidor.
+### ✨ Novas Funcionalidades
+- **Identidade Visual Atualizada:** O ícone e logo do aplicativo foram atualizados para a nova marca (icon1024.png).
+- **Melhoria no Compartilhamento de Versículos:** A logo agora aparece com fundo sólido e sombra para melhor visibilidade sobre qualquer fundo de imagem.
+- **Favicons Dinâmicos:** Sincronização da nova logo em todo o sistema (Login, Dashboard, Manifest e index.html).
+
+### 🔧 Correções
+- **Visibilidade da Logo:** Removida transparência excessiva e filtros na logo do compartilhamento que dificultavam a visualização da marca.
+
 ## [2026-05-10] - Versão 2.4.0
 ### ✨ Novas Funcionalidades
 - **Gestão Financeira Avançada:** Importação de extratos via CSV, criação de múltiplos caixas/fundos (Missões, Geral, etc.), gráficos de distribuição por categoria e comparativo mensal.

@@ -68,7 +68,8 @@ import {
   FileUp,
   Layers,
   Table,
-  BarChart as BarChartIcon
+  BarChart as BarChartIcon,
+  GitCompare
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { 
@@ -87,6 +88,14 @@ import {
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction, FinancialRule } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
 import { api } from './services/apiService';
+
+// --- Cache Buster ---
+const getCacheBustedUrl = (url: string | undefined, version: number) => {
+  if (!url) return url;
+  if (!url.startsWith('http')) return url; // local icons don't need buster
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}v=${version}`;
+};
 import { ReadingPlansScreen } from './components/ReadingPlansScreen';
 import { TithesScreen } from './components/TithesScreen';
 import { TithesAdminScreen } from './components/TithesAdminScreen';
@@ -122,8 +131,18 @@ async function registerPushNotifications() {
     
     // Request permission if not already granted
     if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') return;
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') return;
+      } catch (err) {
+        console.log('Notification permission request failed or denied:', err);
+        return;
+      }
+    }
+
+    if (Notification.permission === 'denied') {
+      console.log('Push notifications are denied.');
+      return;
     }
 
     let subscription = await registration.pushManager.getSubscription();
@@ -309,7 +328,7 @@ const TreeLogo = ({ className = "w-20 h-20" }: { className?: string }) => (
   </svg>
 );
 
-const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => void }) => {
+const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: UserType) => void, cacheVersion: number }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -367,8 +386,8 @@ const LoginScreen = ({ onAuthSuccess }: { onAuthSuccess: (user: UserType) => voi
         className="w-full max-w-md space-y-8"
       >
         <div className="text-center space-y-2">
-          <div className="w-24 h-24 bg-white rounded-3xl mx-auto flex items-center justify-center p-4 shadow-xl shadow-primary/5 mb-4">
-            <TreeLogo className="w-full h-full" />
+          <div className="w-24 h-24 bg-white rounded-3xl mx-auto flex items-center justify-center p-4 shadow-xl shadow-primary/5 mb-4 overflow-hidden">
+            <img src={getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{APP_CONFIG.name}</h1>
           <p className="text-slate-500">
@@ -708,10 +727,10 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
             )}
 
             {!logoError && (
-              <div className="absolute top-12 left-1/2 -translate-x-1/2 w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center p-3 z-10">
+              <div className="absolute top-12 left-1/2 -translate-x-1/2 w-32 h-32 flex items-center justify-center p-3 z-10 overflow-hidden">
                 <img 
-                  src={APP_CONFIG.logos.icon} 
-                  className="w-full h-full object-contain invert brightness-0" 
+                  src="https://renovar.warpserver.com.br/icon1024.png" 
+                  className="w-full h-full object-contain" 
                   alt="Logo" 
                   onError={() => setLogoError(true)}
                 />
@@ -1579,7 +1598,7 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
 };
 
 
-const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, isAdmin, onSwitchToAdmin, showMessage, onRefresh }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void, onRefresh?: () => Promise<void> }) => {
+const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, isAdmin, onSwitchToAdmin, showMessage, onRefresh, cacheVersion }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void, onRefresh?: () => Promise<void>, cacheVersion: number }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -1682,7 +1701,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
           {announcements.map((announcement) => (
             <Card key={announcement.id} className="min-w-[280px] snap-start overflow-hidden border-slate-100 p-0">
               {announcement.imageUrl && (
-                <img src={announcement.imageUrl} alt={announcement.title} className="w-full h-32 object-cover" referrerPolicy="no-referrer" />
+                <img src={getCacheBustedUrl(announcement.imageUrl, cacheVersion)} alt={announcement.title} className="w-full h-32 object-cover" referrerPolicy="no-referrer" />
               )}
               <div className="p-4 space-y-2">
                 <h4 className="font-bold text-slate-900">{announcement.title}</h4>
@@ -1724,7 +1743,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
       <div className="space-y-4">
         {events.slice(0, 2).map(event => (
           <Card key={event.id} className="p-0 overflow-hidden">
-            <img src={event.image} className="w-full h-40 object-cover" alt={event.title} />
+            <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-full h-40 object-cover" alt={event.title} />
             <div className="p-4 space-y-2">
               <div className="flex justify-between items-start">
                 <span className="px-2 py-1 bg-primary-light text-primary text-[10px] font-bold rounded-md uppercase tracking-wider">{event.category}</span>
@@ -1751,7 +1770,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
 );
 }
 
-const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, showMessage }: { announcements: Announcement[], isAdmin?: boolean, onDelete?: (id: string) => void, showMessage?: (msg: string) => void }) => (
+const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, showMessage, cacheVersion }: { announcements: Announcement[], isAdmin?: boolean, onDelete?: (id: string) => void, showMessage?: (msg: string) => void, cacheVersion: number }) => (
   <div className="space-y-6 pb-24">
     <header className="flex items-center justify-between">
       <h2 className="text-2xl font-bold text-slate-900">Avisos</h2>
@@ -1764,7 +1783,7 @@ const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, showMessage }: 
       {announcements.map(announcement => (
         <Card key={announcement.id} className="p-0 overflow-hidden border-slate-100">
           {announcement.imageUrl && (
-            <img src={announcement.imageUrl} alt={announcement.title} className="w-full h-48 object-cover" referrerPolicy="no-referrer" />
+            <img src={getCacheBustedUrl(announcement.imageUrl, cacheVersion)} alt={announcement.title} className="w-full h-48 object-cover" referrerPolicy="no-referrer" />
           )}
           <div className="p-4 space-y-3">
             <div className="flex justify-between items-start">
@@ -1794,14 +1813,14 @@ const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, showMessage }: 
     </div>
   </div>
 );
-const PrayingHands = ({ className = "w-6 h-6", active = false }: { className?: string, active?: boolean }) => {
+const PrayingHands = ({ className = "w-6 h-6", active = false, cacheVersion = new Date().getTime() }: { className?: string, active?: boolean, cacheVersion?: number }) => {
   const iconSrc = active 
     ? (APP_CONFIG.customIcons?.prayerActive || "/icons/logo_oracao_active.png")
     : (APP_CONFIG.customIcons?.prayer || "/icons/logo_oracao.png");
 
   return (
     <img 
-      src={iconSrc} 
+      src={getCacheBustedUrl(iconSrc, cacheVersion)} 
       alt="Oração" 
       className={cn("object-contain", className)} 
       onError={(e) => {
@@ -1813,7 +1832,7 @@ const PrayingHands = ({ className = "w-6 h-6", active = false }: { className?: s
   );
 };
 
-const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, showMessage }: { events: Event[], isAdmin?: boolean, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onShowOrações?: () => void, showMessage?: (msg: string) => void }) => {
+const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, showMessage, cacheVersion }: { events: Event[], isAdmin?: boolean, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onShowOrações?: () => void, showMessage?: (msg: string) => void, cacheVersion: number }) => {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const filteredEvents = selectedCategory === 'Todos' ? events : events.filter(e => e.category === selectedCategory);
 
@@ -1844,7 +1863,7 @@ const EventsScreen = ({ events, isAdmin, onDelete, onEdit, onShowOrações, show
     <div className="space-y-4">
       {filteredEvents.map(event => (
         <Card key={event.id} className="flex gap-4 p-3">
-          <img src={event.image} className="w-24 h-24 rounded-xl object-cover" alt={event.title} />
+          <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-24 h-24 rounded-xl object-cover" alt={event.title} />
           <div className="flex-1 flex flex-col justify-between py-1">
             <div>
               <h4 className="font-bold text-slate-900 leading-tight">{event.title}</h4>
@@ -2001,24 +2020,40 @@ const PrayerWall = ({ prayers, cells, onAdd, onDelete, onTogglePrayed, onAddComm
   );
 };
 
+const stripHtml = (text: string) => {
+  if (!text) return "";
+  return text
+    .replace(/<br\s*[\/]?>/gi, ' ')
+    .replace(/<\/br>/gi, ' ')
+    .replace(/<[^>]*>?/gm, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+};
+
 const BIBLE_TRANSLATIONS = [
-  { id: 'nvi', name: 'NVI (Nova Versão Internacional)', api: 'bolls', bollsId: 23, translation: 'nvi' },
-  { id: 'ara', name: 'Almeida ARA (Geral)', api: 'bolls', bollsId: 21, translation: 'almeida' },
-  { id: 'arc', name: 'Almeida RC (Tradicional)', api: 'bolls', bollsId: 22, translation: 'almeida' },
-  { id: 'naa', name: 'NAA (Nova Almeida Atualizada)', api: 'bolls', bollsId: 60, translation: 'almeida' },
+  { id: 'naa', name: 'NAA (Nova Almeida Atualizada)', api: 'bolls', bollsId: 60, bollsStr: 'NAA', translation: 'almeida' },
+  { id: 'nvi', name: 'NVI (Nova Versão Internacional)', api: 'bolls', bollsId: 23, bollsStr: 'NVIPT', translation: 'nvi' },
+  { id: 'acf', name: 'Almeida Corrigida Fiel', api: 'bible-api', bollsId: 24, bollsStr: 'ACF', translation: 'almeida' },
+  { id: 'kja', name: 'King James Atualizada (KJA)', api: 'bolls', bollsId: 62, bollsStr: 'KJA', translation: 'almeida' },
+  { id: 'ara', name: 'Almeida ARA (Geral)', api: 'bolls', bollsId: 21, bollsStr: 'ARA', translation: 'almeida' },
+  { id: 'arc', name: 'Almeida RC (Tradicional)', api: 'bible-api', bollsId: 22, bollsStr: 'ARC', translation: 'almeida' },
 ];
 
 const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight, onShareVerse }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void, onShareVerse?: (v: {text: string, ref: string}) => void }) => {
   const [selectedBook, setSelectedBook] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [translation, setTranslation] = useState<string>(localStorage.getItem('bibleTranslation') || 'nvi');
+  const [translation, setTranslation] = useState<string>(localStorage.getItem('bibleTranslation') || 'naa');
   const [verses, setVerses] = useState<{verse: number, text: string}[]>([]);
   const [loadingVerses, setLoadingVerses] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
   const [searchMode, setSearchMode] = useState<'books' | 'verses'>('books');
   const [searchResults, setSearchResults] = useState<{book: string, chapter: number, verse: number, text: string}[]>([]);
   const [searching, setSearching] = useState(false);
+  const [comparingVerse, setComparingVerse] = useState<{book: string, chapter: number, verse: number, text: string} | null>(null);
+  const [comparingTexts, setComparingTexts] = useState<Record<string, string>>({});
+  const [loadingCompare, setLoadingCompare] = useState(false);
 
   const currentTranslation = BIBLE_TRANSLATIONS.find(t => t.id === translation) || BIBLE_TRANSLATIONS[0];
 
@@ -2034,8 +2069,12 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   const lastReadChapter = parseInt(localStorage.getItem('lastReadChapter') || '1', 10);
 
   const handleSelectChapter = async (book: string, chapter: number, transId?: string) => {
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     const tId = transId || translation;
-    const t = BIBLE_TRANSLATIONS.find(tr => tr.id === tId) || currentTranslation;
+    const t = BIBLE_TRANSLATIONS.find(tr => tr.id === tId) || BIBLE_TRANSLATIONS[0];
     
     setSelectedBook(book);
     setSelectedChapter(chapter);
@@ -2047,33 +2086,42 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
     try {
       if (t.api === 'bolls') {
         const bookId = BIBLE_BOOKS.findIndex(b => b.name === book) + 1;
-        const response = await fetch(`https://bolls.life/api/v1/translation/${t.bollsId}/${bookId}/${chapter}/`);
+        const response = await fetch(`https://bolls.life/get-text/${t.bollsStr}/${bookId}/${chapter}/`, { signal });
         if (response.ok) {
           const data = await response.json();
-          setVerses(data.map((v: any) => ({ verse: v.verse, text: v.text })));
+          if (!signal.aborted) {
+            setVerses(data.map((v: any) => ({ verse: v.verse, text: stripHtml(v.text) })));
+          }
         } else {
-          throw new Error('Fallback to bible-api');
+          throw new Error('Fallback logic');
         }
       } else {
-        const response = await fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}?translation=${t.translation || 'almeida'}`);
+        const response = await fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}?translation=${t.translation || 'almeida'}`, { signal });
         if (response.ok) {
           const data = await response.json();
-          setVerses(data.verses);
-        } else {
-          setVerses([{ verse: 1, text: 'Erro ao carregar o texto bíblico nesta tradução.' }]);
+          if (!signal.aborted) {
+            setVerses(data.verses.map((v: any) => ({ ...v, text: stripHtml(v.text) })));
+          }
         }
       }
-    } catch (error) {
-      // Fallback a bible-api se bolls falhar
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
+      // Fallback
       try {
-        const response = await fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}?translation=almeida`);
+        const response = await fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}?translation=almeida`, { signal });
         const data = await response.json();
-        setVerses(data.verses);
+        if (!signal.aborted) {
+          setVerses(data.verses.map((v: any) => ({ ...v, text: stripHtml(v.text) })));
+        }
       } catch (e) {
-        setVerses([{ verse: 1, text: 'Erro ao carregar o texto bíblico. Verifique sua conexão.' }]);
+        if (!signal.aborted) {
+          setVerses([{ verse: 1, text: 'Erro ao carregar o texto bíblico. Verifique sua conexão.' }]);
+        }
       }
     } finally {
-      setLoadingVerses(false);
+      if (!signal.aborted) {
+        setLoadingVerses(false);
+      }
     }
   };
 
@@ -2091,26 +2139,26 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
       let results: any[] = [];
       
       if (t.api === 'bolls') {
-        const response = await fetch(`https://bolls.life/api/v1/search/${t.bollsId}/?search=${encodeURIComponent(searchQuery)}`);
+        const response = await fetch(`https://bolls.life/search/${t.bollsStr}/?search=${encodeURIComponent(searchQuery)}`);
         if (response.ok) {
           const data = await response.json();
           results = data.map((r: any) => ({
             book: BIBLE_BOOKS[r.book - 1]?.name || `Livro ${r.book}`,
             chapter: r.chapter,
             verse: r.verse,
-            text: r.text
+            text: stripHtml(r.text)
           }));
         }
       } else {
         // Fallback or another search API if needed
         // Since bible-api doesn't support search well, we use bolls ARA as fallback for search
-        const response = await fetch(`https://bolls.life/api/v1/search/21/?search=${encodeURIComponent(searchQuery)}`);
+        const response = await fetch(`https://bolls.life/search/ARA/?search=${encodeURIComponent(searchQuery)}`);
         const data = await response.json();
         results = data.map((r: any) => ({
           book: BIBLE_BOOKS[r.book - 1]?.name || `Livro ${r.book}`,
           chapter: r.chapter,
           verse: r.verse,
-          text: r.text
+          text: stripHtml(r.text)
         }));
       }
       
@@ -2127,9 +2175,103 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
     if (selectedBook && selectedChapter) {
       handleSelectChapter(selectedBook, selectedChapter);
     }
-  }, [translation]);
+  }, [translation, selectedBook, selectedChapter]);
+
+  useEffect(() => {
+    const fetchComparisons = async () => {
+      if (!comparingVerse) return;
+      setLoadingCompare(true);
+      setComparingTexts({}); // clear old
+      const newTexts: Record<string, string> = {};
+      const chapterQuery = comparingVerse.chapter;
+      const verseQuery = comparingVerse.verse;
+      const actBook = comparingVerse.book;
+      
+      await Promise.all(BIBLE_TRANSLATIONS.map(async (t) => {
+        try {
+          if (t.api === 'bolls') {
+            const bookId = BIBLE_BOOKS.findIndex(b => b.name === actBook) + 1;
+            const res = await fetch(`https://bolls.life/get-text/${t.bollsStr}/${bookId}/${chapterQuery}/`);
+            if (res.ok) {
+              const data = await res.json();
+              const verseData = data.find((v: any) => v.verse === verseQuery);
+              if (verseData) {
+                newTexts[t.id] = stripHtml(verseData.text);
+              }
+            }
+          } else {
+            const res = await fetch(`https://bible-api.com/${encodeURIComponent(actBook)}+${chapterQuery}:${verseQuery}?translation=${t.translation || 'almeida'}`);
+            if (res.ok) {
+              const data = await res.json();
+              const verseData = data.verses?.[0];
+              if (verseData) {
+                newTexts[t.id] = stripHtml(verseData.text);
+              } else {
+                newTexts[t.id] = stripHtml(data.text);
+              }
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }));
+      setComparingTexts(newTexts);
+      setLoadingCompare(false);
+    };
+    fetchComparisons();
+  }, [comparingVerse]);
 
   const filteredBooks = BIBLE_BOOKS.filter(b => b.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const compareModal = (
+    <AnimatePresence>
+      {comparingVerse && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+        >
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md overflow-hidden max-h-[85vh] flex flex-col"
+          >
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-sm z-10">
+              <h3 className="font-bold text-slate-900 flex-1">
+                Comparar Traduções <br/><span className="text-sm font-normal text-slate-500">{comparingVerse.book} {comparingVerse.chapter}:{comparingVerse.verse}</span>
+              </h3>
+              <button
+                onClick={() => setComparingVerse(null)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <XCircle className="w-6 h-6 text-slate-400" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto space-y-4">
+              {BIBLE_TRANSLATIONS.map(t => (
+                <Card key={t.id} className="p-4 bg-slate-50 border-none shadow-none space-y-2 relative">
+                  <div className="absolute -top-3 left-4 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    {t.id}
+                  </div>
+                  {loadingCompare && !comparingTexts[t.id] ? (
+                    <div className="h-10 flex items-center pt-2">
+                      <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-700 pt-2 leading-relaxed font-serif">
+                      {comparingTexts[t.id] || "Tradução não disponível."}
+                    </p>
+                  )}
+                </Card>
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   if (selectedChapter) {
     return (
@@ -2217,6 +2359,21 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
                         >
                           <Image className="w-4 h-4" />
                         </button>
+                        <button
+                          onClick={() => {
+                            setComparingVerse({
+                              book: selectedBook!,
+                              chapter: selectedChapter!,
+                              verse: v.verse,
+                              text: v.text
+                            });
+                            setSelectedVerse(null);
+                          }}
+                          className="w-8 h-8 rounded-full border border-slate-200 bg-amber-50 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition-colors"
+                          title="Comparar Traduções"
+                        >
+                          <GitCompare className="w-4 h-4" />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -2227,6 +2384,7 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
             <p className="text-slate-500 text-center py-8">Nenhum versículo encontrado.</p>
           )}
         </Card>
+        {compareModal}
       </div>
     );
   }
@@ -2252,6 +2410,7 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
             </button>
           ))}
         </div>
+        {compareModal}
       </div>
     );
   }
@@ -2313,16 +2472,28 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
               <Card key={i} className="p-4 space-y-2 cursor-pointer hover:bg-slate-50" onClick={() => handleSelectChapter(res.book, res.chapter)}>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-primary uppercase">{res.book} {res.chapter}:{res.verse}</span>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onShareVerse?.({ text: res.text, ref: `${res.book} ${res.chapter}:${res.verse}` });
-                    }}
-                    className="p-1.5 hover:bg-sky-50 text-sky-600 rounded-lg transition-colors"
-                    title="Gerar Arte"
-                  >
-                    <Image className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setComparingVerse({ book: res.book, chapter: res.chapter, verse: res.verse, text: res.text });
+                      }}
+                      className="p-1.5 hover:bg-amber-50 text-amber-600 rounded-lg transition-colors"
+                      title="Comparar Traduções"
+                    >
+                      <GitCompare className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onShareVerse?.({ text: res.text, ref: `${res.book} ${res.chapter}:${res.verse}` });
+                      }}
+                      className="p-1.5 hover:bg-sky-50 text-sky-600 rounded-lg transition-colors"
+                      title="Gerar Arte"
+                    >
+                      <Image className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm text-slate-600 leading-tight">{res.text}</p>
               </Card>
@@ -2435,6 +2606,8 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
           </section>
         </>
       )}
+
+      {compareModal}
     </div>
   );
 };
@@ -3459,11 +3632,73 @@ const AdminFinancial = ({
   onSaveRule: (keyword: string, category: string) => Promise<void>,
   showMessage?: (msg: string) => void 
 }) => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'funds' | 'import'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'transactions' | 'funds' | 'import'>('summary');
   const [showAddFund, setShowAddFund] = useState(false);
   const [newFundName, setNewFundName] = useState('');
   const [newFundDesc, setNewFundDesc] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+
+  // Filters for Transactions tab
+  const [filterMonth, setFilterMonth] = useState(new Date().getMonth() + 1);
+  const [filterYear, setFilterYear] = useState(new Date().getFullYear());
+  const [filterType, setFilterType] = useState<'all' | 'in' | 'out'>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterFund, setFilterFund] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      let tMonth = -1;
+      let tYear = -1;
+      if (t.date.includes('/')) {
+        const parts = t.date.split('/');
+        if (parts.length === 3) {
+          tMonth = parseInt(parts[1], 10);
+          tYear = parseInt(parts[2], 10);
+        }
+      } else if (t.date.includes('-')) {
+        const parts = t.date.split('-');
+        if (parts.length === 3) {
+          tYear = parseInt(parts[0], 10);
+          tMonth = parseInt(parts[1], 10);
+        }
+      }
+      
+      const passDate = (tMonth === -1) || (tMonth === filterMonth && tYear === filterYear);
+      const passType = filterType === 'all' || t.type === filterType;
+      const passCat = filterCategory === 'all' || (t.category || 'Geral') === filterCategory;
+      const passFund = filterFund === 'all' || (t.fundId || 'main') === filterFund;
+      const passSearch = t.label.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      return passDate && passType && passCat && passFund && passSearch;
+    });
+  }, [transactions, filterMonth, filterYear, filterType, filterCategory, filterFund, searchQuery]);
+
+  const uniqueCategories = useMemo(() => {
+    const cats = new Set<string>();
+    transactions.forEach(t => cats.add(t.category || 'Geral'));
+    return Array.from(cats).sort();
+  }, [transactions]);
+
+  const exportTransactionsCSV = () => {
+    let csv = "Data,Identificador,Categoria,Fundo,Tipo,Valor\n";
+    filteredTransactions.forEach(t => {
+      const fund = funds.find(f => f.id === t.fundId)?.name || 'Geral/Principal';
+      const typeStr = t.type === 'in' ? 'Entrada' : 'Saida';
+      const safeLabel = t.label.replace(/"/g, '""');
+      csv += `${t.date},"${safeLabel}","${t.category || 'Geral'}","${fund}","${typeStr}",${t.value}\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `relatorio_financeiro_${filterMonth}_${filterYear}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
@@ -3605,9 +3840,10 @@ const AdminFinancial = ({
       </header>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl">
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl overflow-x-auto scrollbar-hide">
         {[
           { id: 'summary', label: 'Resumo', icon: PieChart },
+          { id: 'transactions', label: 'Lançamentos', icon: Table },
           { id: 'funds', label: 'Fundos/Caixas', icon: Layers },
           { id: 'import', label: 'Importar', icon: FileUp },
         ].map(tab => (
@@ -3615,7 +3851,7 @@ const AdminFinancial = ({
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all",
+              "flex-1 min-w-[100px] flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap",
               activeTab === tab.id ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"
             )}
           >
@@ -3715,8 +3951,13 @@ const AdminFinancial = ({
 
             <section className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-900">Histórico Recente</h3>
-                <button className="text-primary text-sm font-bold hover:underline">Exportar PDF</button>
+                <h3 className="text-lg font-bold text-slate-900">Últimos Lançamentos</h3>
+                <button 
+                  onClick={() => setActiveTab('transactions')}
+                  className="text-primary text-sm font-bold hover:underline"
+                >
+                  Ver Todos
+                </button>
               </div>
               <div className="space-y-3">
                 {transactions.slice(0, 15).map((t) => (
@@ -3778,6 +4019,168 @@ const AdminFinancial = ({
                 ))}
               </div>
             </section>
+          </motion.div>
+        )}
+
+        {activeTab === 'transactions' && (
+          <motion.div 
+            key="transactions"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-4"
+          >
+            <Card className="p-4 bg-slate-50 border-none space-y-4">
+              <div className="flex flex-col sm:flex-row gap-4 items-end">
+                <div className="flex-1 min-w-[200px] w-full">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Pesquisar Lançamento</label>
+                  <input 
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Ex: Conta de Luz..."
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-sm font-medium outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4 w-full sm:w-auto">
+                  <div className="min-w-[100px]">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Mês</label>
+                    <select 
+                      value={filterMonth}
+                      onChange={(e) => setFilterMonth(Number(e.target.value))}
+                      className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-sm font-medium outline-none focus:border-primary"
+                    >
+                      {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                        <option key={m} value={m}>{new Date(2020, m - 1).toLocaleString('pt-BR', { month: 'long' })}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="min-w-[100px]">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ano</label>
+                    <select 
+                      value={filterYear}
+                      onChange={(e) => setFilterYear(Number(e.target.value))}
+                      className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-sm font-medium outline-none focus:border-primary"
+                    >
+                      {[filterYear - 1, filterYear, filterYear + 1].map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-200/50">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <select 
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value as any)}
+                    className="bg-white border border-slate-200 rounded-lg p-2 text-[10px] uppercase font-bold text-slate-600 outline-none"
+                  >
+                    <option value="all">Todos os Tipos</option>
+                    <option value="in">Apenas Entradas (+)</option>
+                    <option value="out">Apenas Saídas (-)</option>
+                  </select>
+                  
+                  <select 
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-lg p-2 text-[10px] uppercase font-bold text-slate-600 outline-none"
+                  >
+                    <option value="all">Todas as Categorias</option>
+                    {uniqueCategories.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+
+                  <select 
+                    value={filterFund}
+                    onChange={(e) => setFilterFund(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-lg p-2 text-[10px] uppercase font-bold text-slate-600 outline-none"
+                  >
+                    <option value="all">Todos os Caixas</option>
+                    {funds.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <Button 
+                  onClick={exportTransactionsCSV}
+                  variant="secondary"
+                  className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-none shrink-0"
+                >
+                  <FileUp className="w-4 h-4 mr-2" />
+                  Exportar CSV
+                </Button>
+              </div>
+            </Card>
+
+            <div className="space-y-3">
+              {filteredTransactions.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertCircle className="w-8 h-8 text-slate-300" />
+                  </div>
+                  <h3 className="font-bold text-slate-700">Nenhum lançamento encontrado</h3>
+                  <p className="text-sm text-slate-500 mt-1">Tente ajustar os filtros acima.</p>
+                </div>
+              ) : (
+                filteredTransactions.map(t => (
+                  <div key={t.id} className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-slate-100 group hover:shadow-md transition-all">
+                    <div className={cn(
+                      "w-12 h-12 rounded-xl flex items-center justify-center shadow-sm shrink-0",
+                      t.type === 'in' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                    )}>
+                      {t.type === 'in' ? <Plus className="w-6 h-6" /> : <AlertCircle className="w-6 h-6 rotate-180" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between">
+                        <p className="font-bold text-slate-800 text-sm truncate pr-4" title={t.label}>{t.label}</p>
+                        <p className={cn("font-black text-sm whitespace-nowrap", t.type === 'in' ? "text-emerald-600" : "text-red-600")}>
+                          {t.type === 'in' ? '+' : '-'} R$ {t.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">{t.date}</span>
+                        <div className="w-1 h-1 rounded-full bg-slate-200 hidden sm:block"></div>
+                        <select 
+                          value={t.category || 'Geral'}
+                          onChange={async (e) => {
+                            try {
+                              const newCat = e.target.value;
+                              await api.update('transactions', t.id, { category: newCat });
+                              if (t.label) {
+                                await onSaveRule(t.label, newCat);
+                              }
+                              showMessage?.('Categoria atualizada!');
+                              window.dispatchEvent(new CustomEvent('refresh-financial'));
+                            } catch(err) {
+                              showMessage?.('Erro ao atualizar');
+                            }
+                          }}
+                          className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase border-none outline-none cursor-pointer hover:bg-slate-200 transition-colors"
+                        >
+                          {['Geral', 'Dízimo', 'Oferta', 'Missões', 'Utilidades', 'Aluguel', 'Pessoal', 'Manutenção', 'Transferência', 'Evento', 'Outros'].map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                        <span className="text-[10px] font-bold text-slate-300">
+                          • {funds.find(f => f.id === t.fundId)?.name || 'Geral'}
+                        </span>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => onDelete(t.id)}
+                      className="p-2 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shrink-0 sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </motion.div>
         )}
 
@@ -5474,6 +5877,7 @@ const MediaScreen = ({ showMessage }: { showMessage: (msg: string) => void }) =>
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [cacheVersion, setCacheVersion] = useState(new Date().getTime());
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('member');
   const [currentUserData, setCurrentUserData] = useState<UserType | null>(null);
@@ -5526,6 +5930,7 @@ export default function App() {
 
   const refreshData = useCallback(async () => {
     if (!isLoggedIn) return;
+    setCacheVersion(new Date().getTime());
     try {
       const [
         e, p, c, u, a, r, s, h, at, pv, m, ms, config, roles
@@ -5610,20 +6015,24 @@ export default function App() {
     
     if (Notification.permission === "granted") return true;
     
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      new Notification("Igreja Renovar", {
-        body: "Notificações ativadas com sucesso!",
-        icon: "/favicon.ico"
-      });
-      return true;
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        new Notification("Igreja Renovar", {
+          body: "Notificações ativadas com sucesso!",
+          icon: APP_CONFIG.logos.icon
+        });
+        return true;
+      }
+    } catch (err) {
+      console.log('Permissão negada pelo navegador', err);
     }
     return false;
   };
 
   const showWebNotification = (title: string, body: string) => {
     if (Notification.permission === "granted" && !currentUserData?.notificationSettings?.allMuted) {
-      new Notification(title, { body, icon: "/favicon.ico" });
+      new Notification(title, { body, icon: APP_CONFIG.logos.icon });
     }
   };
 
@@ -6586,7 +6995,7 @@ const joinCell = async (cellId: string) => {
       setCurrentUserData(u);
       setIsLoggedIn(true);
       setUserRole(u.role);
-    }} />;
+    }} cacheVersion={cacheVersion} />;
   }
 
   const handleAddAdminRole = async (role: AdminRole) => {
@@ -6643,8 +7052,8 @@ const joinCell = async (cellId: string) => {
         case 'hosting': return <AdminHostingScreen />;
         case 'admin_roles': return <AdminRolesScreen roles={adminRoles} onAddRole={handleAddAdminRole} onDeleteRole={handleDeleteAdminRole} showMessage={showMessage} />;
         case 'tithes': return <TithesAdminScreen config={titheConfig} onUpdate={updateTitheConfig} showMessage={showMessage} />;
-        case 'events': return <EventsScreen events={events} isAdmin onDelete={deleteEvent} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} showMessage={showMessage} />;
-        case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} showMessage={showMessage} />;
+        case 'events': return <EventsScreen events={events} isAdmin onDelete={deleteEvent} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} showMessage={showMessage} cacheVersion={cacheVersion} />;
+        case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} showMessage={showMessage} cacheVersion={cacheVersion} />;
         case 'groups': return <GroupsScreen cells={cells} users={users} isAdmin currentUser={currentUserData} onAdd={() => setShowAddCell(true)} onDelete={deleteCell} onEdit={(c) => { setEditingCell(c); setShowAddCell(true); }} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
         case 'users':
         case 'users_members':
@@ -6707,9 +7116,9 @@ const joinCell = async (cellId: string) => {
 
     switch (currentTab) {
       case 'home': return <Dashboard {...dashboardProps} />;
-      case 'events': return <EventsScreen events={events} onShowOrações={() => setCurrentTab('prayer')} showMessage={showMessage} />;
+      case 'events': return <EventsScreen events={events} onShowOrações={() => setCurrentTab('prayer')} showMessage={showMessage} cacheVersion={cacheVersion} />;
       case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
-      case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onDelete={deleteAnnouncement} showMessage={showMessage} />;
+      case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onDelete={deleteAnnouncement} showMessage={showMessage} cacheVersion={cacheVersion} />;
       case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} progress={userReadingProgress} onToggleChapter={toggleChapter} isAdmin={false} showMessage={showMessage} />;
       case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} />;
       case 'sermons': return <SermonsScreen sermons={sermons} />;
@@ -6809,7 +7218,8 @@ const joinCell = async (cellId: string) => {
       isAdmin,
       onSwitchToAdmin: () => navigate('/admin'),
       showMessage,
-      onRefresh: refreshData
+      onRefresh: refreshData,
+      cacheVersion
     };
 
   return (
@@ -7077,6 +7487,7 @@ const joinCell = async (cellId: string) => {
                 <tab.icon 
                   className={cn("w-6 h-6", currentTab === tab.id ? "stroke-[2.5px]" : "stroke-[2px]")} 
                   active={currentTab === tab.id}
+                  cacheVersion={cacheVersion}
                 />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>

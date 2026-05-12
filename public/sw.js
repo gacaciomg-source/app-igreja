@@ -19,8 +19,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: data.body,
-    icon: '/icons/logo_oracao.png',
-    badge: '/icons/logo_oracao.png',
+    icon: 'https://renovar.warpserver.com.br/icon1024.png',
+    badge: 'https://renovar.warpserver.com.br/icon1024.png',
     data: data.url || '/',
     vibrate: [100, 50, 100],
     actions: [

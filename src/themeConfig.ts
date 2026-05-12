@@ -11,9 +11,9 @@ export const APP_CONFIG = {
   
   // URL das Imagens (Você pode trocar pelos seus links)
   logos: {
-    dark: "/icon.png", // Logo para fundos claros
-    light: "/icon.png", // Logo para fundos escuros
-    icon: "/icon.png", // Ícone circular
+    dark: "https://renovar.warpserver.com.br/icon1024.png", // Logo para fundos claros
+    light: "https://renovar.warpserver.com.br/icon1024.png", // Logo para fundos escuros
+    icon: "https://renovar.warpserver.com.br/icon1024.png", // Ícone circular
   },
   
   // Cores Principais (Use códigos Hexadecimal)

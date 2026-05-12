@@ -8,7 +8,7 @@ Este documento lista as principais funcionalidades implementadas no sistema para
 - Dashboard administrativo com gráficos de crescimento e demografia.
 
 ## 2. Vida Espiritual e Bíblia
-- Bíblia Online Integrada: Múltiplas traduções em Português.
+- Bíblia Online Integrada: Múltiplas traduções em Português (NAA, NVI, KJA, ACF, ARA, ARC).
 - Planos de Leitura: Acompanhamento de progresso individual.
 - Mural de Orações: Pedidos públicos e privados com interações ("Orei por isso").
 - Versículo Diário: Geração automática de artes (imagens) para redes sociais e notificações push diárias às 09:00.
