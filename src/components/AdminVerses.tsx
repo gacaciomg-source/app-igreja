@@ -79,6 +79,7 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
   const [isImporting, setIsImporting] = useState(false);
   const [importedVerses, setImportedVerses] = useState<{ text: string, ref: string }[]>([]);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(50);
   const [refMode, setRefMode] = useState<'select' | 'manual'>('select');
   const [selBook, setSelBook] = useState(BIBLE_BOOKS[0].name);
   const [selChapter, setSelChapter] = useState('1');
@@ -257,7 +258,7 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
         
         const separators = [' - ', ': ', ' – '];
         for (const sep of separators) {
-          if (line.includes(sep) && !line.match(/^((?:\d\s)?[a-zA-Záéíóúâêôãõç]+)\s+\d+\s+\d+(?:-\d+)?$/i)) {
+          if (line.includes(sep) && !line.match(/^((?:\d\s)?[^0-9:]+?)\s+\d+\s+\d+(?:-\d+)?$/i)) {
             const parts = line.split(sep);
             ref = parts[0].trim();
             text = parts.slice(1).join(sep).trim();
@@ -269,7 +270,7 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
         if (!ref) {
           ref = line.trim();
           // Fix format like "Gênesis 1 1" or "1 João 1 5"
-          const match = ref.match(/^((?:\d\s)?[a-zA-Záéíóúâêôãõç]+)\s+(\d+)\s+(\d+(?:-\d+)?)$/i);
+          const match = ref.match(/^((?:\d\s)?[^0-9:]+?)\s+(\d+)\s+(\d+(?:-\d+)?)$/i);
           if (match) {
             ref = `${match[1].trim()} ${match[2]}:${match[3]}`;
           }
@@ -516,15 +517,28 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
         {loading ? (
           <div className="text-center py-12 text-slate-500">Carregando lista...</div>
         ) : filteredVerses.length > 0 ? (
-          filteredVerses.slice(0, 50).map((verse, index) => (
-            <AdminVerseRow 
-              key={verse.id || index} 
-              verse={verse} 
-              index={index} 
-              onEdit={() => { setEditingVerse(verse); setFormData({ text: verse.text, ref: verse.ref }); }}
-              onDelete={() => handleDelete(verse.id)} 
-            />
-          ))
+          <>
+            {filteredVerses.slice(0, visibleCount).map((verse, index) => (
+              <AdminVerseRow 
+                key={verse.id || index} 
+                verse={verse} 
+                index={index} 
+                onEdit={() => { setEditingVerse(verse); setFormData({ text: verse.text, ref: verse.ref }); }}
+                onDelete={() => handleDelete(verse.id)} 
+              />
+            ))}
+            {filteredVerses.length > visibleCount && (
+              <div className="flex justify-center pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setVisibleCount(v => v + 50)}
+                  className="bg-white border-dashed text-slate-500 hover:text-slate-800"
+                >
+                  Carregar mais...
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-12 text-slate-500">Nenhum versículo encontrado</div>
         )}

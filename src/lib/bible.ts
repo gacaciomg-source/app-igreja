@@ -2,10 +2,10 @@
 export const BIBLE_TRANSLATIONS = [
   { id: 'naa', name: 'NAA (Nova Almeida Atualizada)', api: 'bolls', bollsId: 60, bollsStr: 'NAA', translation: 'almeida' },
   { id: 'nvi', name: 'NVI (Nova Versão Internacional)', api: 'bolls', bollsId: 23, bollsStr: 'NVIPT', translation: 'nvi' },
-  { id: 'acf', name: 'Almeida Corrigida Fiel', api: 'bible-api', bollsId: 24, bollsStr: 'ACF', translation: 'almeida' },
+  { id: 'acf', name: 'Almeida Corrigida Fiel', api: 'bolls', bollsId: 24, bollsStr: 'ACF', translation: 'almeida' },
   { id: 'kja', name: 'King James Atualizada (KJA)', api: 'bolls', bollsId: 62, bollsStr: 'KJA', translation: 'almeida' },
   { id: 'ara', name: 'Almeida ARA (Geral)', api: 'bolls', bollsId: 21, bollsStr: 'ARA', translation: 'almeida' },
-  { id: 'arc', name: 'Almeida RC (Tradicional)', api: 'bible-api', bollsId: 22, bollsStr: 'ARC', translation: 'almeida' },
+  { id: 'arc', name: 'Almeida RC (Tradicional)', api: 'bolls', bollsId: 22, bollsStr: 'ARC', translation: 'almeida' },
 ];
 
 const BIBLE_BOOKS_MAP: Record<string, number> = {
@@ -41,10 +41,11 @@ export async function fetchVerseText(reference: string, translationId: string = 
     const t = BIBLE_TRANSLATIONS.find(tr => tr.id === translationId) || BIBLE_TRANSLATIONS[0];
     
     // Parse reference: "John 3:16" or "João 3:16" or "1 João 1:9"
-    const refMatch = reference.match(/^((?:\d\s)?[^0-9:]+)\s(\d+):(\d+)$/i);
+    const refMatch = reference.match(/^((?:\d\s)?[^0-9:]+?)\s+(\d+):(\d+(?:-\d+)?)$/i);
     if (!refMatch) {
        // Fallback to simple bible-api for unstructured strings
-       const res = await fetch(`https://bible-api.com/${encodeURIComponent(reference)}?translation=almeida`);
+       const cleanRef = reference.replace(/\s+/g, ' ');
+       const res = await fetch(`https://bible-api.com/${encodeURIComponent(cleanRef)}?translation=almeida`);
        if (res.ok) {
          const data = await res.json();
          return stripHtml(data.text);
@@ -52,22 +53,31 @@ export async function fetchVerseText(reference: string, translationId: string = 
        return null;
     }
 
-    const [, bookName, chapter, verse] = refMatch;
+    const [, bookName, chapter, verseStr] = refMatch;
     
     if (t.api === 'bolls') {
       const bookId = BIBLE_BOOKS_MAP[bookName] || BIBLE_BOOKS_MAP[bookName.trim()];
       if (bookId) {
-        // bolls.life get-verse: /get-verse/{translation}/{book}/{chapter}/{verse}/
-        const response = await fetch(`https://bolls.life/get-verse/${t.bollsStr}/${bookId}/${chapter}/${verse}/`);
-        if (response.ok) {
-          const data = await response.json();
-          return stripHtml(data.text);
+        if (verseStr.includes('-')) {
+          const [startV, endV] = verseStr.split('-').map(Number);
+          const response = await fetch(`https://bolls.life/get-chapter/${t.bollsStr}/${bookId}/${chapter}/`);
+          if (response.ok) {
+            const data = await response.json();
+            const verses = data.filter((v: any) => v.verse >= startV && v.verse <= endV);
+            return stripHtml(verses.map((v: any) => v.text).join(' '));
+          }
+        } else {
+          const response = await fetch(`https://bolls.life/get-verse/${t.bollsStr}/${bookId}/${chapter}/${verseStr}/`);
+          if (response.ok) {
+            const data = await response.json();
+            return stripHtml(data.text);
+          }
         }
       }
     }
 
     // Fallback or explicit bible-api
-    const response = await fetch(`https://bible-api.com/${encodeURIComponent(bookName)}+${chapter}:${verse}?translation=${t.translation || 'almeida'}`);
+    const response = await fetch(`https://bible-api.com/${encodeURIComponent(bookName)}+${chapter}:${verseStr}?translation=${t.translation || 'almeida'}`);
     if (response.ok) {
         const data = await response.json();
         return stripHtml(data.text);
