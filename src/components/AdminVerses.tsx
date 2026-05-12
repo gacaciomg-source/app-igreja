@@ -248,36 +248,40 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
     
     let count = 0;
     try {
-      for (const v of importedVerses) {
-        if (!v.ref) continue;
+      const batchSize = 20; // Process 20 items concurrently
+      for (let i = 0; i < importedVerses.length; i += batchSize) {
+        const batch = importedVerses.slice(i, i + batchSize);
         
-        // If text is missing, try to fetch it
-        let textToSave = v.text;
-        if (!textToSave) {
-          try {
-            const fetched = await fetchVerseText(v.ref, selectedTranslation);
-            if (fetched) textToSave = fetched;
-          } catch (err) {
-            console.error('Failed to fetch text for', v.ref);
+        await Promise.all(batch.map(async (v, index) => {
+          if (!v.ref) return;
+          
+          let textToSave = v.text;
+          if (!textToSave) {
+            try {
+              const fetched = await fetchVerseText(v.ref, selectedTranslation);
+              if (fetched) textToSave = fetched;
+            } catch (err) {
+              console.error('Failed to fetch text for', v.ref);
+            }
           }
-        }
 
-        if (!textToSave) textToSave = 'Texto não encontrado. Edite manualmente.';
+          if (!textToSave) textToSave = 'Texto não encontrado. Edite manualmente.';
 
-        await fetch('/api/collections/verses', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          },
-          body: JSON.stringify({ 
-            ref: v.ref, 
-            text: textToSave, 
-            id: (Date.now() + count).toString(), 
-            createdAt: new Date().toISOString() 
-          })
-        });
-        count++;
+          await fetch('/api/collections/verses', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            },
+            body: JSON.stringify({ 
+              ref: v.ref, 
+              text: textToSave, 
+              id: `${Date.now()}-${i}-${index}`, 
+              createdAt: new Date().toISOString() 
+            })
+          });
+        }));
+        count += batch.length;
       }
       
       showMessage?.(`${count} versículos importados com sucesso`);
