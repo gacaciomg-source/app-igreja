@@ -48,38 +48,26 @@ const BIBLE_BOOKS = [
 ];
 
 export async function seedVerses() {
+  const configs = await storage.readCollection<any>("config");
+  if (configs.find((c: any) => c.id === "verses_seeded")) {
+    const existing = await storage.readCollection('verses');
+    return { count: existing.length, status: 'already_seeded' };
+  }
+
   const existing = await storage.readCollection('verses');
-  if (existing.length >= 480) return { count: existing.length, status: 'already_seeded' };
-
-  // Clear placeholders if they exist
-  const placeholders = existing.filter((v: any) => v.isPlaceholder);
-  if (placeholders.length > 0) {
-    // Optional: could delete them but let's just add missing ones until 480
-  }
-
-  const startIdx = existing.length;
-  for (let i = startIdx; i < 480; i++) {
-    let verseData;
-    if (i < INITIAL_VERSES.length) {
-      verseData = INITIAL_VERSES[i];
-    } else {
-      // Generate systematic references to make it look real while they wait for updates
-      const book = BIBLE_BOOKS[i % BIBLE_BOOKS.length];
-      const chapter = (i % 20) + 1;
-      const verseNum = (i % 30) + 1;
-      verseData = {
-        ref: `${book} ${chapter}:${verseNum}`,
-        text: `Carregando texto de ${book} ${chapter}:${verseNum}...`,
-        isPlaceholder: true
-      };
+  
+  if (existing.length === 0) {
+    for (let i = 0; i < INITIAL_VERSES.length; i++) {
+      await storage.insert('verses', {
+        id: uuidv4(),
+        ...INITIAL_VERSES[i],
+        createdAt: new Date().toISOString()
+      });
     }
-
-    await storage.insert('verses', {
-      id: uuidv4(),
-      ...verseData,
-      createdAt: new Date().toISOString()
-    });
   }
 
-  return { count: 480, status: 'success' };
+  await storage.insert('config', { id: "verses_seeded", seeded: true });
+
+  const finalExisting = await storage.readCollection('verses');
+  return { count: finalExisting.length, status: 'success' };
 }
