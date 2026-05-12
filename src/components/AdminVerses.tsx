@@ -209,7 +209,7 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      const lines = content.split('\n').filter(line => line.trim().length > 0);
+      const lines = content.replace(/\r/g, '').split('\n').filter(line => line.trim().length > 0);
       
       const parsed = lines.map(line => {
         // Try to match "Reference - Text" or "Reference: Text"
@@ -218,7 +218,7 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
         
         const separators = [' - ', ': ', ' – '];
         for (const sep of separators) {
-          if (line.includes(sep) && !line.match(/^[\wáéíóúâêôãõç\s]+\s+\d+\s+\d+(?:-\d+)?$/i)) {
+          if (line.includes(sep) && !line.match(/^((?:\d\s)?[a-zA-Záéíóúâêôãõç]+)\s+\d+\s+\d+(?:-\d+)?$/i)) {
             const parts = line.split(sep);
             ref = parts[0].trim();
             text = parts.slice(1).join(sep).trim();
@@ -230,7 +230,7 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
         if (!ref) {
           ref = line.trim();
           // Fix format like "Gênesis 1 1" or "1 João 1 5"
-          const match = ref.match(/^([\wáéíóúâêôãõç\s]+)\s+(\d+)\s+(\d+(?:-\d+)?)$/i);
+          const match = ref.match(/^((?:\d\s)?[a-zA-Záéíóúâêôãõç]+)\s+(\d+)\s+(\d+(?:-\d+)?)$/i);
           if (match) {
             ref = `${match[1].trim()} ${match[2]}:${match[3]}`;
           }
