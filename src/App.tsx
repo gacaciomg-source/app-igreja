@@ -9,6 +9,7 @@ import {
   useLocation
 } from 'react-router-dom';
 import { toPng } from 'html-to-image';
+import { fetchVerseText, BIBLE_TRANSLATIONS } from './lib/bible';
 import AdminVerses from './components/AdminVerses';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -76,7 +77,8 @@ import {
   Layers,
   Table,
   BarChart as BarChartIcon,
-  GitCompare
+  GitCompare,
+  Edit2
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { 
@@ -611,6 +613,30 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [logoError, setLogoError] = useState(false);
+  const [currentText, setCurrentText] = useState(verse.text);
+  const [selectedTranslation, setSelectedTranslation] = useState('almeida');
+  const [isFetchingText, setIsFetchingText] = useState(false);
+
+  useEffect(() => {
+    // If the version changes, fetch the new text
+    const updateText = async () => {
+      if (selectedTranslation === 'almeida' && verse.text && !verse.text.startsWith('Carregando')) {
+        setCurrentText(verse.text);
+        return;
+      }
+      
+      setIsFetchingText(true);
+      try {
+        const text = await fetchVerseText(verse.ref, selectedTranslation);
+        if (text) setCurrentText(text);
+      } catch (err) {
+        console.error('Failed to fetch translation:', err);
+      } finally {
+        setIsFetchingText(false);
+      }
+    };
+    updateText();
+  }, [selectedTranslation, verse.ref, verse.text]);
 
   const handleShare = async () => {
     if (!verseCardRef.current) return;
@@ -650,14 +676,18 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
     if (isNative) {
         try {
           const base64Data = urlToShare.split(',')[1];
-          const savedFile = await Filesystem.writeFile({
+          await Filesystem.writeFile({
             path: fileName,
             data: base64Data,
             directory: Directory.Cache
           });
+          const savedFile = await Filesystem.getUri({
+            path: fileName,
+            directory: Directory.Cache
+          });
           await Share.share({
             title: 'Versículo do Dia',
-            text: `"${verse.text}" - ${verse.ref}`,
+            text: `"${currentText}" - ${verse.ref}`,
             url: savedFile.uri,
             dialogTitle: 'Compartilhar Versículo'
           });
@@ -668,11 +698,11 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
       try {
         const blob = await (await fetch(urlToShare)).blob();
         const file = new File([blob], fileName, { type: 'image/png' });
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        if (navigator.share && (navigator as any).canShare && (navigator as any).canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
             title: 'Versículo do Dia',
-            text: `"${verse.text}" - ${verse.ref}`
+            text: `"${currentText}" - ${verse.ref}`
           });
         } else {
            downloadImage(urlToShare);
@@ -706,7 +736,7 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
       <div className="flex flex-col items-center">
         {generatedImage ? (
            <div className="space-y-4 w-full flex flex-col items-center">
-             <p className="text-[10px] text-center uppercase font-bold text-slate-400">Pronto! Pressione a imagem e segure para salvar (iOS) ou clique abaixo.</p>
+             <p className="text-[10px] text-center uppercase font-bold text-slate-400">Pronto! Clique abaixo para compartilhar.</p>
              <img src={generatedImage} alt="Versículo Gerado" className="w-[280px] rounded-2xl shadow-2xl" />
              <div className="flex flex-col w-full max-w-[280px] gap-2">
                <Button onClick={handleDirectShare} className="w-full flex gap-2 items-center justify-center">
@@ -757,15 +787,15 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
               </div>
             )}
             
-    <div className="space-y-6 z-10 pt-16">
+            <div className="space-y-6 z-10 pt-16">
               <p className={cn(
                 "text-white font-medium italic leading-relaxed drop-shadow-lg",
-                verse.text.length > 300 ? "text-xs" : 
-                verse.text.length > 200 ? "text-sm" : 
-                verse.text.length > 120 ? "text-base" : 
-                verse.text.length > 60 ? "text-lg" : "text-xl"
+                currentText.length > 300 ? "text-xs" : 
+                currentText.length > 200 ? "text-sm" : 
+                currentText.length > 120 ? "text-base" : 
+                currentText.length > 60 ? "text-lg" : "text-xl"
               )}>
-                "{verse.text}"
+                "{currentText}"
               </p>
               <div className="h-0.5 w-12 bg-white/40 mx-auto rounded-full"></div>
               <p className="text-white font-bold text-lg drop-shadow-md">
@@ -787,36 +817,53 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
       </div>
 
       {!generatedImage && (
-        <div className="space-y-3">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Escolha o Fundo</label>
-          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {SHARE_BACKGROUNDS.map((bg) => (
-            <button
-              key={bg.id}
-              onClick={() => setSelectedBg(bg)}
-              className={cn(
-                "min-w-16 h-16 rounded-xl border-2 transition-all overflow-hidden relative",
-                selectedBg.id === bg.id ? "border-primary scale-105" : "border-transparent opacity-70 hover:opacity-100"
-              )}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Versão da Bíblia</label>
+            <select 
+              value={selectedTranslation}
+              onChange={e => setSelectedTranslation(e.target.value)}
+              className="w-full p-3 bg-white border border-slate-100 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20"
+              disabled={isFetchingText}
             >
-              <div 
-                className="w-full h-full"
-                style={{ 
-                  backgroundImage: (bg as any).gradient || (bg.url ? `url(${bg.url})` : 'none'),
-                  backgroundColor: '#f1f5f9',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              />
-              <div className="absolute inset-0 flex items-end p-1">
-                <span className="text-[8px] font-bold text-white leading-none whitespace-nowrap bg-black/40 px-1 rounded truncate w-full">
-                  {bg.name}
-                </span>
-              </div>
-            </button>
-          ))}
+              {BIBLE_TRANSLATIONS.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Escolha o Fundo</label>
+            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+              {SHARE_BACKGROUNDS.map((bg) => (
+                <button
+                  key={bg.id}
+                  onClick={() => setSelectedBg(bg)}
+                  className={cn(
+                    "min-w-16 h-16 rounded-xl border-2 transition-all overflow-hidden relative",
+                    selectedBg.id === bg.id ? "border-primary scale-105" : "border-transparent opacity-70 hover:opacity-100"
+                  )}
+                >
+                  <div 
+                    className="w-full h-full"
+                    style={{ 
+                      backgroundImage: (bg as any).gradient || (bg.url ? `url(${bg.url})` : 'none'),
+                      backgroundColor: '#f1f5f9',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat'
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-end p-1">
+                    <span className="text-[8px] font-bold text-white leading-none whitespace-nowrap bg-black/40 px-1 rounded truncate w-full">
+                      {bg.name}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
       )}
 
       <div className="flex gap-3">
@@ -825,12 +872,17 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
           <Button 
             onClick={handleShare} 
             className="flex-3 py-4 text-lg font-bold" 
-            disabled={isGenerating}
+            disabled={isGenerating || isFetchingText}
           >
             {isGenerating ? (
               <>
                 <RefreshCw className="w-5 h-5 animate-spin" />
                 Gerando...
+              </>
+            ) : isFetchingText ? (
+              <>
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                Buscando...
               </>
             ) : (
               <>
@@ -1828,6 +1880,20 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
 
 const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, dailyVerse, isAdmin, onSwitchToAdmin, showMessage, onRefresh, cacheVersion }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, dailyVerse: any, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void, onRefresh?: () => Promise<void>, cacheVersion: number }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentVerseText, setCurrentVerseText] = useState(dailyVerse?.text || '');
+
+  useEffect(() => {
+    if (dailyVerse) {
+      if (dailyVerse.text && !dailyVerse.text.startsWith('Carregando')) {
+        setCurrentVerseText(dailyVerse.text);
+      } else {
+        // Fetch text
+        fetchVerseText(dailyVerse.ref, 'almeida').then(text => {
+          if (text) setCurrentVerseText(text);
+        });
+      }
+    }
+  }, [dailyVerse]);
 
   const handleRefresh = async () => {
     if (!onRefresh) return;
@@ -1839,7 +1905,10 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
     }
   };
 
-  const verseDisplay = dailyVerse || { text: "Carregando palavra do dia...", ref: "..." };
+  const verseDisplay = { 
+    text: currentVerseText || (dailyVerse?.text?.startsWith('Carregando') ? dailyVerse?.text : "Carregando palavra do dia..."), 
+    ref: dailyVerse?.ref || "..." 
+  };
 
   return (
     <div className="space-y-6 pb-24">
@@ -2320,15 +2389,6 @@ const stripHtml = (text: string) => {
     .replace(/&nbsp;/g, ' ')
     .trim();
 };
-
-const BIBLE_TRANSLATIONS = [
-  { id: 'naa', name: 'NAA (Nova Almeida Atualizada)', api: 'bolls', bollsId: 60, bollsStr: 'NAA', translation: 'almeida' },
-  { id: 'nvi', name: 'NVI (Nova Versão Internacional)', api: 'bolls', bollsId: 23, bollsStr: 'NVIPT', translation: 'nvi' },
-  { id: 'acf', name: 'Almeida Corrigida Fiel', api: 'bible-api', bollsId: 24, bollsStr: 'ACF', translation: 'almeida' },
-  { id: 'kja', name: 'King James Atualizada (KJA)', api: 'bolls', bollsId: 62, bollsStr: 'KJA', translation: 'almeida' },
-  { id: 'ara', name: 'Almeida ARA (Geral)', api: 'bolls', bollsId: 21, bollsStr: 'ARA', translation: 'almeida' },
-  { id: 'arc', name: 'Almeida RC (Tradicional)', api: 'bible-api', bollsId: 22, bollsStr: 'ARC', translation: 'almeida' },
-];
 
 const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight, onShareVerse, fontSize }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void, onShareVerse?: (v: {text: string, ref: string}) => void, fontSize?: 'small' | 'normal' | 'large' | 'xl' }) => {
   const [selectedBook, setSelectedBook] = useState<string | null>(null);
@@ -3082,7 +3142,7 @@ const UserPastoralVisitsScreen = ({ visits, onAddRequest }: { visits: PastoralVi
   );
 };
 
-const AdminDashboard = ({ stats, users, verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void }) => {
+const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void }) => {
   const [showBirthdays, setShowBirthdays] = useState<'today' | 'month' | null>(null);
 
   const birthdays = React.useMemo(() => {
@@ -3090,14 +3150,17 @@ const AdminDashboard = ({ stats, users, verseStats, onAddEvent, onAddAnnouncemen
     const currentMonth = today.getMonth() + 1;
     const currentDay = today.getDate();
 
-    const monthBirthdays = users.filter(u => {
-      if (!u.birthDate) return false;
-      const [year, month, day] = u.birthDate.split('-').map(Number);
+    const monthBirthdays = (users || []).filter(u => {
+      if (!u.birthDate || typeof u.birthDate !== 'string') return false;
+      const parts = u.birthDate.split('-');
+      if (parts.length < 3) return false;
+      const month = parseInt(parts[1]);
       return month === currentMonth;
     });
 
     const todayBirthdays = monthBirthdays.filter(u => {
-      const [year, month, day] = u.birthDate!.split('-').map(Number);
+      const parts = u.birthDate!.split('-');
+      const day = parseInt(parts[2]);
       return day === currentDay;
     });
 
@@ -3105,9 +3168,10 @@ const AdminDashboard = ({ stats, users, verseStats, onAddEvent, onAddAnnouncemen
   }, [users]);
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return '';
-    const [year, month, day] = dateString.split('-');
-    return `${day}/${month}/${year}`;
+    if (!dateString || typeof dateString !== 'string') return '';
+    const parts = dateString.split('-');
+    if (parts.length < 3) return dateString;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
   };
 
   return (
@@ -3128,18 +3192,18 @@ const AdminDashboard = ({ stats, users, verseStats, onAddEvent, onAddAnnouncemen
       </div>
     </header>
 
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <Card className="bg-emerald-50 border-emerald-100 p-4 space-y-2 cursor-pointer hover:bg-emerald-100 transition-colors" onClick={() => onTabChange?.('users_members')}>
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <Card className="bg-emerald-50 border-emerald-100 p-4 space-y-2 cursor-pointer hover:bg-emerald-100 transition-all" onClick={() => onTabChange?.('users_members')}>
         <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white">
           <Users className="w-6 h-6" />
         </div>
         <div>
           <p className="text-xs text-emerald-600 font-bold uppercase tracking-widest">Membros</p>
-          <p className="text-2xl font-bold text-slate-900">{stats.members}</p>
+          <p className="text-2xl font-bold text-slate-900">{stats?.members || 0}</p>
         </div>
       </Card>
       
-      <Card className="bg-amber-50 border-amber-100 p-4 space-y-2 cursor-pointer hover:bg-amber-100 transition-colors" onClick={() => onTabChange?.('users_integration')}>
+      <Card className="bg-amber-50 border-amber-100 p-4 space-y-2 cursor-pointer hover:bg-amber-100 transition-all" onClick={() => onTabChange?.('users_integration')}>
         <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white relative">
           <Users className="w-6 h-6" />
           {users.filter(u => u.memberStatus === 'new_member' || u.memberStatus === 'visitor').length > 0 && (
@@ -3153,34 +3217,66 @@ const AdminDashboard = ({ stats, users, verseStats, onAddEvent, onAddAnnouncemen
           <p className="text-2xl font-bold text-slate-900">{users.filter(u => u.memberStatus === 'new_member' || u.memberStatus === 'visitor').length}</p>
         </div>
       </Card>
-      <Card className="bg-blue-50 border-blue-100 p-4 space-y-2 cursor-pointer hover:bg-blue-100 transition-colors" onClick={() => onTabChange?.('financial')}>
+
+      <Card className="bg-blue-50 border-blue-100 p-4 space-y-2 cursor-pointer hover:bg-blue-100 transition-all" onClick={() => onTabChange?.('financial')}>
         <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center text-white">
           <DollarSign className="w-6 h-6" />
         </div>
         <div>
           <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Financeiro</p>
-          <p className="text-xl font-bold text-slate-900">R$ {stats.balance.toLocaleString()}</p>
+          <p className="text-xl font-bold text-slate-900">R$ {(stats?.balance || 0).toLocaleString()}</p>
         </div>
       </Card>
-      <Card className="bg-purple-50 border-purple-100 p-4 space-y-2 cursor-pointer hover:bg-purple-100 transition-colors" onClick={() => onTabChange?.('events')}>
+
+      <Card className="bg-purple-50 border-purple-100 p-4 space-y-2 cursor-pointer hover:bg-purple-100 transition-all" onClick={() => onTabChange?.('events')}>
         <div className="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center text-white">
           <Calendar className="w-6 h-6" />
         </div>
         <div>
           <p className="text-xs text-purple-600 font-bold uppercase tracking-wider">Agenda</p>
-          <p className="text-2xl font-bold text-slate-900">{stats.events}</p>
+          <p className="text-2xl font-bold text-slate-900">{stats?.events || 0}</p>
         </div>
       </Card>
-      <Card className="bg-indigo-50 border-indigo-100 p-4 space-y-2 cursor-pointer hover:bg-indigo-100 transition-colors" onClick={() => onTabChange?.('bible')}>
+
+      <Card className="bg-indigo-50 border-indigo-100 p-4 space-y-2 cursor-pointer hover:bg-indigo-100 transition-all" onClick={() => onTabChange?.('bible')}>
         <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center text-white">
           <BookOpen className="w-6 h-6" />
         </div>
         <div>
           <p className="text-xs text-indigo-600 font-bold uppercase tracking-wider">Versículos</p>
           <p className="text-2xl font-bold text-slate-900">{verseStats?.total || 0}</p>
+          {verseStats?.today && (
+            <p className="text-[10px] text-indigo-400 font-medium truncate">Hoje: {verseStats.today.ref}</p>
+          )}
         </div>
       </Card>
     </div>
+
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold text-slate-900">Próximo Versículo</h3>
+        <button onClick={() => onTabChange?.('bible')} className="text-primary text-sm font-bold">Gerenciar Bíblia</button>
+      </div>
+      <Card className="p-5 border-indigo-100 bg-gradient-to-br from-indigo-50 to-white">
+        {verseStats?.tomorrow ? (
+          <div className="flex justify-between items-center gap-4">
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Programado para amanhã</p>
+              <h4 className="text-xl font-bold text-slate-900">{verseStats.tomorrow.ref}</h4>
+              <p className="text-sm text-slate-500 italic line-clamp-1">"{verseStats.tomorrow.text}"</p>
+            </div>
+            <button onClick={() => onTabChange?.('bible')} className="shrink-0 p-3 bg-white shadow-sm border border-indigo-100 rounded-xl text-indigo-500 hover:text-indigo-600 transition-colors">
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center py-2 text-center space-y-2">
+            <p className="text-sm text-slate-500">Nenhum versículo programado para amanhã.</p>
+            <button onClick={() => onTabChange?.('bible')} className="text-xs font-bold text-primary bg-primary/10 px-4 py-2 rounded-lg">Cadastrar Agora</button>
+          </div>
+        )}
+      </Card>
+    </section>
 
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -3208,7 +3304,7 @@ const AdminDashboard = ({ stats, users, verseStats, onAddEvent, onAddAnnouncemen
         <Card className="p-4 bg-white border-slate-100 cursor-pointer hover:border-primary/20 transition-colors" onClick={() => setShowBirthdays('today')}>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Hoje</p>
           <div className="space-y-2">
-            {birthdays.today.length > 0 ? (
+            {(birthdays.today || []).length > 0 ? (
               birthdays.today.slice(0, 3).map(u => (
                 <div key={u.id} className="flex items-center gap-2">
                   <img src={u.avatar || DEFAULT_AVATAR} alt={u.name} className="w-6 h-6 rounded-full object-cover" />
@@ -3218,14 +3314,14 @@ const AdminDashboard = ({ stats, users, verseStats, onAddEvent, onAddAnnouncemen
             ) : (
               <p className="text-xs text-slate-400">Ninguém hoje</p>
             )}
-            {birthdays.today.length > 3 && (
-              <p className="text-xs text-primary font-medium">+{birthdays.today.length - 3} outros</p>
+            {(birthdays.today || []).length > 3 && (
+              <p className="text-xs text-primary font-medium">+{(birthdays.today || []).length - 3} outros</p>
             )}
           </div>
         </Card>
         <Card className="p-4 bg-white border-slate-100 cursor-pointer hover:border-primary/20 transition-colors" onClick={() => setShowBirthdays('month')}>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Este Mês</p>
-          <p className="text-2xl font-bold text-primary">{birthdays.month.length}</p>
+          <p className="text-2xl font-bold text-primary">{(birthdays.month || []).length}</p>
           <p className="text-[10px] text-slate-500">Total de celebrações</p>
         </Card>
       </div>
@@ -3331,7 +3427,7 @@ const AdminDashboard = ({ stats, users, verseStats, onAddEvent, onAddAnnouncemen
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold text-slate-900">Fluxo de Caixa</p>
-            <p className="text-xs text-slate-500">Saldo: R$ {stats.balance.toLocaleString()}</p>
+            <p className="text-xs text-slate-500">Saldo: R$ {(stats.balance || 0).toLocaleString()}</p>
           </div>
           <ChevronRight className="w-4 h-4 text-slate-300" />
         </div>
@@ -6409,24 +6505,24 @@ export default function App() {
 
       setDailyVerse(verseToday);
       setVerseStats(vStats);
-      setEvents(e);
-      setPrayers(p.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      setCells(c);
-      setUsers(u);
-      setAnnouncements(a);
-      setReadingPlans(r);
-      setSermons(s);
-      setVerseHighlights(h.filter((vh: any) => vh.uid === currentUserData?.id));
-      setAttendanceHistory(at);
-      setPastoralVisits(pv);
-      setMinistries(m);
-      setMinistrySchedules(ms);
-      setAdminRoles(roles);
+      setEvents(e || []);
+      setPrayers((p || []).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setCells(c || []);
+      setUsers(u || []);
+      setAnnouncements(a || []);
+      setReadingPlans(r || []);
+      setSermons(s || []);
+      setVerseHighlights((h || []).filter((vh: any) => vh.uid === currentUserData?.id));
+      setAttendanceHistory(at || []);
+      setPastoralVisits(pv || []);
+      setMinistries(m || []);
+      setMinistrySchedules(ms || []);
+      setAdminRoles(roles || []);
 
-      const tConfig = config.find((cfg: any) => cfg.id === 'tithes');
+      const tConfig = (config || []).find((cfg: any) => cfg.id === 'tithes');
       if (tConfig) setTitheConfig(tConfig);
       
-      const wConfig = config.find((cfg: any) => cfg.id === 'whatsapp');
+      const wConfig = (config || []).find((cfg: any) => cfg.id === 'whatsapp');
       if (wConfig) setWhatsappConfig(wConfig);
 
       if (userRole === 'admin' || userRole === 'superadmin') {
@@ -6435,12 +6531,12 @@ export default function App() {
           api.list('funds'),
           api.list('financialRules').catch(() => [])
         ]);
-        setTransactions(trans);
-        setFunds(fds);
-        setFinancialRules(rules);
+        setTransactions(trans || []);
+        setFunds(fds || []);
+        setFinancialRules(rules || []);
 
         // Ensure at least one fund exists
-        if (fds.length === 0) {
+        if (fds && fds.length === 0) {
           const defaultFund = { id: 'main', name: 'Caixa Geral', balance: 0 };
           await api.create('funds', defaultFund);
           setFunds([defaultFund]);
@@ -6450,6 +6546,12 @@ export default function App() {
       console.error('Refresh failed:', err);
     }
   }, [isLoggedIn, userRole, currentUserData?.id]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      refreshData();
+    }
+  }, [isLoggedIn, refreshData]);
 
   useEffect(() => {
     setGlobalErrorRef = setGlobalError;
@@ -7491,7 +7593,7 @@ const joinCell = async (cellId: string) => {
 
       switch (currentTab) {
         case 'home': return <AdminDashboard stats={stats} users={visibleUsers} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
-        case 'bible': return <AdminVerses onBack={() => setCurrentTab('home')} showMessage={showMessage} />;
+        case 'bible': return <AdminVerses onBack={() => setCurrentTab('home')} showMessage={showMessage} isSuperAdmin={userRole === 'superadmin'} />;
         case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} />;
         case 'financial': return (
           <AdminFinancial 

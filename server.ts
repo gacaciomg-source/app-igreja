@@ -903,6 +903,9 @@ async function startServer() {
   app.get("/api/verses/stats", authenticateToken, async (req, res) => {
     try {
       const verses = await storage.readCollection<any>("verses");
+      if (verses.length === 0) {
+        return res.json({ total: 0, today: null, tomorrow: null });
+      }
       
       const epoch = new Date('2024-01-01').getTime();
       const today = new Date().getTime();
