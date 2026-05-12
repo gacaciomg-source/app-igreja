@@ -37,6 +37,37 @@
   box-shadow: none !important;
 }
 
+/* Font Size Scaling System */
+.app-font-small { font-size: 0.85rem; }
+.app-font-small .text-xs, .app-font-small .text-\[10px\], .app-font-small .text-\[12px\] { font-size: 0.65rem !important; }
+.app-font-small .text-sm { font-size: 0.75rem !important; }
+.app-font-small .text-base { font-size: 0.85rem !important; }
+.app-font-small .text-lg { font-size: 1rem !important; }
+.app-font-small .text-xl { font-size: 1.15rem !important; }
+.app-font-small h1, .app-font-small .text-3xl { font-size: 1.5rem !important; }
+.app-font-small h2, .app-font-small .text-2xl { font-size: 1.25rem !important; }
+
+.app-font-large { font-size: 1.15rem; }
+.app-font-large .text-xs, .app-font-large .text-\[10px\], .app-font-large .text-\[12px\] { font-size: 0.95rem !important; }
+.app-font-large .text-sm { font-size: 1.05rem !important; }
+.app-font-large .text-base { font-size: 1.15rem !important; }
+.app-font-large .text-lg { font-size: 1.35rem !important; }
+.app-font-large .text-xl { font-size: 1.55rem !important; }
+.app-font-large h1, .app-font-large .text-3xl { font-size: 2.2rem !important; }
+.app-font-large h2, .app-font-large .text-2xl { font-size: 1.8rem !important; }
+
+.app-font-xl { font-size: 1.35rem; }
+.app-font-xl .text-xs, .app-font-xl .text-\[10px\], .app-font-xl .text-\[12px\] { font-size: 1.15rem !important; }
+.app-font-xl .text-sm { font-size: 1.25rem !important; }
+.app-font-xl .text-base { font-size: 1.35rem !important; }
+.app-font-xl .text-lg { font-size: 1.6rem !important; }
+.app-font-xl .text-xl { font-size: 1.85rem !important; }
+.app-font-xl h1, .app-font-xl .text-3xl { font-size: 2.8rem !important; }
+.app-font-xl h2, .app-font-xl .text-2xl { font-size: 2.2rem !important; }
+
+/* Modal specific override to ensure readability */
+.app-font-xl .p-4, .app-font-xl .p-6 { padding: 1.5rem !important; }
+
 /* Text color overrides with better contrast */
 .dark .text-slate-900, .dark .text-slate-800, .dark .text-slate-700 {
   color: #f8fafc !important;

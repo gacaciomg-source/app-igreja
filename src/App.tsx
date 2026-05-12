@@ -7357,9 +7357,9 @@ const joinCell = async (cellId: string) => {
     <ErrorBoundary>
       <div className={cn(
         "min-h-screen bg-secondary mx-auto relative shadow-2xl overflow-hidden transition-all",
-        fontSize === 'small' && "text-[0.85rem]",
-        fontSize === 'large' && "text-[1.1rem]",
-        fontSize === 'xl' && "text-[1.5rem]",
+        fontSize === 'small' && "app-font-small",
+        fontSize === 'large' && "app-font-large",
+        fontSize === 'xl' && "app-font-xl",
         isAdminPanel ? "w-full md:max-w-none md:flex md:flex-row shadow-none" : "w-full md:max-w-5xl md:shadow-none"
       )}>
         
