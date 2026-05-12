@@ -1891,7 +1891,13 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
         // Fetch text
         setCurrentVerseText('Carregando...');
         fetchVerseText(dailyVerse.ref, 'acf').then(text => {
-          if (text) setCurrentVerseText(text);
+          if (text) {
+            setCurrentVerseText(text);
+          } else {
+            setCurrentVerseText("Não foi possível carregar o texto.");
+          }
+        }).catch(() => {
+          setCurrentVerseText("Não foi possível carregar o texto.");
         });
       }
     }

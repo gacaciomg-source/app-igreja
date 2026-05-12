@@ -14,7 +14,7 @@ const Card = ({ children, className, onClick, ...props }: { children: React.Reac
   </div>
 );
 
-const AdminVerseRow = ({ verse, index, onEdit, onDelete }: { verse: any, index: number, onEdit: () => void, onDelete: () => void }) => {
+const AdminVerseRow: React.FC<{ verse: any, index: number, onEdit: () => void, onDelete: () => void | Promise<void> }> = ({ verse, index, onEdit, onDelete }) => {
   const [displayText, setDisplayText] = useState(verse.text);
 
   useEffect(() => {
