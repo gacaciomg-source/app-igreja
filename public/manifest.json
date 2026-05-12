@@ -1,7 +1,7 @@
 {
   "id": "/",
   "name": "Igreja Renovar",
-  "short_name": "Igreja",
+  "short_name": "Igreja Renovar",
   "description": "Aplicativo de gestão e comunhão para membros da igreja",
   "start_url": "/",
   "scope": "/",

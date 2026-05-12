@@ -1,5 +1,5 @@
 {
   "name": "Igreja Renovar",
   "description": "Aplicativo de comunidade e gestão para a Igreja Renovar, com eventos, grupos, bíblia e painel administrativo.",
-  "requestFramePermissions": ["camera", "microphone", "geolocation", "notifications"]
+  "requestFramePermissions": ["notifications"]
 }

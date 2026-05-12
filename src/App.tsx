@@ -51,10 +51,6 @@ import {
   LayoutDashboard,
   Eye,
   Grid,
-  Mic,
-  Video,
-  Music,
-  Phone,
   FileText,
   CheckCircle,
   XCircle,
@@ -72,6 +68,10 @@ import {
   Sparkles,
   Cake,
   Image,
+  Music,
+  Phone,
+  Video,
+  Radio,
   CreditCard,
   FileUp,
   Layers,
@@ -373,6 +373,8 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -383,6 +385,9 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
     const normalizedEmail = email.toLowerCase().trim();
     
     try {
+      if (mode !== 'reset' && !acceptedTerms) {
+        throw new Error("Você precisa aceitar a Política de Privacidade para continuar.");
+      }
       if (mode === 'login') {
         const { user: loggedUser } = await api.login(normalizedEmail, password);
         console.log('Login successful:', loggedUser.email);
@@ -557,6 +562,39 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
             >
               Esqueceu a senha?
             </button>
+          )}
+
+          {mode !== 'reset' && (
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="terms"
+                checked={acceptedTerms}
+                onChange={e => setAcceptedTerms(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+              />
+              <label htmlFor="terms" className="text-sm text-slate-600">
+                Li e aceito a <button type="button" onClick={() => setShowPrivacyModal(true)} className="text-primary font-medium hover:underline">Política de Privacidade</button>
+              </label>
+            </div>
+          )}
+
+          {showPrivacyModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+              <div className="bg-white rounded-3xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto space-y-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold">Política de Privacidade</h2>
+                  <button type="button" onClick={() => setShowPrivacyModal(false)} className="p-2 bg-slate-100 rounded-full">
+                    <XCircle className="w-5 h-5"/>
+                  </button>
+                </div>
+                <iframe 
+                  src="https://renovar.warpserver.com.br/privacidade.html" 
+                  className="w-full h-[60vh]"
+                  title="Política de Privacidade"
+                />
+              </div>
+            </div>
           )}
 
           <Button 
@@ -1422,6 +1460,8 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
 };
 
 const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], currentUserRole, onUpdateUser, onAddUser, onUpdateRole, onUpdateMinistryLeaders, showMessage, initialTab = 'members' }: { users: UserType[], cells: CellGroup[], ministries: Ministry[], adminRoles?: AdminRole[], currentUserRole: UserRole, onUpdateUser: (userId: string, updates: Partial<UserType>) => void, onAddUser: (user: Partial<UserType>) => void, onUpdateRole?: (userId: string, newRole: UserRole, leaderOf?: string, adminRoleId?: string) => void, onUpdateMinistryLeaders?: (userId: string, ministryIds: string[]) => void, showMessage?: (msg: string) => void, initialTab?: 'members' | 'integration' }) => {
+    console.log("Rendering UserManagementScreen with role:", currentUserRole);
+
   const [activeTab, setActiveTab] = useState<'members' | 'integration'>(initialTab);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [newNote, setNewNote] = useState('');
@@ -1580,13 +1620,60 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
               >
                 Marcar como Integrado
               </button>
-              <button 
+            <button 
                 onClick={() => handleUpdateStatus(selectedUser.id, 'active')}
                 className="py-2 px-3 bg-primary-light text-primary rounded-xl text-xs font-bold border border-primary/10"
               >
                 Marcar como Ativo
               </button>
             </div>
+            {(currentUserRole === 'superadmin' || currentUserRole === 'admin') && (
+              <div className="grid grid-cols-1 gap-2 mt-2">
+                <button 
+                    onClick={async () => {
+                        try {
+                            const res = await fetch(`/api/users/${selectedUser.id}/export`);
+                            const blob = await res.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `user_${selectedUser.id}_data.json`;
+                            a.click();
+                        } catch (e) {
+                            showMessage?.('Erro ao exportar dados');
+                        }
+                    }}
+                    className="py-2 px-3 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold border border-blue-100"
+                >
+                    Baixar Dados do Usuário
+                </button>
+                <button 
+                    onClick={async () => {
+                        if(!confirm("TEM CERTEZA ABSOLUTA? Esta ação vai APAGAR COMPLETAMENTE todos os dados do usuário. Esta ação NÃO pode ser desfeita. Digite 'APAGAR' para confirmar.")) return;
+                        if(prompt("Digite 'APAGAR' para confirmar a exclusão irreversível:") !== 'APAGAR') {
+                            showMessage?.('Exclusão cancelada.');
+                            return;
+                        }
+                        try {
+                            await fetch(`/api/users/${selectedUser.id}/delete`, { method: 'DELETE' });
+                            showMessage?.('Dados excluídos com sucesso');
+                            setSelectedUser(null);
+                        } catch (e) {
+                            showMessage?.('Erro ao excluir dados');
+                        }
+                    }}
+                    className="py-2 px-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100"
+                >
+                    Excluir Dados do Usuário
+                </button>
+              </div>
+            )}
+            {selectedUser.deletionRequested && (
+                <div className="bg-orange-100 text-orange-700 p-2 rounded-xl text-xs font-bold mt-2 text-center">
+                    Usuário solicitou exclusão de dados.
+                </div>
+            )
+            }
           </div>
         </Card>
 
@@ -1976,7 +2063,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
         {[
           { icon: BookOpen, label: 'Planos', color: 'bg-emerald-500', action: onShowReadingPlans },
-          { icon: Mic, label: 'Sermões', color: 'bg-orange-500', action: () => onTabChange('sermons') },
+          { icon: Radio, label: 'Sermões', color: 'bg-orange-500', action: () => onTabChange('sermons') },
           { icon: Music, label: 'Ministérios', color: 'bg-teal-500', action: () => onTabChange('ministries') },
           { icon: Calendar, label: 'Agenda', color: 'bg-blue-500', action: () => onTabChange('events') },
           { icon: Home, label: 'PGs', color: 'bg-purple-500', action: () => onTabChange('groups') },
@@ -3152,6 +3239,21 @@ const UserPastoralVisitsScreen = ({ visits, onAddRequest }: { visits: PastoralVi
 
 const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void }) => {
   const [showBirthdays, setShowBirthdays] = useState<'today' | 'month' | null>(null);
+  const [dynamicDailyVerse, setDynamicDailyVerse] = useState(verseStats?.today?.text);
+  const [dynamicTomorrowVerse, setDynamicTomorrowVerse] = useState(verseStats?.tomorrow?.text);
+
+  useEffect(() => {
+    if (verseStats?.today?.text?.startsWith('Texto será')) {
+      fetchVerseText(verseStats.today.ref, 'acf').then(t => t && setDynamicDailyVerse(t));
+    } else {
+      setDynamicDailyVerse(verseStats?.today?.text);
+    }
+    if (verseStats?.tomorrow?.text?.startsWith('Texto será')) {
+      fetchVerseText(verseStats.tomorrow.ref, 'acf').then(t => t && setDynamicTomorrowVerse(t));
+    } else {
+      setDynamicTomorrowVerse(verseStats?.tomorrow?.text);
+    }
+  }, [verseStats]);
 
   const birthdays = React.useMemo(() => {
     const today = new Date();
@@ -3369,7 +3471,7 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
         {[
           { icon: Plus, label: 'Evento', color: 'bg-primary', action: onAddEvent },
           { icon: MessageSquare, label: 'Aviso', color: 'bg-blue-500', action: onAddAnnouncement },
-          { icon: Mic, label: 'Sermão', color: 'bg-orange-500', action: () => onTabChange?.('sermons') },
+          { icon: Radio, label: 'Sermão', color: 'bg-orange-500', action: () => onTabChange?.('sermons') },
           { icon: BookOpen, label: 'Plano', color: 'bg-emerald-500', action: onAddReadingPlan },
           { icon: DollarSign, label: 'Caixa', color: 'bg-amber-500', action: onAddTransaction },
         ].map((action, i) => (
@@ -4044,7 +4146,7 @@ const AdminAllScreens = ({ onTabChange, isTabAllowed }: { onTabChange: (tab: str
     { id: 'announcements', label: 'Avisos e Notícias', icon: Bell, color: 'bg-orange-500' },
     { id: 'groups', label: 'Pequenos Grupos', icon: Home, color: 'bg-indigo-500' },
     { id: 'pastoral', label: 'Visitas Pastorais', icon: Heart, color: 'bg-rose-500' },
-    { id: 'sermons', label: 'Gerenciar Sermões', icon: Mic, color: 'bg-orange-600' },
+    { id: 'sermons', label: 'Gerenciar Sermões', icon: Radio, color: 'bg-orange-600' },
     { id: 'tithes', label: 'Configuração de Dízimos', icon: DollarSign, color: 'bg-emerald-600' },
     { id: 'admin_roles', label: 'Perfis de Acesso Adm', icon: Shield, color: 'bg-red-600' },
     { id: 'hosting', label: 'Servidor e Backups', icon: Server, color: 'bg-slate-700' },
@@ -5021,7 +5123,7 @@ const NotificationSettingsScreen = ({ settings, onUpdate, onClose, showMessage }
           <Card className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-orange-50 text-orange-500 rounded-lg">
-                <Mic className="w-4 h-4" />
+                <Radio className="w-4 h-4" />
               </div>
               <div>
                 <p className="font-bold text-sm">Novos Sermões</p>
@@ -6115,7 +6217,7 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
       <header className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-900">Sermões</h2>
         <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-400">
-          <Mic className="w-5 h-5" />
+          <Radio className="w-5 h-5" />
         </div>
       </header>
 
@@ -6169,7 +6271,7 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
         )) : (
           <div className="text-center py-12 space-y-4">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300">
-              <Mic className="w-8 h-8" />
+              <Radio className="w-8 h-8" />
             </div>
             <p className="text-slate-500 italic">Nenhum sermão disponível ainda.</p>
           </div>
@@ -6342,7 +6444,7 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
           <Card key={sermon.id} className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center">
-                {sermon.thumbnail ? <img src={sermon.thumbnail} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" /> : <Mic className="w-6 h-6 text-slate-300" />}
+                {sermon.thumbnail ? <img src={sermon.thumbnail} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" /> : <Radio className="w-6 h-6 text-slate-300" />}
               </div>
               <div>
                 <h4 className="font-bold text-slate-900">{sermon.title}</h4>
@@ -7737,7 +7839,7 @@ const joinCell = async (cellId: string) => {
     { id: 'home', icon: Home, label: 'Início' },
     { id: 'prayer', icon: PrayingHands, label: 'Orações' },
     { id: 'bible', icon: BookOpen, label: 'Bíblia' },
-    { id: 'sermons', icon: Mic, label: 'Sermões' },
+    { id: 'sermons', icon: Radio, label: 'Sermões' },
     { id: 'profile', icon: User, label: 'Perfil' },
   ];
 
@@ -7789,7 +7891,7 @@ const joinCell = async (cellId: string) => {
     { id: 'all_screens', icon: Grid, label: 'Telas' },
     { id: 'financial', icon: DollarSign, label: 'Financeiro' },
     { id: 'pastoral', icon: Heart, label: 'Visitas' },
-    { id: 'sermons', icon: Mic, label: 'Sermões' },
+    { id: 'sermons', icon: Radio, label: 'Sermões' },
     { id: 'prayer', icon: PrayingHands, label: 'Orações' },
     { id: 'profile', icon: Settings, label: 'Perfil' },
     { id: 'hosting', icon: Server, label: 'Servidor' },

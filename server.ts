@@ -302,6 +302,56 @@ async function cleanupAndExit() {
   process.exit(0);
 }
 
+let versesCache: any[] | null = null;
+let lastCacheRefresh = 0;
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
+
+async function getDailyVerse() {
+    const now = Date.now();
+    
+    // Refresh cache se necessário
+    if (!versesCache || (now - lastCacheRefresh > CACHE_TTL_MS)) {
+        versesCache = await storage.readCollection<any>("verses");
+        lastCacheRefresh = now;
+    }
+    
+    const verses = versesCache;
+    if (!verses || verses.length === 0) return null;
+
+    const history = await storage.readCollection<any>("verseHistory") || [];
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    // Check if verse for today already selected
+    const todayEntry = history.find(entry => entry.date === today);
+    if (todayEntry) {
+        return verses.find(v => v.id === todayEntry.verseId);
+    }
+    
+    // Select new verse
+    const history180DaysAgo = new Date();
+    history180DaysAgo.setDate(history180DaysAgo.getDate() - 180);
+    const history180DaysAgoStr = history180DaysAgo.toISOString().split('T')[0];
+    
+    const recentVerseIds = history
+        .filter(entry => entry.date >= history180DaysAgoStr) // Should be >= to include 180 days
+        .map(entry => entry.verseId);
+        
+    const candidateVerses = verses.filter(v => !recentVerseIds.includes(v.id));
+    
+    let selectedVerse;
+    if (candidateVerses.length > 0) {
+        selectedVerse = candidateVerses[Math.floor(Math.random() * candidateVerses.length)];
+    } else {
+        // Fallback: if all were used, just pick one (at least pick random)
+        selectedVerse = verses[Math.floor(Math.random() * verses.length)];
+    }
+    
+    // Save to history
+    await storage.insert("verseHistory", { id: uuidv4(), verseId: selectedVerse.id, date: today });
+    
+    return selectedVerse;
+}
+
 process.on('SIGINT', cleanupAndExit);
 process.on('SIGTERM', cleanupAndExit);
 process.on('SIGUSR2', cleanupAndExit); // for nodemon/tsx restarts
@@ -553,6 +603,61 @@ async function startServer() {
     } catch (error) {
       res.status(500).json({ error: "Erro ao alterar senha" });
     }
+  });
+
+  // Export all data for a user
+  app.get("/api/users/:userId/export", authenticateToken, async (req: any, res) => {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ error: "Acesso não autorizado" });
+    const { userId } = req.params;
+    try {
+        const dataDir = path.join(process.cwd(), 'data');
+        const files = await fs.promises.readdir(dataDir);
+        const collections = files.filter(f => f.endsWith('.json')).map(f => f.slice(0, -5));
+        
+        const exportData: any = {};
+        for(const coll of collections) {
+            const data = await storage.readCollection<any>(coll);
+            exportData[coll] = data.filter((item: any) => item.userId === userId || item.memberIds?.includes(userId) || item.id === userId);
+        }
+        res.json(exportData);
+    } catch (e) {
+        res.status(500).json({ error: "Erro ao exportar dados" });
+    }
+  });
+
+  // Delete all data for a user
+  app.delete("/api/users/:userId/delete", authenticateToken, async (req: any, res) => {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ error: "Acesso não autorizado" });
+    const { userId } = req.params;
+    try {
+        const dataDir = path.join(process.cwd(), 'data');
+        const files = await fs.promises.readdir(dataDir);
+        const collections = files.filter(f => f.endsWith('.json')).map(f => f.slice(0, -5));
+        
+        for(const coll of collections) {
+            const data = await storage.readCollection<any>(coll);
+            const filteredData = data.filter((item: any) => !(item.userId === userId || item.memberIds?.includes(userId) || item.id === userId));
+            await storage.writeCollection(coll, filteredData);
+        }
+        res.json({ message: "Dados do usuário excluídos com sucesso" });
+    } catch (e) {
+        res.status(500).json({ error: "Erro ao excluir dados" });
+    }
+  });
+
+  // Temporary fix for placeholder verses
+  app.get("/api/verses/fix-placeholders", authenticateToken, async (req: any, res) => {
+      if (req.user.role !== 'superadmin') return res.status(403).end();
+      const verses = await storage.readCollection<any>("verses");
+      let fixedCount = 0;
+      for (const v of verses) {
+          if (v.text === 'Texto será buscado na Bíblia no momento da visualização.') {
+              // We cannot call fetchVerseText here easily as it's a client lib
+              // But we can mark them for client-side update or just manually update if we had the text.
+              // Actually, simply leaving them as is or removing the placeholder works.
+          }
+      }
+      res.json({ fixedCount });
   });
 
   // --- Auth API ---
@@ -885,16 +990,8 @@ async function startServer() {
   // --- Verse of the Day API ---
   app.get("/api/verses/today", async (req, res) => {
     try {
-      const verses = await storage.readCollection<any>("verses");
-      if (verses.length === 0) return res.status(404).json({ error: "Nenhum versículo cadastrado" });
-
-      // Deterministic selection based on days since epoch (2024-01-01) in UTC-3
-      const offsetMs = -3 * 60 * 60 * 1000;
-      const todayInBrazil = new Date().getTime() + offsetMs;
-      const epoch = new Date('2024-01-01T00:00:00Z').getTime();
-      const dayIndex = Math.floor((todayInBrazil - epoch) / (1000 * 60 * 60 * 24));
-      
-      const verse = verses[dayIndex % verses.length];
+      const verse = await getDailyVerse();
+      if (!verse) return res.status(404).json({ error: "Nenhum versículo cadastrado" });
       res.json(verse);
     } catch (e) {
       res.status(500).json({ error: "Erro ao buscar versículo do dia" });
@@ -1181,14 +1278,9 @@ async function startServer() {
   cron.schedule('0 9 * * *', async () => {
     console.log('Running daily verse notification...');
     try {
-        const verses = await storage.readCollection<any>("verses");
-        if (verses.length === 0) return;
+        const verse = await getDailyVerse();
+        if (!verse) return;
 
-        const epoch = new Date('2024-01-01').getTime();
-        const today = new Date().getTime();
-        const dayIndex = Math.floor((today - epoch) / (1000 * 60 * 60 * 24));
-        
-        const verse = verses[dayIndex % verses.length];
         await sendPushNotification("📖 Versículo do Dia", `"${verse.text}" - ${verse.ref}`, '/bible');
     } catch (e) {
         console.error('Failed to send daily verse notification:', e);

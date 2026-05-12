@@ -293,10 +293,15 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
     setIsBulkSaving(true);
     
     try {
-      const formattedItems = importedVerses.filter(v => v.ref).map((v, index) => {
+      const formattedItems = importedVerses.filter(v => v.ref).map(async (v, index) => {
         let textToSave = v.text;
         if (!textToSave) {
-          textToSave = 'Texto será buscado na Bíblia no momento da visualização.';
+          try {
+            const fetched = await fetchVerseText(v.ref, 'acf');
+            textToSave = fetched || 'Texto não encontrado.';
+          } catch (e) {
+            textToSave = 'Erro ao buscar texto.';
+          }
         }
         return {
           ref: v.ref,
@@ -306,14 +311,16 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
         };
       });
 
-      if (formattedItems.length > 0) {
+      const items = await Promise.all(formattedItems);
+
+      if (items.length > 0) {
         const response = await fetch('/api/collections/verses/batch', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
           },
-          body: JSON.stringify({ items: formattedItems })
+          body: JSON.stringify({ items: items })
         });
         
         if (response.ok) {
