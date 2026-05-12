@@ -218,7 +218,7 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
         
         const separators = [' - ', ': ', ' – '];
         for (const sep of separators) {
-          if (line.includes(sep)) {
+          if (line.includes(sep) && !line.match(/^[\wáéíóúâêôãõç\s]+\s+\d+\s+\d+(?:-\d+)?$/i)) {
             const parts = line.split(sep);
             ref = parts[0].trim();
             text = parts.slice(1).join(sep).trim();
@@ -226,10 +226,14 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
           }
         }
         
-        // If no separator found, maybe it's just the reference and we need to fetch text later
-        // or it's incorrectly formatted. We'll show it for partial editing.
+        // If no separator found, or if it matched "Book Chapter Verse" directly
         if (!ref) {
           ref = line.trim();
+          // Fix format like "Gênesis 1 1" or "1 João 1 5"
+          const match = ref.match(/^([\wáéíóúâêôãõç\s]+)\s+(\d+)\s+(\d+(?:-\d+)?)$/i);
+          if (match) {
+            ref = `${match[1].trim()} ${match[2]}:${match[3]}`;
+          }
         }
         
         return { ref, text };
@@ -257,15 +261,8 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
           
           let textToSave = v.text;
           if (!textToSave) {
-            try {
-              const fetched = await fetchVerseText(v.ref, selectedTranslation);
-              if (fetched) textToSave = fetched;
-            } catch (err) {
-              console.error('Failed to fetch text for', v.ref);
-            }
+            textToSave = 'Texto será buscado na Bíblia no momento da visualização.';
           }
-
-          if (!textToSave) textToSave = 'Texto não encontrado. Edite manualmente.';
 
           await fetch('/api/collections/verses', {
             method: 'POST',

@@ -620,7 +620,7 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
   useEffect(() => {
     // If the version changes, fetch the new text
     const updateText = async () => {
-      if (selectedTranslation === 'almeida' && verse.text && !verse.text.startsWith('Carregando')) {
+      if (selectedTranslation === 'almeida' && verse.text && !verse.text.startsWith('Carregando') && !verse.text.startsWith('Texto será')) {
         setCurrentText(verse.text);
         return;
       }
@@ -803,9 +803,10 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
               </p>
             </div>
 
-            <div className="absolute bottom-8 left-0 right-0 text-center">
+            <div className="absolute bottom-8 left-0 right-0 text-center flex flex-col items-center">
               <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">{APP_CONFIG.name}</p>
               <p className="text-white/40 text-[9px] font-medium tracking-[0.1em] mt-0.5">{APP_CONFIG.social.instagram.replace('https://instagram.com/', '@')}</p>
+              <p className="text-white/30 text-[8px] font-bold uppercase tracking-[0.15em] mt-1.5">{BIBLE_TRANSLATIONS.find(t => t.id === selectedTranslation)?.bollsStr || selectedTranslation.toUpperCase()}</p>
             </div>
 
             {/* Decorative Elements */}
@@ -1884,7 +1885,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
 
   useEffect(() => {
     if (dailyVerse) {
-      if (dailyVerse.text && !dailyVerse.text.startsWith('Carregando')) {
+      if (dailyVerse.text && !dailyVerse.text.startsWith('Carregando') && !dailyVerse.text.startsWith('Texto será')) {
         setCurrentVerseText(dailyVerse.text);
       } else {
         // Fetch text
@@ -1906,7 +1907,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
   };
 
   const verseDisplay = { 
-    text: currentVerseText || (dailyVerse?.text?.startsWith('Carregando') ? dailyVerse?.text : "Carregando palavra do dia..."), 
+    text: currentVerseText || ((dailyVerse?.text?.startsWith('Carregando') || dailyVerse?.text?.startsWith('Texto será')) ? dailyVerse?.text : "Carregando palavra do dia..."), 
     ref: dailyVerse?.ref || "..." 
   };
 
