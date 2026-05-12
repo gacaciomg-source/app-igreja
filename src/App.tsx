@@ -1889,7 +1889,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
         setCurrentVerseText(dailyVerse.text);
       } else {
         // Fetch text
-        fetchVerseText(dailyVerse.ref, 'almeida').then(text => {
+        fetchVerseText(dailyVerse.ref, 'acf').then(text => {
           if (text) setCurrentVerseText(text);
         });
       }

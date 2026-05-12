@@ -14,6 +14,45 @@ const Card = ({ children, className, onClick, ...props }: { children: React.Reac
   </div>
 );
 
+const AdminVerseRow = ({ verse, index, onEdit, onDelete }: { verse: any, index: number, onEdit: () => void, onDelete: () => void }) => {
+  const [displayText, setDisplayText] = useState(verse.text);
+
+  useEffect(() => {
+    if (verse.text?.startsWith('Carregando') || verse.text?.startsWith('Texto será')) {
+      fetchVerseText(verse.ref, 'acf').then(fetched => {
+        if (fetched) setDisplayText(fetched);
+      });
+    } else {
+      setDisplayText(verse.text);
+    }
+  }, [verse.text, verse.ref]);
+
+  return (
+    <Card className="p-4 flex gap-4 items-start group">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${verse.isPlaceholder ? 'bg-slate-50 text-slate-300' : 'bg-primary/10 text-primary'}`}>
+        {index + 1}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-slate-700 italic text-sm leading-relaxed mb-1">"{displayText}"</p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-bold text-primary">{verse.ref}</p>
+          {verse.isPlaceholder && (
+            <span className="text-[9px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase font-bold">Sugestão</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+        <button onClick={onEdit} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
+          <Edit2 className="w-4 h-4" />
+        </button>
+        <button onClick={onDelete} className="p-2 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    </Card>
+  );
+};
+
 const Button = ({ children, onClick, className, variant = 'primary', disabled = false, loading = false }: { children: React.ReactNode, onClick?: () => void, className?: string, variant?: 'primary' | 'outline' | 'ghost', disabled?: boolean, loading?: boolean }) => (
   <button
     onClick={onClick}
@@ -250,38 +289,38 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
     if (importedVerses.length === 0) return;
     setIsBulkSaving(true);
     
-    let count = 0;
     try {
-      const batchSize = 20; // Process 20 items concurrently
-      for (let i = 0; i < importedVerses.length; i += batchSize) {
-        const batch = importedVerses.slice(i, i + batchSize);
-        
-        await Promise.all(batch.map(async (v, index) => {
-          if (!v.ref) return;
-          
-          let textToSave = v.text;
-          if (!textToSave) {
-            textToSave = 'Texto será buscado na Bíblia no momento da visualização.';
-          }
+      const formattedItems = importedVerses.filter(v => v.ref).map((v, index) => {
+        let textToSave = v.text;
+        if (!textToSave) {
+          textToSave = 'Texto será buscado na Bíblia no momento da visualização.';
+        }
+        return {
+          ref: v.ref,
+          text: textToSave,
+          id: `${Date.now()}-${index}`,
+          createdAt: new Date().toISOString()
+        };
+      });
 
-          await fetch('/api/collections/verses', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-            },
-            body: JSON.stringify({ 
-              ref: v.ref, 
-              text: textToSave, 
-              id: `${Date.now()}-${i}-${index}`, 
-              createdAt: new Date().toISOString() 
-            })
-          });
-        }));
-        count += batch.length;
+      if (formattedItems.length > 0) {
+        const response = await fetch('/api/collections/verses/batch', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          },
+          body: JSON.stringify({ items: formattedItems })
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          showMessage?.(`${result.count} versículos importados com sucesso`);
+        } else {
+          showMessage?.('Erro durante salvamento em massa na API');
+        }
       }
       
-      showMessage?.(`${count} versículos importados com sucesso`);
       setIsImporting(false);
       setImportedVerses([]);
       fetchVerses();
@@ -478,34 +517,13 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
           <div className="text-center py-12 text-slate-500">Carregando lista...</div>
         ) : filteredVerses.length > 0 ? (
           filteredVerses.slice(0, 50).map((verse, index) => (
-            <Card key={verse.id || index} className="p-4 flex gap-4 items-start group">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${verse.isPlaceholder ? 'bg-slate-50 text-slate-300' : 'bg-primary/10 text-primary'}`}>
-                {index + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-slate-700 italic text-sm leading-relaxed mb-1">"{verse.text}"</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-bold text-primary">{verse.ref}</p>
-                  {verse.isPlaceholder && (
-                    <span className="text-[9px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase font-bold">Sugestão</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                <button 
-                  onClick={() => { setEditingVerse(verse); setFormData({ text: verse.text, ref: verse.ref }); }}
-                  className="p-2 hover:bg-emerald-50 text-emerald-500 rounded-lg transition-colors"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => handleDelete(verse.id)}
-                  className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </Card>
+            <AdminVerseRow 
+              key={verse.id || index} 
+              verse={verse} 
+              index={index} 
+              onEdit={() => { setEditingVerse(verse); setFormData({ text: verse.text, ref: verse.ref }); }}
+              onDelete={() => handleDelete(verse.id)} 
+            />
           ))
         ) : (
           <div className="text-center py-12 text-slate-500">Nenhum versículo encontrado</div>

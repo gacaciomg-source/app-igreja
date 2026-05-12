@@ -888,10 +888,11 @@ async function startServer() {
       const verses = await storage.readCollection<any>("verses");
       if (verses.length === 0) return res.status(404).json({ error: "Nenhum versículo cadastrado" });
 
-      // Deterministic selection based on days since epoch (2024-01-01)
-      const epoch = new Date('2024-01-01').getTime();
-      const today = new Date().getTime();
-      const dayIndex = Math.floor((today - epoch) / (1000 * 60 * 60 * 24));
+      // Deterministic selection based on days since epoch (2024-01-01) in UTC-3
+      const offsetMs = -3 * 60 * 60 * 1000;
+      const todayInBrazil = new Date().getTime() + offsetMs;
+      const epoch = new Date('2024-01-01T00:00:00Z').getTime();
+      const dayIndex = Math.floor((todayInBrazil - epoch) / (1000 * 60 * 60 * 24));
       
       const verse = verses[dayIndex % verses.length];
       res.json(verse);
@@ -930,6 +931,29 @@ async function startServer() {
       res.json(data);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar dados" });
+    }
+  });
+
+  app.post("/api/collections/:name/batch", authenticateToken, async (req, res) => {
+    try {
+      const items = req.body.items;
+      if (!Array.isArray(items)) {
+        return res.status(400).json({ error: "O atributo 'items' deve ser um array." });
+      }
+      
+      const newItems = items.map(item => ({
+        ...item,
+        id: item.id || uuidv4(),
+        createdAt: item.createdAt || new Date().toISOString()
+      }));
+      
+      const existing = await storage.readCollection(req.params.name) || [];
+      const updated = [...existing, ...newItems];
+      await storage.writeCollection(req.params.name, updated);
+      
+      res.json({ success: true, count: newItems.length });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao salvar em massa" });
     }
   });
 
