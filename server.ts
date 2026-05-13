@@ -905,7 +905,7 @@ async function startServer() {
       const collections = [
         'users', 'events', 'prayers', 'announcements', 'cells', 
         'readingPlans', 'pastoralVisits', 'titheTransactions', 
-        'attendances', 'config', 'ministries', 'ministrySchedules', 'adminRoles'
+        'attendances', 'config', 'ministries', 'ministrySchedules', 'adminRoles', 'eventRegistrations'
       ];
       const backup: any = {};
       for (const c of collections) {
@@ -1106,6 +1106,10 @@ async function startServer() {
         sendPushNotification("📅 Novo Evento!", `Participe: ${newItem.title}`, '/').catch(e => console.error("Push failed:", e));
       } else if (req.params.name === 'announcements') {
         sendPushNotification("📢 Comunicado", newItem.title, '/').catch(e => console.error("Push failed:", e));
+      } else if (req.params.name === 'eventRegistrations') {
+        const event = await storage.findById<any>('events', newItem.eventId);
+        const msg = `🎟️ *Nova Inscrição em Evento*\n\n*Evento:* ${event?.title || 'Desconhecido'}\n*Membro:* ${newItem.userName}\n*Contato:* ${newItem.userPhone || newItem.userEmail}\n*Status:* Pendente`;
+        sendWhatsAppNotifications(msg).catch(e => console.error("WhatsApp notification failed:", e));
       }
       
       res.json(newItem);

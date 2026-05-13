@@ -69,6 +69,23 @@ export interface Event {
   location: string;
   image: string;
   category: string;
+  description?: string;
+  requiresRegistration?: boolean;
+  registrationLimit?: number;
+  fee?: number;
+}
+
+export interface EventRegistration {
+  id: string;
+  eventId: string;
+  uid: string;
+  userName: string;
+  userEmail: string;
+  userPhone?: string;
+  paid?: boolean;
+  paymentProofUrl?: string;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  createdAt: string;
 }
 
 export interface PrayerComment {
