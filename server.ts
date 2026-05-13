@@ -19,7 +19,10 @@ import multer from 'multer';
 import FormData from 'form-data';
 import webpush from 'web-push';
 
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ 
+  dest: 'uploads/',
+  limits: { fileSize: 100 * 1024 * 1024 } // Aumentado para 100MB para suportar imagens de alta resolução
+});
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -426,7 +429,13 @@ cron.schedule('0 23 * * *', async () => {
       const filePath = path.join(backupDir, filename);
       
       const zip = new AdmZip();
-      zip.addLocalFolder(dataDir);
+      zip.addLocalFolder(dataDir, 'data');
+      
+      const uDir = path.join(process.cwd(), 'uploads');
+      if (fs.existsSync(uDir)) {
+        zip.addLocalFolder(uDir, 'uploads');
+      }
+
       zip.writeZip(filePath);
       console.log(`Backup automático concluído localmente: ${filename}`);
 
@@ -778,7 +787,12 @@ async function startServer() {
         freeMemory,
         totalMemory,
         loadAvg,
-        uptime: Math.floor(process.uptime())
+        uptime: Math.floor(process.uptime()),
+        paths: {
+          data: path.resolve(process.cwd(), 'data'),
+          uploads: path.resolve(process.cwd(), 'uploads'),
+          cwd: process.cwd()
+        }
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao ler statos do sistema" });
@@ -897,12 +911,14 @@ async function startServer() {
   app.get("/api/backup/zip", authenticateToken, async (req, res) => {
     try {
       const dataDir = path.join(process.cwd(), 'data');
-      if (!fs.existsSync(dataDir)) {
-          return res.status(404).json({ error: "Pasta de dados não encontrada" });
-      }
+      const uDir = path.join(process.cwd(), 'uploads');
 
       const zip = new AdmZip();
-      zip.addLocalFolder(dataDir);
+      zip.addLocalFolder(dataDir, 'data');
+      if (fs.existsSync(uDir)) {
+        zip.addLocalFolder(uDir, 'uploads');
+      }
+      
       const buffer = zip.toBuffer();
 
       const now = new Date();
@@ -931,9 +947,14 @@ async function startServer() {
         return res.status(400).json({ error: "Configuração do Telegram incompleta ou não encontrada" });
       }
 
-      const dataDir = path.join(process.cwd(), 'data');
       const zip = new AdmZip();
-      zip.addLocalFolder(dataDir);
+      zip.addLocalFolder(dataDir, 'data');
+      
+      const uDir = path.join(process.cwd(), 'uploads');
+      if (fs.existsSync(uDir)) {
+        zip.addLocalFolder(uDir, 'uploads');
+      }
+      
       const buffer = zip.toBuffer();
 
       const form = new FormData();
@@ -967,26 +988,15 @@ async function startServer() {
 
     try {
       const zip = new AdmZip(file.path);
-      const dataDir = path.join(process.cwd(), 'data');
+      const cwd = process.cwd();
       
-      // Limpa pasta atual
-      if (fs.existsSync(dataDir)) {
-          const files = fs.readdirSync(dataDir);
-          for (const file of files) {
-              if (file.endsWith('.json')) {
-                  fs.unlinkSync(path.join(dataDir, file));
-              }
-          }
-      } else {
-          fs.mkdirSync(dataDir, { recursive: true });
-      }
-
-      zip.extractAllTo(dataDir, true);
+      // Extrai tudo para a raiz do projeto (vai sobrescrever data/ e uploads/)
+      zip.extractAllTo(cwd, true);
       
       // Cleanup uploaded file
       fs.unlinkSync(file.path);
       
-      console.log('Backup importado com sucesso!');
+      console.log('Backup completo (dados e imagens) importado com sucesso!');
       res.json({ ok: true });
     } catch (error) {
       console.error("Erro ao importar backup:", error);

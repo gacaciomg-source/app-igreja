@@ -1,12 +1,14 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+console.log(`[Storage] Base directory: ${DATA_DIR}`);
 
 export async function ensureDataDir() {
   try {
     await fs.access(DATA_DIR);
   } catch {
+    console.log(`[Storage] Creating data directory: ${DATA_DIR}`);
     await fs.mkdir(DATA_DIR, { recursive: true });
   }
 }

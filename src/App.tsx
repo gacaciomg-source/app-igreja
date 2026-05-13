@@ -78,7 +78,8 @@ import {
   Table,
   BarChart as BarChartIcon,
   GitCompare,
-  Edit2
+  Edit2,
+  AlertTriangle
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { 
@@ -3805,7 +3806,43 @@ const AdminHostingScreen = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+      <Card className="p-6 border-blue-100 bg-blue-50/30">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+            <Database className="w-5 h-5" />
+          </div>
+          <div className="space-y-4 flex-1">
+            <div>
+              <h3 className="font-black text-slate-900 tracking-tight text-lg">Persistência de Dados</h3>
+              <p className="text-sm text-slate-500 font-medium">Informações sobre armazenamento local</p>
+            </div>
+            
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="p-3 bg-white rounded-xl border border-blue-100 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pasta de Dados</span>
+                <p className="text-xs font-mono text-slate-600 break-all">{loading ? 'Carregando...' : (sysInfo?.paths?.data || 'N/A')}</p>
+              </div>
+              <div className="p-3 bg-white rounded-xl border border-blue-100 space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pasta de Uploads</span>
+                <p className="text-xs font-mono text-slate-600 break-all">{loading ? 'Carregando...' : (sysInfo?.paths?.uploads || 'N/A')}</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border-l-4 border-l-amber-500 border border-slate-100">
+               <div className="flex gap-2">
+                 <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                 <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                   <strong className="text-slate-900">Importante:</strong> Ao atualizar o sistema via Git em sua VPS, certifique-se de que as pastas <code className="bg-slate-100 px-1 rounded">data/</code> e <code className="bg-slate-100 px-1 rounded">uploads/</code> sejam preservadas. Caso contrário, suas configurações (Pix, Dízimos) e imagens enviadas serão perdidas. 
+                   <br/><br/>
+                   Se você usa Docker ou deploys automatizados, configure volumes persistentes para estes caminhos.
+                 </p>
+               </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center">
@@ -6339,6 +6376,7 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
 
 const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], onAdd: (data: any) => void, onDelete: (id: string) => void }) => {
   const [showAdd, setShowAdd] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     preacher: '',
@@ -6349,6 +6387,23 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
     pdfUrl: '',
     thumbnail: ''
   });
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploading(true);
+      try {
+        const { url } = await api.upload(file);
+        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        setFormData({ ...formData, thumbnail: imageUrl });
+      } catch (err) {
+        console.error('Sermon thumbnail upload failed:', err);
+        alert('Falha ao enviar thumbnail.');
+      } finally {
+        setUploading(false);
+      }
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -6386,8 +6441,22 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
                 <input type="date" required className="w-full p-3 bg-slate-50 rounded-xl border-none text-sm" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Thumbnail URL</label>
-                <input className="w-full p-3 bg-slate-50 rounded-xl border-none text-sm" value={formData.thumbnail} onChange={e => setFormData({...formData, thumbnail: e.target.value})} />
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Thumbnail</label>
+                <div className="flex gap-2 items-center">
+                  {formData.thumbnail && (
+                    <div className="relative w-10 h-10 rounded-lg overflow-hidden border">
+                      {uploading ? (
+                        <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-3 w-3 border-2 border-primary border-t-transparent" />
+                        </div>
+                      ) : (
+                        <img src={formData.thumbnail} className="w-full h-full object-cover" alt="Thumb" />
+                      )}
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" onChange={handleImageUpload} className="text-[10px]" disabled={uploading} />
+                </div>
+                <input placeholder="Ou URL da Thumbnail" className="w-full p-2 bg-slate-50 rounded-xl border-none text-xs" value={formData.thumbnail} onChange={e => setFormData({...formData, thumbnail: e.target.value})} />
               </div>
             </div>
             <div className="space-y-1">
@@ -8501,6 +8570,25 @@ const ReadingPlanForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
   const [selectedBook, setSelectedBook] = useState(BIBLE_BOOKS[0].name);
   const [selectedChapter, setSelectedChapter] = useState('1');
 
+  const [uploading, setUploading] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploading(true);
+      try {
+        const { url } = await api.upload(file);
+        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        setForm({ ...form, imageUrl });
+      } catch (err) {
+        console.error('Reading plan image upload failed:', err);
+        alert('Falha ao enviar imagem.');
+      } finally {
+        setUploading(false);
+      }
+    }
+  };
+
   const addChapter = () => {
     const chapterStr = `${selectedBook} ${selectedChapter}`;
     if (!form.chapters.includes(chapterStr)) {
@@ -8551,7 +8639,24 @@ const ReadingPlanForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
         <input placeholder="Título do Plano" className="w-full p-3 rounded-xl border" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
         <input placeholder="Descrição" className="w-full p-3 rounded-xl border" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
         <input placeholder="Duração (ex: 30 dias)" className="w-full p-3 rounded-xl border" value={form.duration} onChange={e => setForm({...form, duration: e.target.value})} />
-        <input placeholder="URL da Imagem" className="w-full p-3 rounded-xl border" value={form.imageUrl} onChange={e => setForm({...form, imageUrl: e.target.value})} />
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-500 uppercase">Imagem do Plano</label>
+          <div className="flex gap-4 items-center">
+            {form.imageUrl && (
+              <div className="relative w-16 h-16 rounded-xl overflow-hidden border">
+                {uploading ? (
+                  <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                  </div>
+                ) : (
+                  <img src={form.imageUrl} className="w-full h-full object-cover" alt="Preview" />
+                )}
+              </div>
+            )}
+            <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs" disabled={uploading} />
+          </div>
+          <input placeholder="Ou cole a URL da Imagem" className="w-full p-3 rounded-xl border text-sm" value={form.imageUrl} onChange={e => setForm({...form, imageUrl: e.target.value})} />
+        </div>
       </section>
       
       <section className="space-y-3">

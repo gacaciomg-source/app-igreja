@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DollarSign, Save, Copy, CheckCircle2 } from 'lucide-react';
 import { TitheConfig } from '../types';
 
@@ -7,6 +7,13 @@ export const TithesAdminScreen = ({ config, onUpdate, showMessage }: { config: T
   const [bankName, setBankName] = useState(config.bankName);
   const [accountHolder, setAccountHolder] = useState(config.accountHolder);
   const [pixQrUrl, setPixQrUrl] = useState(config.pixQrUrl || '');
+
+  useEffect(() => {
+    setPixKey(config.pixKey);
+    setBankName(config.bankName);
+    setAccountHolder(config.accountHolder);
+    setPixQrUrl(config.pixQrUrl || '');
+  }, [config]);
 
   const handleSave = () => {
     onUpdate({ pixKey, bankName, accountHolder, pixQrUrl });
