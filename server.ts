@@ -465,8 +465,14 @@ async function startServer() {
   const PORT = process.env.PORT || 3000;
 
   app.use(cors());
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  app.use(express.json({ limit: '100mb' }));
+  app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir);
+  }
+  app.use('/uploads', express.static(uploadsDir));
 
   // --- Helper to ensure Super Admin exists ---
   const ensureSuperAdmin = async () => {
@@ -1145,6 +1151,18 @@ async function startServer() {
   app.post("/api/whatsapp/reconnect", authenticateToken, async (req, res) => {
     await initWhatsApp();
     res.json({ status: 'Initiated' });
+  });
+
+  app.post("/api/upload", authenticateToken, upload.single('file'), (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Nenhum arquivo enviado" });
+      }
+      res.json({ url: `/uploads/${req.file.filename}` });
+    } catch (error) {
+      console.error("Upload error:", error);
+      res.status(500).json({ error: "Erro no upload" });
+    }
   });
 
   app.post("/api/whatsapp/logout", authenticateToken, async (req, res) => {

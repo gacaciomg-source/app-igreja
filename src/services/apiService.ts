@@ -152,6 +152,29 @@ class ApiService {
     });
   }
 
+  async upload(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const headers = {
+      ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
+    };
+
+    const url = `${API_URL}/upload`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Erro no upload' }));
+      throw new Error(error.error || 'Falha ao enviar arquivo');
+    }
+
+    return response.json();
+  }
+
   async confirmMinistrySchedule(scheduleId: string, status: 'confirmed' | 'declined') {
     return this.request('/ministries/confirm', {
       method: 'POST',

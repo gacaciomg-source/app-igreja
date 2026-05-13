@@ -96,7 +96,7 @@ import {
 } from 'recharts';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction, FinancialRule } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
-import { api, getApiUrl } from './services/apiService';
+import { api, getApiUrl, BASE_URL } from './services/apiService';
 
 const DEFAULT_AVATAR = "https://renovar.warpserver.com.br/avatar.png";
 
@@ -5444,18 +5444,16 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        setForm(prev => ({ ...prev, avatar: base64 }));
-        try {
-          await onUpdateProfile({ avatar: base64 });
-          showMessage('Foto de perfil atualizada!');
-        } catch (err) {
-          showMessage('Erro ao salvar foto.');
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const { url } = await api.upload(file);
+        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        setForm(prev => ({ ...prev, avatar: imageUrl }));
+        await onUpdateProfile({ avatar: imageUrl });
+        showMessage('Foto de perfil atualizada!');
+      } catch (err: any) {
+        console.error('Avatar upload failed:', err);
+        showMessage('Erro ao enviar foto.');
+      }
     }
   };
 
@@ -8226,15 +8224,23 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
     category: 'Cultos', 
     image: 'https://picsum.photos/seed/newevent/400/200' 
   });
+  const [uploading, setUploading] = useState(false);
   
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setForm({ ...form, image: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      setUploading(true);
+      try {
+        const { url } = await api.upload(file);
+        // Ensure URL starts with / if it doesn't (though server should return /uploads/...)
+        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        setForm({ ...form, image: imageUrl });
+      } catch (err: any) {
+        console.error('Upload failed:', err);
+        alert('Falha ao enviar imagem. Tente novamente.');
+      } finally {
+        setUploading(false);
+      }
     }
   };
 
@@ -8243,8 +8249,14 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
       <div className="space-y-2">
         <label className="text-xs font-bold text-slate-500 uppercase">Imagem do Evento</label>
         <div className="flex gap-4 items-center">
-          <img src={form.image} className="w-20 h-20 rounded-xl object-cover border" alt="Preview" />
-          <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs" />
+          <div className="relative w-20 h-20 rounded-xl overflow-hidden border bg-slate-100 flex items-center justify-center">
+            {uploading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent" />
+            ) : (
+              <img src={form.image} className="w-full h-full object-cover" alt="Preview" />
+            )}
+          </div>
+          <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs" disabled={uploading} />
         </div>
       </div>
       <input placeholder="Título do Evento" className="w-full p-3 rounded-xl border bg-slate-50 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-primary/20" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
@@ -8439,15 +8451,22 @@ const TransactionForm = ({ onSubmit, funds }: { onSubmit: (t: any) => void, fund
 
 const AnnouncementForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
   const [form, setForm] = useState({ title: '', content: '', imageUrl: '' });
+  const [uploading, setUploading] = useState(false);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setForm({ ...form, imageUrl: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      setUploading(true);
+      try {
+        const { url } = await api.upload(file);
+        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        setForm({ ...form, imageUrl: imageUrl });
+      } catch (err) {
+        console.error('Announcement image upload failed:', err);
+        alert('Falha ao enviar imagem.');
+      } finally {
+        setUploading(false);
+      }
     }
   };
 
@@ -8458,11 +8477,21 @@ const AnnouncementForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
       <div className="space-y-2">
         <label className="text-xs font-bold text-slate-500 uppercase">Imagem (opcional)</label>
         <div className="flex gap-4 items-center">
-          {form.imageUrl && <img src={form.imageUrl} className="w-16 h-16 rounded-xl object-cover border" alt="Preview" />}
-          <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs" />
+          {form.imageUrl && (
+            <div className="relative w-16 h-16 rounded-xl overflow-hidden border">
+              {uploading ? (
+                <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                </div>
+              ) : (
+                <img src={form.imageUrl} className="w-full h-full object-cover" alt="Preview" />
+              )}
+            </div>
+          )}
+          <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs" disabled={uploading} />
         </div>
       </div>
-      <Button className="w-full py-4" onClick={() => onSubmit(form)}>Criar Aviso</Button>
+      <Button className="w-full py-4" onClick={() => onSubmit(form)} disabled={uploading}>Criar Aviso</Button>
     </div>
   );
 };
