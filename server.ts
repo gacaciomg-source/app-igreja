@@ -1079,15 +1079,31 @@ async function startServer() {
 
   app.get("/api/collections/:name", authenticateToken, async (req, res) => {
     try {
-      const data = await storage.readCollection(req.params.name);
+      let data = await storage.readCollection(req.params.name);
+      
+      // Data leak prevention for users collection
+      if (req.params.name === 'users') {
+        data = data.map((user: any) => {
+          const { password, ...safeUser } = user;
+          return safeUser;
+        });
+      }
+
       res.json(data);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar dados" });
     }
   });
 
-  app.post("/api/collections/:name/batch", authenticateToken, async (req, res) => {
+  app.post("/api/collections/:name/batch", authenticateToken, async (req: any, res) => {
     try {
+      const requester = req.user;
+      
+      // Protect batch creations
+      if (req.params.name === 'users' && requester.role !== 'admin' && requester.role !== 'superadmin') {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+
       const items = req.body.items;
       if (!Array.isArray(items)) {
         return res.status(400).json({ error: "O atributo 'items' deve ser um array." });
@@ -1109,13 +1125,30 @@ async function startServer() {
     }
   });
 
-  app.post("/api/collections/:name", authenticateToken, async (req, res) => {
+  app.post("/api/collections/:name", authenticateToken, async (req: any, res) => {
     try {
+      const requester = req.user;
+      const restrictedCollections = ['users', 'ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles'];
+      
+      if (restrictedCollections.includes(req.params.name) && requester.role !== 'admin' && requester.role !== 'superadmin') {
+        return res.status(403).json({ error: "Você não tem permissão para adicionar nesta coleção." });
+      }
+
       const newItem = {
         ...req.body,
         id: req.body.id || uuidv4(),
         createdAt: req.body.createdAt || new Date().toISOString()
       };
+      
+      // Stop users from spoofing UID
+      if (['prayers', 'eventRegistrations', 'pastoralVisits', 'userProgress', 'verseHighlights'].includes(req.params.name)) {
+        if (newItem.uid && newItem.uid !== requester.id) {
+          if (requester.role !== 'admin' && requester.role !== 'superadmin') {
+             newItem.uid = requester.id;
+          }
+        }
+      }
+
       await storage.insert(req.params.name, newItem);
       console.log(`Successfully inserted into ${req.params.name}:`, newItem.id);
       
@@ -1153,6 +1186,16 @@ async function startServer() {
         const requester = (req as any).user;
         const updates = req.body;
 
+        // Prevent updating passwords directly via PATCH
+        if ('password' in updates) {
+          delete updates.password;
+        }
+
+        // Only admins, superadmins, or the user themselves can update their profile
+        if (targetId !== requester.id && requester.role !== 'admin' && requester.role !== 'superadmin') {
+          return res.status(403).json({ error: "Você não tem permissão para atualizar o perfil de outro usuário" });
+        }
+
         if (updates.role) {
           // Only superadmin can set someone as admin
           if (updates.role === 'admin' && requester.role !== 'superadmin') {
@@ -1165,11 +1208,26 @@ async function startServer() {
           }
 
           // No one can change their own role to prevent self-promotion accidents/security bypass
-          // (unless it's superadmin changing others, but here we prevent any user from changing their OWN role field)
           if (targetId === requester.id && updates.role !== requester.role) {
              return res.status(403).json({ error: "Você não pode alterar sua própria função" });
           }
         }
+      } else {
+         const requester = (req as any).user;
+         const restrictedCollections = ['ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles'];
+         
+         if (restrictedCollections.includes(req.params.name) && requester.role !== 'admin' && requester.role !== 'superadmin') {
+           return res.status(403).json({ error: "Você não tem permissão para editar itens desta coleção." });
+         }
+         
+         if (['prayers', 'eventRegistrations', 'pastoralVisits', 'userProgress', 'verseHighlights'].includes(req.params.name)) {
+           if (requester.role !== 'admin' && requester.role !== 'superadmin') {
+             const item = await storage.findById<any>(req.params.name, req.params.id);
+             if (item && item.uid && item.uid !== requester.id) {
+               return res.status(403).json({ error: "Você não tem permissão para editar este item." });
+             }
+           }
+         }
       }
 
       const updated = await storage.update(req.params.name, req.params.id, req.body);
@@ -1180,8 +1238,25 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/collections/:name/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/collections/:name/:id", authenticateToken, async (req: any, res) => {
     try {
+      const requester = req.user;
+      const restrictedCollections = ['users', 'ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles'];
+      
+      if (restrictedCollections.includes(req.params.name) && requester.role !== 'admin' && requester.role !== 'superadmin') {
+        return res.status(403).json({ error: "Você não tem permissão para excluir itens desta coleção." });
+      }
+
+      // Check ownership for user collections if they are not admin
+      if (['prayers', 'eventRegistrations', 'pastoralVisits', 'userProgress', 'verseHighlights'].includes(req.params.name)) {
+        if (requester.role !== 'admin' && requester.role !== 'superadmin') {
+          const item = await storage.findById<any>(req.params.name, req.params.id);
+          if (item && item.uid !== requester.id) {
+            return res.status(403).json({ error: "Você não tem permissão para excluir este item." });
+          }
+        }
+      }
+
       const deleted = await storage.remove(req.params.name, req.params.id);
       if (!deleted) return res.status(404).json({ error: "Não encontrado" });
       res.json({ success: true });

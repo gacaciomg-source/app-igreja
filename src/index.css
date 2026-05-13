@@ -65,6 +65,13 @@
 .app-font-xl h1, .app-font-xl .text-3xl { font-size: 2.8rem !important; }
 .app-font-xl h2, .app-font-xl .text-2xl { font-size: 2.2rem !important; }
 
+/* Keep bottom navigation text proportional */
+.app-font-small .bottom-nav .text-\[10px\],
+.app-font-large .bottom-nav .text-\[10px\],
+.app-font-xl .bottom-nav .text-\[10px\] {
+  font-size: 10px !important;
+}
+
 /* Modal specific override to ensure readability */
 .app-font-xl .p-4, .app-font-xl .p-6 { padding: 1.5rem !important; }
 

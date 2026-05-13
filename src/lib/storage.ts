@@ -13,14 +13,26 @@ export async function ensureDataDir() {
   }
 }
 
+export function sanitizeCollectionName(name: string): string {
+  if (!name || typeof name !== 'string') {
+    throw new Error("Nome de colação inválido.");
+  }
+  const sanitized = name.replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!sanitized || sanitized !== name) {
+    throw new Error("Tentativa de injeção ou caracteres inválidos detectados na coleção.");
+  }
+  return sanitized;
+}
+
 export async function readCollection<T>(collectionName: string): Promise<T[]> {
-  const filePath = path.join(DATA_DIR, `${collectionName}.json`);
+  const safeCollectionName = sanitizeCollectionName(collectionName);
+  const filePath = path.join(DATA_DIR, `${safeCollectionName}.json`);
   try {
     const data = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(data);
   } catch {
     // Return default tithe config if requested and doesn't exist
-    if (collectionName === 'config') {
+    if (safeCollectionName === 'config') {
       return [{ id: 'tithes', message: 'Tudo o que tenho vem de Ti, e o que das Tuas mãos recebemos, Ti damos.', pixKey: 'igrejarenovar@pix.com', churchName: 'Igreja Renovar' }] as any;
     }
     return [];
@@ -28,8 +40,9 @@ export async function readCollection<T>(collectionName: string): Promise<T[]> {
 }
 
 export async function writeCollection<T>(collectionName: string, data: T[]): Promise<void> {
+  const safeCollectionName = sanitizeCollectionName(collectionName);
   await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `${collectionName}.json`);
+  const filePath = path.join(DATA_DIR, `${safeCollectionName}.json`);
   await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 

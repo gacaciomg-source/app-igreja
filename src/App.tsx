@@ -80,7 +80,8 @@ import {
   BarChart as BarChartIcon,
   GitCompare,
   Edit2,
-  AlertTriangle
+  AlertTriangle,
+  Trash2
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { 
@@ -938,7 +939,7 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
   );
 };
 
-const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJoinRequest, onManageRequest, onAddSchedule, schedules, onAdd, onUpdate, isAdmin, showMessage }: { 
+const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJoinRequest, onManageRequest, onAddSchedule, schedules, onAdd, onUpdate, onDelete, isAdmin, showMessage }: { 
   ministries: Ministry[], 
   users: UserType[], 
   currentUser: UserType | null, 
@@ -949,6 +950,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
   schedules: MinistrySchedule[],
   onAdd: (data: Partial<Ministry>) => void,
   onUpdate: (id: string, data: Partial<Ministry>) => void,
+  onDelete?: (id: string) => void,
   isAdmin: boolean,
   showMessage?: (msg: string) => void 
 }) => {
@@ -1025,9 +1027,19 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
             <h2 className="text-xl font-bold text-slate-900">{selectedMinistry.name}</h2>
           </div>
           {isAdmin && (
-            <button onClick={() => handleEditMinistry(selectedMinistry)} className="p-2 bg-slate-50 text-slate-400 rounded-full">
-              <Settings className="w-5 h-5" />
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => {
+                if (window.confirm('Tem certeza que deseja excluir este ministério?')) {
+                  onDelete?.(selectedMinistry.id);
+                  setSelectedMinistry(null);
+                }
+              }} className="p-2 bg-red-50 text-red-500 rounded-full hover:bg-red-100 transition-colors">
+                <Trash2 className="w-5 h-5" />
+              </button>
+              <button onClick={() => handleEditMinistry(selectedMinistry)} className="p-2 bg-slate-50 text-slate-400 rounded-full hover:bg-slate-100">
+                <Settings className="w-5 h-5" />
+              </button>
+            </div>
           )}
         </header>
 
@@ -1320,12 +1332,25 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
               <div className="w-1/3 h-full overflow-hidden relative">
                 <img src={m.imageUrl || 'https://picsum.photos/seed/ministry/200/200'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={m.name} />
                 {isAdmin && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleEditMinistry(m); }}
-                    className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Settings className="w-3 h-3 text-slate-600" />
-                  </button>
+                  <div className="absolute top-2 right-2 flex gap-1">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleEditMinistry(m); }}
+                      className="p-1.5 bg-white/80 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+                    >
+                      <Settings className="w-3 h-3 text-slate-600" />
+                    </button>
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (window.confirm('Excluir este ministério?')) {
+                          onDelete?.(m.id);
+                        }
+                      }}
+                      className="p-1.5 bg-red-50/80 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100"
+                    >
+                      <Trash2 className="w-3 h-3 text-red-500" />
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="w-2/3 p-4 flex flex-col justify-between">
@@ -2149,15 +2174,15 @@ const Dashboard = ({
         </div>
       </section>
 
-    <div className="grid md:grid-cols-2 gap-6">
-      <section className="space-y-4">
+    <div className="grid md:grid-cols-2 gap-6 items-start">
+      <section className="flex flex-col gap-4 h-full">
         <h3 className="text-lg font-bold text-slate-900">Versículo do Dia</h3>
-        <Card className="bg-primary text-white h-full relative overflow-hidden">
-          <div className="relative z-10 space-y-4 flex flex-col justify-between h-full">
+        <Card className="bg-primary text-white flex-1 relative overflow-hidden flex flex-col">
+          <div className="relative z-10 flex flex-col justify-between flex-1 gap-4">
             <p className="text-lg italic font-medium leading-relaxed">
               "{verseDisplay.text}"
             </p>
-            <div className="flex justify-between items-center mt-auto">
+            <div className="flex justify-between items-center mt-auto pt-4 border-t border-white/10">
               <span className="font-bold">{verseDisplay.ref}</span>
               <Button 
                 variant="secondary" 
@@ -2169,7 +2194,7 @@ const Dashboard = ({
               </Button>
             </div>
           </div>
-          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
         </Card>
       </section>
 
@@ -7273,6 +7298,15 @@ export default function App() {
     }
   };
 
+  const deleteMinistry = async (id: string) => {
+    try {
+      await api.delete('ministries', id);
+      handleApiSuccess('Ministério excluído com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'deleteMinistry');
+    }
+  };
+
   const requestJoinMinistry = async (ministryId: string) => {
     if (!currentUserData) return;
     const ministry = ministries.find(m => m.id === ministryId);
@@ -8128,7 +8162,7 @@ const joinCell = async (cellId: string) => {
         case 'integration':
           setCurrentTab('users');
           return null;
-        case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
+        case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} onDelete={deleteMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
         case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
@@ -8177,7 +8211,7 @@ const joinCell = async (cellId: string) => {
       case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} fontSize={fontSize} />;
       case 'sermons': return <SermonsScreen sermons={sermons} />;
       case 'tithes': return <TithesScreen config={titheConfig} onConfirmDonation={(val, label) => addTransaction({ label, value: val, type: 'in' })} showMessage={showMessage} currentUserData={currentUserData} />;
-      case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
+      case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} onDelete={deleteMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
       case 'groups': return <GroupsScreen cells={cells} users={users} currentUser={currentUserData} onJoin={joinCell} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
       case 'media': return <MediaScreen showMessage={showMessage} />;
       case 'pastoral': return <UserPastoralVisitsScreen visits={pastoralVisits.filter(v => v.uid === currentUserData?.id)} onAddRequest={() => setShowAddPastoralVisit(true)} />;
@@ -8569,7 +8603,7 @@ const joinCell = async (cellId: string) => {
       </div>
 
         <nav className={cn(
-          "fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-5xl bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-3 flex justify-between items-center z-50",
+          "bottom-nav fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-5xl bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-3 flex justify-between items-center z-50",
           isAdminPanel ? "md:hidden" : ""
         )}>
           {tabs.map(tab => (
