@@ -320,7 +320,7 @@ let versesCache: any[] | null = null;
 let lastCacheRefresh = 0;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
 
-async function getDailyVerse() {
+async function getDailyVerse(specificDate?: string) {
     const now = Date.now();
     
     // Refresh cache se necessário
@@ -333,12 +333,12 @@ async function getDailyVerse() {
     if (!verses || verses.length === 0) return null;
 
     const history = await storage.readCollection<any>("verseHistory") || [];
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const targetDate = specificDate || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     
     // Check if verse for today already selected
-    const todayEntry = history.find(entry => entry.date === today);
-    if (todayEntry) {
-        return verses.find(v => v.id === todayEntry.verseId);
+    const dateEntry = history.find(entry => entry.date === targetDate);
+    if (dateEntry) {
+        return verses.find(v => v.id === dateEntry.verseId);
     }
     
     // Select new verse
@@ -346,7 +346,7 @@ async function getDailyVerse() {
     history180DaysAgo.setDate(history180DaysAgo.getDate() - 180);
     const history180DaysAgoStr = history180DaysAgo.toISOString().split('T')[0];
     
-    // Filtra histórico para pegar ordens de versículos usados
+    // Filtra histórico para pegar ordens de versículos usados recently
     const recentVerseUsedIds = new Set(history
         .filter(entry => entry.date >= history180DaysAgoStr)
         .map(entry => entry.verseId));
@@ -357,12 +357,12 @@ async function getDailyVerse() {
     if (candidateVerses.length > 0) {
         selectedVerse = candidateVerses[Math.floor(Math.random() * candidateVerses.length)];
     } else {
-        // Se todos foram usados nos últimos 6 meses, escolhe qualquer um aleatório
+        // Se todos foram usados nos últimos 180 dias, escolhe qualquer um aleatório
         selectedVerse = verses[Math.floor(Math.random() * verses.length)];
     }
     
     // Save to history
-    await storage.insert("verseHistory", { id: uuidv4(), verseId: selectedVerse.id, date: today });
+    await storage.insert("verseHistory", { id: uuidv4(), verseId: selectedVerse.id, date: targetDate });
     
     return selectedVerse;
 }
@@ -1027,6 +1027,31 @@ async function startServer() {
     }
   });
 
+  app.post("/api/verses/refresh", authenticateToken, async (req, res) => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const tomorrowDate = new Date();
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
+
+      let history = await storage.readCollection<any>("verseHistory") || [];
+      
+      for (const entry of history) {
+          if (entry.date === todayStr || entry.date === tomorrowStr) {
+              await storage.delete("verseHistory", entry.id);
+          }
+      }
+
+      // Now get new ones
+      const todayVerse = await getDailyVerse(todayStr);
+      const tomorrowVerse = await getDailyVerse(tomorrowStr);
+
+      res.json({ success: true, today: todayVerse, tomorrow: tomorrowVerse });
+    } catch (e) {
+      res.status(500).json({ error: "Erro ao atualizar versículos" });
+    }
+  });
+
   app.get("/api/verses/stats", authenticateToken, async (req, res) => {
     try {
       const verses = await storage.readCollection<any>("verses");
@@ -1034,17 +1059,18 @@ async function startServer() {
         return res.json({ total: 0, today: null, tomorrow: null });
       }
       
-      const epoch = new Date('2024-01-01').getTime();
-      const today = new Date().getTime();
-      const tomorrow = today + (1000 * 60 * 60 * 24);
-      
-      const todayIdx = Math.floor((today - epoch) / (1000 * 60 * 60 * 24));
-      const tomorrowIdx = Math.floor((tomorrow - epoch) / (1000 * 60 * 60 * 24));
+      const todayStr = new Date().toISOString().split('T')[0];
+      const tomorrowDate = new Date();
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
+
+      const todayVerse = await getDailyVerse(todayStr);
+      const tomorrowVerse = await getDailyVerse(tomorrowStr);
 
       res.json({
         total: verses.length,
-        today: verses[todayIdx % verses.length],
-        tomorrow: verses[tomorrowIdx % verses.length]
+        today: todayVerse,
+        tomorrow: tomorrowVerse
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao buscar estatísticas de versículos" });

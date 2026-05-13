@@ -56,6 +56,7 @@ import {
   XCircle,
   Database,
   RefreshCw,
+  Loader2,
   Server,
   Shield,
   Download,
@@ -1982,7 +1983,39 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
 };
 
 
-const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, onShowReadingPlans, onRequestPastoralVisit, onShareVerse, dailyVerse, isAdmin, onSwitchToAdmin, showMessage, onRefresh, cacheVersion }: { events: Event[], user: UserType | null, announcements: Announcement[], onTabChange: (tab: string) => void, onShowDonation: () => void, onShowReadingPlans: () => void, onRequestPastoralVisit: () => void, onShareVerse: (v: any) => void, dailyVerse: any, isAdmin?: boolean, onSwitchToAdmin?: () => void, showMessage?: (msg: string) => void, onRefresh?: () => Promise<void>, cacheVersion: number }) => {
+const Dashboard = ({ 
+  events, 
+  user, 
+  announcements, 
+  onTabChange, 
+  onShowDonation, 
+  onShowReadingPlans, 
+  onRequestPastoralVisit, 
+  onShareVerse, 
+  dailyVerse, 
+  isAdmin, 
+  onSwitchToAdmin, 
+  showMessage, 
+  onRefresh, 
+  cacheVersion,
+  onEventClick
+}: { 
+  events: Event[], 
+  user: UserType | null, 
+  announcements: Announcement[], 
+  onTabChange: (tab: string) => void, 
+  onShowDonation: () => void, 
+  onShowReadingPlans: () => void, 
+  onRequestPastoralVisit: () => void, 
+  onShareVerse: (v: any) => void, 
+  dailyVerse: any, 
+  isAdmin?: boolean, 
+  onSwitchToAdmin?: () => void, 
+  showMessage?: (msg: string) => void, 
+  onRefresh?: () => Promise<void>, 
+  cacheVersion: number,
+  onEventClick: (e: Event) => void
+}) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentVerseText, setCurrentVerseText] = useState(dailyVerse?.text || '');
 
@@ -2151,8 +2184,8 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
             .sort((a, b) => new Date(a.date + 'T00:00:00').getTime() - new Date(b.date + 'T00:00:00').getTime())
             .slice(0, 2)
             .map(event => (
-            <Card key={event.id} className="p-0 overflow-hidden h-full relative">
-              <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-full h-40 object-cover" alt={event.title} />
+            <Card key={event.id} className="p-0 overflow-hidden h-full relative cursor-pointer group active:scale-[0.98] transition-all" onClick={() => onEventClick(event)}>
+              <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500" alt={event.title} />
               <div className="p-4 space-y-2">
                 <div className="flex justify-between items-start">
                   <span className="px-2 py-1 bg-primary-light text-primary text-[10px] font-bold rounded-md uppercase tracking-wider">{event.category}</span>
@@ -2161,14 +2194,22 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
                     {event.time}
                   </div>
                 </div>
-                <h4 className="font-bold text-slate-900">{event.title}</h4>
+                <h4 className="font-bold text-slate-900 group-hover:text-primary transition-colors">{event.title}</h4>
                 <div className="flex items-center text-slate-500 text-sm gap-1">
                   <MapPin className="w-4 h-4" />
                   {event.location}
                 </div>
-                <div className="flex items-center text-primary text-sm font-semibold gap-1">
-                  <Calendar className="w-4 h-4" />
-                  {event.date}
+                <div className="flex items-center justify-between mt-auto pt-1">
+                  <div className="flex items-center text-primary text-sm font-semibold gap-1">
+                    <Calendar className="w-4 h-4" />
+                    {formatDate(event.date)}
+                  </div>
+                  {event.requiresRegistration && (
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-white bg-primary px-3 py-1.5 rounded-lg shadow-sm hover:bg-primary/90 transition-all">
+                      <Users className="w-3 h-3" />
+                      Inscrever-se
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
@@ -2178,7 +2219,7 @@ const Dashboard = ({ events, user, announcements, onTabChange, onShowDonation, o
     </div>
   </div>
 );
-}
+};
 
 const AnnouncementsScreen = ({ announcements, isAdmin, onDelete, onAdd, showMessage, cacheVersion }: { announcements: Announcement[], isAdmin?: boolean, onDelete?: (id: string) => void, onAdd?: () => void, showMessage?: (msg: string) => void, cacheVersion: number }) => (
   <div className="space-y-6 pb-24">
@@ -2249,10 +2290,159 @@ const PrayingHands = ({ className = "w-6 h-6", active = false, cacheVersion = ne
   );
 };
 
-const EventsScreen = ({ events, registrations, isAdmin, currentUser, onDelete, onEdit, onAdd, onRegister, onUpdateRegistration, onShowOrações, showMessage, cacheVersion, titheConfig }: { events: Event[], registrations: EventRegistration[], isAdmin?: boolean, currentUser: UserType | null, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onAdd?: () => void, onRegister: (id: string) => void, onUpdateRegistration: (id: any, status: any, paid?: boolean) => void, onShowOrações?: () => void, showMessage?: (msg: string) => void, cacheVersion: number, titheConfig: TitheConfig }) => {
+const EventActionModal = ({ 
+  event, 
+  registrations, 
+  currentUser, 
+  isAdmin, 
+  onClose, 
+  onRegister, 
+  onUpdateRegistration, 
+  cacheVersion, 
+  titheConfig 
+}: { 
+  event: Event, 
+  registrations: EventRegistration[], 
+  currentUser: UserType | null, 
+  isAdmin?: boolean, 
+  onClose: () => void, 
+  onRegister: (id: string) => void, 
+  onUpdateRegistration: (id: any, status: any, paid?: boolean) => void, 
+  cacheVersion: number, 
+  titheConfig: TitheConfig 
+}) => {
+  return (
+    <Modal 
+      title={event.title} 
+      onClose={onClose}
+    >
+      <div className="space-y-6">
+        <img src={getCacheBustedUrl(event.image, cacheVersion)} className="w-full h-48 object-cover rounded-2xl" alt="" />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-start gap-2">
+            <Calendar className="w-4 h-4 text-primary mt-0.5" />
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Data</p>
+              <p className="text-sm font-bold text-slate-700">{formatDate(event.date)}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <Clock className="w-4 h-4 text-primary mt-0.5" />
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Horário</p>
+              <p className="text-sm font-bold text-slate-700">{event.time}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 col-span-2">
+            <MapPin className="w-4 h-4 text-primary mt-0.5" />
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Local</p>
+              <p className="text-sm font-bold text-slate-700">{event.location}</p>
+            </div>
+          </div>
+        </div>
+
+        {event.description && (
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{event.description}</p>
+          </div>
+        )}
+
+        {event.requiresRegistration && !isPastDate(event.date) && (
+          <div className="space-y-4">
+            <header className="flex items-center justify-between">
+              <h4 className="font-bold text-slate-900 border-l-4 border-primary pl-3">Inscrição</h4>
+              {event.fee ? (
+                <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                  Contribuição: R$ {event.fee}
+                </span>
+              ) : (
+                <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">Grátis</span>
+              )}
+            </header>
+
+            {registrations.find(r => r.eventId === event.id && r.uid === currentUser?.id) ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                <span className="font-bold text-emerald-700">Você já está inscrito!</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {event.fee && event.fee > 0 && (
+                  <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl space-y-3">
+                    <p className="text-xs text-amber-800 font-medium">Este evento solicita uma contribuição. Use as informações de Pix abaixo para realizar o pagamento e clique em confirmar inscrição.</p>
+                    <div className="p-3 bg-white rounded-xl border border-amber-200">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Chave Pix</p>
+                      <p className="text-xs font-mono font-bold text-slate-700">{titheConfig.pixKey}</p>
+                      <p className="text-[10px] text-slate-500 mt-1">{titheConfig.bankName} - {titheConfig.accountHolder}</p>
+                    </div>
+                  </div>
+                )}
+                <Button 
+                  className="w-full h-14 text-lg font-bold shadow-lg shadow-primary/20"
+                  onClick={() => {
+                    onRegister(event.id);
+                    onClose();
+                  }}
+                >
+                  Confirmar Inscrição
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isAdmin && event.requiresRegistration && (
+          <div className="space-y-4 pt-6 border-t border-slate-100">
+            <h4 className="font-bold text-slate-900 flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Inscritos ({registrations.filter(r => r.eventId === event.id).length})
+            </h4>
+            <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-2">
+              {registrations.filter(r => r.eventId === event.id).map(reg => (
+                <div key={reg.id} className="p-3 bg-white rounded-xl border border-slate-100 flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">{reg.userName}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{reg.userPhone || reg.userEmail}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {event.fee ? (
+                      <button 
+                        onClick={() => onUpdateRegistration(reg.id, reg.status, !reg.paid)}
+                        className={cn(
+                          "px-2 py-1 rounded text-[8px] font-bold uppercase tracking-wider",
+                          reg.paid ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                        )}
+                      >
+                        {reg.paid ? 'Pago' : 'Pendente'}
+                      </button>
+                    ) : null}
+                    <select 
+                      value={reg.status}
+                      onChange={(e) => onUpdateRegistration(reg.id, e.target.value as any, reg.paid)}
+                      className="text-[10px] font-bold bg-slate-50 border-none rounded p-1 outline-none"
+                    >
+                      <option value="pending">Pendente</option>
+                      <option value="confirmed">Confirmado</option>
+                      <option value="cancelled">Cancelado</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <Button variant="outline" className="w-full py-4 transition-all" onClick={onClose}>Fechar</Button>
+      </div>
+    </Modal>
+  );
+};
+
+const EventsScreen = ({ events, registrations, isAdmin, currentUser, onDelete, onEdit, onAdd, onRegister, onUpdateRegistration, onShowOrações, showMessage, cacheVersion, titheConfig, onEventClick }: { events: Event[], registrations: EventRegistration[], isAdmin?: boolean, currentUser: UserType | null, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onAdd?: () => void, onRegister: (id: string) => void, onUpdateRegistration: (id: any, status: any, paid?: boolean) => void, onShowOrações?: () => void, showMessage?: (msg: string) => void, cacheVersion: number, titheConfig: TitheConfig, onEventClick: (e: Event) => void }) => {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [showArchived, setShowArchived] = useState(false);
-  const [selectedEventAction, setSelectedEventAction] = useState<Event | null>(null);
 
   const filteredEvents = events.filter(e => {
     const matchesCategory = selectedCategory === 'Todos' || e.category === selectedCategory;
@@ -2309,7 +2499,7 @@ const EventsScreen = ({ events, registrations, isAdmin, currentUser, onDelete, o
             <Plus className="w-5 h-5" />
           </button>
         ) : (
-          <button onClick={onShowOrações} className="p-2 bg-primary-light text-primary rounded-xl shadow-sm border border-primary/10">
+          <button onClick={onShowPrayers} className="p-2 bg-primary-light text-primary rounded-xl shadow-sm border border-primary/10">
             <PrayingHands className="w-5 h-5 text-primary" />
           </button>
         )}
@@ -2333,7 +2523,7 @@ const EventsScreen = ({ events, registrations, isAdmin, currentUser, onDelete, o
             isPastDate(event.date) && "opacity-75 grayscale-[0.3] bg-slate-50",
             event.requiresRegistration && "border-primary/20 bg-primary/5 shadow-sm"
           )}
-          onClick={() => setSelectedEventAction(event)}
+          onClick={() => onEventClick(event)}
         >
           {isPastDate(event.date) && (
             <div className="absolute top-2 right-2 bg-slate-600 text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest z-10">
@@ -2380,9 +2570,9 @@ const EventsScreen = ({ events, registrations, isAdmin, currentUser, onDelete, o
               </div>
               
               {event.requiresRegistration && (
-                <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                <div className="flex items-center gap-1 text-[10px] font-bold text-white bg-primary px-3 py-1.5 rounded-lg shadow-sm hover:bg-primary/90 transition-all">
                   <Users className="w-3 h-3" />
-                  Inscrever
+                  Inscrever-se
                 </div>
               )}
             </div>
@@ -2390,134 +2580,6 @@ const EventsScreen = ({ events, registrations, isAdmin, currentUser, onDelete, o
         </Card>
       ))}
     </div>
-
-    {selectedEventAction && (
-      <Modal 
-        title={selectedEventAction.title} 
-        onClose={() => setSelectedEventAction(null)}
-      >
-        <div className="space-y-6">
-          <img src={getCacheBustedUrl(selectedEventAction.image, cacheVersion)} className="w-full h-48 object-cover rounded-2xl" alt="" />
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-start gap-2">
-              <Calendar className="w-4 h-4 text-primary mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Data</p>
-                <p className="text-sm font-bold text-slate-700">{formatDate(selectedEventAction.date)}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <Clock className="w-4 h-4 text-primary mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Horário</p>
-                <p className="text-sm font-bold text-slate-700">{selectedEventAction.time}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2 col-span-2">
-              <MapPin className="w-4 h-4 text-primary mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Local</p>
-                <p className="text-sm font-bold text-slate-700">{selectedEventAction.location}</p>
-              </div>
-            </div>
-          </div>
-
-          {selectedEventAction.description && (
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedEventAction.description}</p>
-            </div>
-          )}
-
-          {selectedEventAction.requiresRegistration && !isPastDate(selectedEventAction.date) && (
-            <div className="space-y-4">
-              <header className="flex items-center justify-between">
-                <h4 className="font-bold text-slate-900 border-l-4 border-primary pl-3">Inscrição</h4>
-                {selectedEventAction.fee ? (
-                  <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                    Contribuição: R$ {selectedEventAction.fee}
-                  </span>
-                ) : (
-                  <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">Grátis</span>
-                )}
-              </header>
-
-              {registrations.find(r => r.eventId === selectedEventAction.id && r.uid === currentUser?.id) ? (
-                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  <span className="font-bold text-emerald-700">Você já está inscrito!</span>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {selectedEventAction.fee && selectedEventAction.fee > 0 && (
-                    <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl space-y-3">
-                      <p className="text-xs text-amber-800 font-medium">Este evento solicita uma contribuição. Use as informações de Pix abaixo para realizar o pagamento e clique em confirmar inscrição.</p>
-                      <div className="p-3 bg-white rounded-xl border border-amber-200">
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">Chave Pix</p>
-                        <p className="text-xs font-mono font-bold text-slate-700">{titheConfig.pixKey}</p>
-                        <p className="text-[10px] text-slate-500 mt-1">{titheConfig.bankName} - {titheConfig.accountHolder}</p>
-                      </div>
-                    </div>
-                  )}
-                  <Button 
-                    className="w-full h-14 text-lg font-bold shadow-lg shadow-primary/20"
-                    onClick={() => {
-                      onRegister(selectedEventAction.id);
-                      setSelectedEventAction(null);
-                    }}
-                  >
-                    Confirmar Inscrição
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {isAdmin && selectedEventAction.requiresRegistration && (
-            <div className="space-y-4 pt-6 border-t border-slate-100">
-              <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Inscritos ({registrations.filter(r => r.eventId === selectedEventAction.id).length})
-              </h4>
-              <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-2">
-                {registrations.filter(r => r.eventId === selectedEventAction.id).map(reg => (
-                  <div key={reg.id} className="p-3 bg-white rounded-xl border border-slate-100 flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{reg.userName}</p>
-                      <p className="text-[10px] text-slate-500 truncate">{reg.userPhone || reg.userEmail}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {selectedEventAction.fee ? (
-                        <button 
-                          onClick={() => onUpdateRegistration(reg.id, reg.status, !reg.paid)}
-                          className={cn(
-                            "px-2 py-1 rounded text-[8px] font-bold uppercase tracking-wider",
-                            reg.paid ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-                          )}
-                        >
-                          {reg.paid ? 'Pago' : 'Pendente'}
-                        </button>
-                      ) : null}
-                      <select 
-                        value={reg.status}
-                        onChange={(e) => onUpdateRegistration(reg.id, e.target.value as any, reg.paid)}
-                        className="text-[10px] font-bold bg-slate-50 border-none rounded p-1 outline-none"
-                      >
-                        <option value="pending">Pendente</option>
-                        <option value="confirmed">Confirmado</option>
-                        <option value="cancelled">Cancelado</option>
-                      </select>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <Button variant="outline" className="w-full py-4 transition-all" onClick={() => setSelectedEventAction(null)}>Fechar</Button>
-        </div>
-      </Modal>
-    )}
   </div>
   );
 };
@@ -2643,7 +2705,7 @@ const PrayerWall = ({ prayers, cells, onAdd, onDelete, onTogglePrayed, onAddComm
   );
 };
 
-const stripHtml = (text: string) => {
+const stripHtml = (text: any) => {
   if (!text) return "";
   return text
     .replace(/<br\s*[\/]?>/gi, ' ')
@@ -3405,10 +3467,27 @@ const UserPastoralVisitsScreen = ({ visits, onAddRequest }: { visits: PastoralVi
   );
 };
 
-const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void }) => {
+const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage, onRefreshVerses }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, onRefreshVerses?: () => Promise<void> }) => {
   const [showBirthdays, setShowBirthdays] = useState<'today' | 'month' | null>(null);
   const [dynamicDailyVerse, setDynamicDailyVerse] = useState<string | null>(null);
   const [dynamicTomorrowVerse, setDynamicTomorrowVerse] = useState<string | null>(null);
+  const [refreshingVerses, setRefreshingVerses] = useState(false);
+
+  const handleRefreshVerses = async () => {
+    setRefreshingVerses(true);
+    try {
+      await api.request('/verses/refresh', { method: 'POST' });
+      if (onRefreshVerses) {
+        await onRefreshVerses();
+      }
+      showMessage?.('Versículos atualizados com sucesso!');
+    } catch (err) {
+      console.error(err);
+      showMessage?.('Erro ao atualizar versículos.');
+    } finally {
+      setRefreshingVerses(false);
+    }
+  };
 
   useEffect(() => {
     if (verseStats?.today) {
@@ -3583,6 +3662,51 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
           <p className="text-2xl font-bold text-primary">{(birthdays.month || []).length}</p>
           <p className="text-[10px] text-slate-500">Total de celebrações</p>
         </Card>
+      </div>
+    </section>
+
+    {/* Verses Management Section */}
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold text-slate-900">Versículos do Sistema</h3>
+        <button 
+           onClick={handleRefreshVerses} 
+           disabled={refreshingVerses}
+           className="flex items-center gap-1.5 text-primary text-xs font-bold bg-primary/10 px-3 py-1.5 rounded-xl hover:bg-primary/20 transition-all disabled:opacity-50"
+        >
+          {refreshingVerses ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          Sortear de Novo
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="p-4 bg-white border-slate-100 shadow-sm">
+             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">HOJE ({formatDate(new Date().toISOString().split('T')[0])})</p>
+             <div className="flex items-start justify-between gap-4">
+               <div className="space-y-1 flex-1">
+                 <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                   <BookOpen className="w-3 h-3 text-primary" />
+                   {verseStats?.today?.ref || 'Nenhum'}
+                 </p>
+                 <p className="text-[11px] text-slate-500 italic leading-relaxed line-clamp-2">
+                   "{dynamicDailyVerse || 'Carregando texto...'}"
+                 </p>
+               </div>
+             </div>
+          </Card>
+          <Card className="p-4 bg-white border-slate-100 shadow-sm">
+             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">AMANHÃ</p>
+             <div className="flex items-start justify-between gap-4">
+               <div className="space-y-1 flex-1">
+                 <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                   <Calendar className="w-3 h-3 text-indigo-500" />
+                   {verseStats?.tomorrow?.ref || 'Nenhum'}
+                 </p>
+                 <p className="text-[11px] text-slate-500 italic leading-relaxed line-clamp-2">
+                   "{dynamicTomorrowVerse || 'Carregando texto...'}"
+                 </p>
+               </div>
+             </div>
+          </Card>
       </div>
     </section>
 
@@ -7959,7 +8083,7 @@ const joinCell = async (cellId: string) => {
       };
 
       switch (currentTab) {
-        case 'home': return <AdminDashboard stats={stats} users={visibleUsers} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
+        case 'home': return <AdminDashboard stats={stats} users={visibleUsers} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} onRefreshVerses={refreshData} />;
         case 'bible': return <AdminVerses onBack={() => setCurrentTab('home')} showMessage={showMessage} isSuperAdmin={userRole === 'superadmin'} />;
         case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} />;
         case 'financial': return (
@@ -8040,13 +8164,13 @@ const joinCell = async (cellId: string) => {
             />
           );
         }
-        default: return <AdminDashboard stats={stats} users={users} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} />;
+        default: return <AdminDashboard stats={stats} users={users} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} onRefreshVerses={refreshData} />;
       }
     }
 
     switch (currentTab) {
       case 'home': return <Dashboard {...dashboardProps} />;
-      case 'events': return <EventsScreen events={events} registrations={registrations} isAdmin={isAdmin} currentUser={currentUserData} onDelete={deleteEvent} onAdd={() => setShowAddEvent(true)} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} onRegister={handleEventRegistration} onUpdateRegistration={handleUpdateRegistrationStatus} onShowOrações={() => setCurrentTab('prayer')} showMessage={showMessage} cacheVersion={cacheVersion} titheConfig={titheConfig} />;
+      case 'events': return <EventsScreen events={events} registrations={registrations} isAdmin={isAdmin} currentUser={currentUserData} onDelete={deleteEvent} onAdd={() => setShowAddEvent(true)} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} onRegister={handleEventRegistration} onUpdateRegistration={handleUpdateRegistrationStatus} onShowPrayers={() => setCurrentTab('prayer')} showMessage={showMessage} cacheVersion={cacheVersion} titheConfig={titheConfig} onEventClick={setSelectedEventAction} />;
       case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
       case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onAdd={() => setShowAddAnnouncement(true)} onDelete={deleteAnnouncement} showMessage={showMessage} cacheVersion={cacheVersion} />;
       case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} progress={userReadingProgress} onToggleChapter={toggleChapter} isAdmin={false} showMessage={showMessage} />;
@@ -8178,6 +8302,9 @@ const joinCell = async (cellId: string) => {
       onShareVerse: setSelectedShareVerse,
       dailyVerse,
       isAdmin,
+      registrations,
+      onRegister: handleEventRegistration,
+      onEventClick: setSelectedEventAction,
       onSwitchToAdmin: () => navigate('/admin'),
       showMessage,
       onRefresh: refreshData,
@@ -8283,6 +8410,20 @@ const joinCell = async (cellId: string) => {
 
         {/* Modals */}
         <AnimatePresence>
+          {selectedEventAction && (
+            <EventActionModal 
+              event={selectedEventAction}
+              registrations={registrations}
+              currentUser={currentUserData}
+              isAdmin={isAdmin}
+              onClose={() => setSelectedEventAction(null)}
+              onRegister={handleEventRegistration}
+              onUpdateRegistration={handleUpdateRegistrationStatus}
+              cacheVersion={cacheVersion}
+              titheConfig={titheConfig}
+            />
+          )}
+
           {showAddEvent && (
             <Modal title={editingEvent ? "Editar Evento" : "Novo Evento"} onClose={() => { setShowAddEvent(false); setEditingEvent(null); }}>
               <EventForm onSubmit={addEvent} initialData={editingEvent || undefined} />
@@ -8463,7 +8604,7 @@ const joinCell = async (cellId: string) => {
       </div>
     </ErrorBoundary>
   );
-}
+};
 
 // --- Helper Components ---
 
