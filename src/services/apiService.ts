@@ -2,7 +2,12 @@ import { User as UserType } from '../types';
 import { APP_CONFIG } from '../themeConfig';
 
 const IS_CAPACITOR = typeof window !== 'undefined' && !!(window as any).Capacitor;
-export const BASE_URL = IS_CAPACITOR ? APP_CONFIG.apiUrl : '';
+// Se estiver no navegador e sem BASE_URL definida, usa a origem atual
+// Caso contrário usa o APP_CONFIG.apiUrl para Capacitor ou vazio para caminhos relativos
+export const BASE_URL = IS_CAPACITOR 
+  ? APP_CONFIG.apiUrl 
+  : (typeof window !== 'undefined' ? window.location.origin : '');
+
 const API_URL = `${BASE_URL}/api`;
 
 export const getApiUrl = (path: string) => `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
@@ -161,18 +166,25 @@ class ApiService {
     };
 
     const url = `${API_URL}/upload`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Erro no upload' }));
-      throw new Error(error.error || 'Falha ao enviar arquivo');
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Erro no upload' }));
+        throw new Error(error.error || 'Falha ao enviar arquivo');
+      }
+
+      return response.json();
+    } catch (err) {
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        throw new Error('Falha de conexão com o servidor de upload. O arquivo pode ser muito grande ou o servidor está offline.');
+      }
+      throw err;
     }
-
-    return response.json();
   }
 
   async confirmMinistrySchedule(scheduleId: string, status: 'confirmed' | 'declined') {

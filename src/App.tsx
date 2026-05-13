@@ -8241,11 +8241,10 @@ const joinCell = async (cellId: string) => {
                 "p-2 rounded-xl transition-all",
                 currentTab === tab.id ? "bg-primary-light" : "bg-transparent"
               )}>
-                <tab.icon 
-                  className={cn("w-6 h-6", currentTab === tab.id ? "stroke-[2.5px]" : "stroke-[2px]")} 
-                  active={currentTab === tab.id}
-                  cacheVersion={cacheVersion}
-                />
+                {React.createElement(tab.icon as any, {
+                  className: cn("w-6 h-6", currentTab === tab.id ? "stroke-[2.5px]" : "stroke-[2px]"),
+                  ...(tab.id === 'prayer' ? { active: currentTab === tab.id, cacheVersion } : {})
+                })}
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
             </button>
@@ -8325,7 +8324,10 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
               <img src={form.image} className="w-full h-full object-cover" alt="Preview" />
             )}
           </div>
-          <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs" disabled={uploading} />
+          <div className="flex-1">
+            <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs mb-1" disabled={uploading} />
+            <p className="text-[10px] text-slate-400 font-medium italic">Recomendado: 16:9 (ex: 1920x1080) para melhor enquadramento, mas aceita qualquer tamanho.</p>
+          </div>
         </div>
       </div>
       <input placeholder="Título do Evento" className="w-full p-3 rounded-xl border bg-slate-50 focus:bg-white transition-all outline-none focus:ring-2 focus:ring-primary/20" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />

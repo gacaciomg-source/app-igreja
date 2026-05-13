@@ -19,9 +19,20 @@ import multer from 'multer';
 import FormData from 'form-data';
 import webpush from 'web-push';
 
+const storageConfig = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+  }
+});
+
 const upload = multer({ 
-  dest: 'uploads/',
-  limits: { fileSize: 100 * 1024 * 1024 } // Aumentado para 100MB para suportar imagens de alta resolução
+  storage: storageConfig,
+  limits: { fileSize: 200 * 1024 * 1024 } // Aumentado para 200MB para suportar imagens de altíssima resolução
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
@@ -474,8 +485,8 @@ async function startServer() {
   const PORT = process.env.PORT || 3000;
 
   app.use(cors());
-  app.use(express.json({ limit: '100mb' }));
-  app.use(express.urlencoded({ limit: '100mb', extended: true }));
+  app.use(express.json({ limit: '200mb' }));
+  app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
   const uploadsDir = path.join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadsDir)) {
@@ -948,7 +959,8 @@ async function startServer() {
       }
 
       const zip = new AdmZip();
-      zip.addLocalFolder(dataDir, 'data');
+      const localDataDir = path.join(process.cwd(), 'data');
+      zip.addLocalFolder(localDataDir, 'data');
       
       const uDir = path.join(process.cwd(), 'uploads');
       if (fs.existsSync(uDir)) {
@@ -1163,7 +1175,7 @@ async function startServer() {
     res.json({ status: 'Initiated' });
   });
 
-  app.post("/api/upload", authenticateToken, upload.single('file'), (req, res) => {
+  app.post("/api/upload", authenticateToken, upload.single('file'), (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "Nenhum arquivo enviado" });
