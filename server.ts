@@ -332,17 +332,18 @@ async function getDailyVerse() {
     history180DaysAgo.setDate(history180DaysAgo.getDate() - 180);
     const history180DaysAgoStr = history180DaysAgo.toISOString().split('T')[0];
     
-    const recentVerseIds = history
-        .filter(entry => entry.date >= history180DaysAgoStr) // Should be >= to include 180 days
-        .map(entry => entry.verseId);
+    // Filtra histórico para pegar ordens de versículos usados
+    const recentVerseUsedIds = new Set(history
+        .filter(entry => entry.date >= history180DaysAgoStr)
+        .map(entry => entry.verseId));
         
-    const candidateVerses = verses.filter(v => !recentVerseIds.includes(v.id));
+    const candidateVerses = verses.filter(v => !recentVerseUsedIds.has(v.id));
     
     let selectedVerse;
     if (candidateVerses.length > 0) {
         selectedVerse = candidateVerses[Math.floor(Math.random() * candidateVerses.length)];
     } else {
-        // Fallback: if all were used, just pick one (at least pick random)
+        // Se todos foram usados nos últimos 6 meses, escolhe qualquer um aleatório
         selectedVerse = verses[Math.floor(Math.random() * verses.length)];
     }
     
@@ -1062,6 +1063,7 @@ async function startServer() {
         createdAt: req.body.createdAt || new Date().toISOString()
       };
       await storage.insert(req.params.name, newItem);
+      console.log(`Successfully inserted into ${req.params.name}:`, newItem.id);
       
       // WhatsApp Notification Trigger
       if (req.params.name === 'prayers') {
@@ -1080,7 +1082,8 @@ async function startServer() {
       
       res.json(newItem);
     } catch (error) {
-      res.status(500).json({ error: "Erro ao salvar" });
+      console.error(`Error saving to ${req.params.name}:`, error);
+      res.status(500).json({ error: "Erro ao salvar: " + (error instanceof Error ? error.message : String(error)) });
     }
   });
 

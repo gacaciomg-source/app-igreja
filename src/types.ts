@@ -152,6 +152,7 @@ export interface TitheConfig {
   pixKey: string;
   bankName: string;
   accountHolder: string;
+  pixQrUrl?: string;
 }
 
 export interface TitheTransaction {

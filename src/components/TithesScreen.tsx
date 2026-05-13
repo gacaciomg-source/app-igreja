@@ -49,8 +49,12 @@ export const TithesScreen = ({ config, onConfirmDonation, showMessage, currentUs
         <h3 className="text-lg font-bold text-slate-900">Contribuir via PIX</h3>
         <Card className="p-6 space-y-6 border-slate-100">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-48 h-48 bg-slate-50 rounded-3xl flex items-center justify-center border-2 border-dashed border-slate-200">
-              <QrCode className="w-32 h-32 text-slate-300" />
+            <div className="w-48 h-48 bg-slate-50 rounded-3xl flex items-center justify-center border-2 border-dashed border-slate-200 overflow-hidden">
+              {config?.pixQrUrl ? (
+                <img src={config.pixQrUrl} alt="QR Code PIX" className="w-full h-full object-contain" />
+              ) : (
+                <QrCode className="w-32 h-32 text-slate-300" />
+              )}
             </div>
             <p className="text-xs text-slate-500 text-center">Escaneie o QR Code ou copie a chave PIX abaixo</p>
           </div>

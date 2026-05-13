@@ -3239,19 +3239,26 @@ const UserPastoralVisitsScreen = ({ visits, onAddRequest }: { visits: PastoralVi
 
 const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void }) => {
   const [showBirthdays, setShowBirthdays] = useState<'today' | 'month' | null>(null);
-  const [dynamicDailyVerse, setDynamicDailyVerse] = useState(verseStats?.today?.text);
-  const [dynamicTomorrowVerse, setDynamicTomorrowVerse] = useState(verseStats?.tomorrow?.text);
+  const [dynamicDailyVerse, setDynamicDailyVerse] = useState<string | null>(null);
+  const [dynamicTomorrowVerse, setDynamicTomorrowVerse] = useState<string | null>(null);
 
   useEffect(() => {
-    if (verseStats?.today?.text?.startsWith('Texto será')) {
-      fetchVerseText(verseStats.today.ref, 'acf').then(t => t && setDynamicDailyVerse(t));
-    } else {
-      setDynamicDailyVerse(verseStats?.today?.text);
+    if (verseStats?.today) {
+      if (verseStats.today.text?.startsWith('Texto será')) {
+        setDynamicDailyVerse('Buscando texto na Bíblia...');
+        fetchVerseText(verseStats.today.ref, 'acf').then(t => setDynamicDailyVerse(t || verseStats.today.text));
+      } else {
+        setDynamicDailyVerse(verseStats.today.text);
+      }
     }
-    if (verseStats?.tomorrow?.text?.startsWith('Texto será')) {
-      fetchVerseText(verseStats.tomorrow.ref, 'acf').then(t => t && setDynamicTomorrowVerse(t));
-    } else {
-      setDynamicTomorrowVerse(verseStats?.tomorrow?.text);
+    
+    if (verseStats?.tomorrow) {
+      if (verseStats.tomorrow.text?.startsWith('Texto será')) {
+        setDynamicTomorrowVerse('Buscando texto na Bíblia...');
+        fetchVerseText(verseStats.tomorrow.ref, 'acf').then(t => setDynamicTomorrowVerse(t || verseStats.tomorrow.text));
+      } else {
+        setDynamicTomorrowVerse(verseStats.tomorrow.text);
+      }
     }
   }, [verseStats]);
 
@@ -3364,32 +3371,6 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
 
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-slate-900">Próximo Versículo</h3>
-        <button onClick={() => onTabChange?.('bible')} className="text-primary text-sm font-bold">Gerenciar Bíblia</button>
-      </div>
-      <Card className="p-5 border-indigo-100 bg-gradient-to-br from-indigo-50 to-white">
-        {verseStats?.tomorrow ? (
-          <div className="flex justify-between items-center gap-4">
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Programado para amanhã</p>
-              <h4 className="text-xl font-bold text-slate-900">{verseStats.tomorrow.ref}</h4>
-              <p className="text-sm text-slate-500 italic line-clamp-1">"{verseStats.tomorrow.text}"</p>
-            </div>
-            <button onClick={() => onTabChange?.('bible')} className="shrink-0 p-3 bg-white shadow-sm border border-indigo-100 rounded-xl text-indigo-500 hover:text-indigo-600 transition-colors">
-              <Settings className="w-5 h-5" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center py-2 text-center space-y-2">
-            <p className="text-sm text-slate-500">Nenhum versículo programado para amanhã.</p>
-            <button onClick={() => onTabChange?.('bible')} className="text-xs font-bold text-primary bg-primary/10 px-4 py-2 rounded-lg">Cadastrar Agora</button>
-          </div>
-        )}
-      </Card>
-    </section>
-
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-slate-900">Todas as Telas</h3>
         <button onClick={() => onTabChange?.('all_screens')} className="text-primary text-sm font-bold">Gerenciar tudo</button>
       </div>
@@ -3486,36 +3467,35 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
     </section>
 
     <section className="space-y-4">
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-900">Palavra do Dia</h3>
-          <button onClick={() => onTabChange?.('bible')} className="text-xs font-bold text-primary px-3 py-1 bg-primary/10 rounded-lg">Gerenciar Todos</button>
-        </div>
-        <div className="grid md:grid-cols-2 gap-4">
-           <Card className="p-4 border-slate-100 space-y-2">
-             <div className="flex items-center gap-2 mb-1">
-               <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">De Hoje</span>
-             </div>
-             <p className="text-sm font-medium text-slate-700 italic">"{verseStats?.today?.text || 'Não definido'}"</p>
-             <p className="text-xs font-bold text-slate-400">{verseStats?.today?.ref}</p>
-           </Card>
-           <Card className="p-4 border-slate-100 space-y-2 group relative">
-             <div className="flex items-center gap-2 mb-1">
-               <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">De Amanhã</span>
-             </div>
-             <p className="text-sm font-medium text-slate-700 italic">"{verseStats?.tomorrow?.text || 'Não definido'}"</p>
-             <p className="text-xs font-bold text-slate-400">{verseStats?.tomorrow?.ref}</p>
-             <button 
-               onClick={() => showMessage?.('Para trocar o versículo de amanhã, edite-o na lista de versículos ou adicione um novo para alterar a ordem.')}
-               className="absolute top-2 right-2 p-1.5 bg-slate-50 text-slate-400 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:text-primary"
-             >
-               <Edit2 className="w-3.5 h-3.5" />
-             </button>
-           </Card>
-        </div>
-      </section>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold text-slate-900">Palavra do Dia</h3>
+        <button onClick={() => onTabChange?.('bible')} className="text-xs font-bold text-primary px-3 py-1 bg-primary/10 rounded-lg">Gerenciar Todos</button>
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+         <Card className="p-4 border-slate-100 space-y-2">
+           <div className="flex items-center gap-2 mb-1">
+             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">De Hoje</span>
+           </div>
+           <p className="text-sm font-medium text-slate-700 italic">"{dynamicDailyVerse || 'Carregando...'}"</p>
+           <p className="text-xs font-bold text-slate-400">{verseStats?.today?.ref}</p>
+         </Card>
+         <Card className="p-4 border-slate-100 space-y-2 group relative">
+           <div className="flex items-center gap-2 mb-1">
+             <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">De Amanhã</span>
+           </div>
+           <p className="text-sm font-medium text-slate-700 italic">"{dynamicTomorrowVerse || 'Carregando...'}"</p>
+           <p className="text-xs font-bold text-slate-400">{verseStats?.tomorrow?.ref}</p>
+           <button 
+             onClick={() => showMessage?.('Para trocar o versículo de amanhã, edite-o na lista de versículos ou adicione um novo para alterar a ordem.')}
+             className="absolute top-2 right-2 p-1.5 bg-slate-50 text-slate-400 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:text-primary"
+           >
+             <Edit2 className="w-3.5 h-3.5" />
+           </button>
+         </Card>
+      </div>
+    </section>
 
       <h3 className="text-lg font-bold text-slate-900">Atividade Recente</h3>
       <Card className="divide-y divide-slate-50 p-0 overflow-hidden">
@@ -3542,8 +3522,7 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
           <ChevronRight className="w-4 h-4 text-slate-300" />
         </div>
       </Card>
-    </section>
-  </div>
+    </div>
   );
 };
 
@@ -7095,6 +7074,7 @@ export default function App() {
       } else {
         await api.create('config', { ...data, id: 'tithes' });
       }
+      setTitheConfig(data);
       showMessage('Configurações de dízimo atualizadas!');
     } catch (err) {
       handleApiError(err, 'updateTitheConfig');
@@ -7840,6 +7820,7 @@ const joinCell = async (cellId: string) => {
     { id: 'prayer', icon: PrayingHands, label: 'Orações' },
     { id: 'bible', icon: BookOpen, label: 'Bíblia' },
     { id: 'sermons', icon: Radio, label: 'Sermões' },
+    { id: 'tithes', icon: Heart, label: 'Dízimos' },
     { id: 'profile', icon: User, label: 'Perfil' },
   ];
 
@@ -7890,6 +7871,7 @@ const joinCell = async (cellId: string) => {
     { id: 'home', icon: PieChart, label: 'Dashboard' },
     { id: 'all_screens', icon: Grid, label: 'Telas' },
     { id: 'financial', icon: DollarSign, label: 'Financeiro' },
+    { id: 'tithes', icon: Heart, label: 'Dízimos e Ofertas' },
     { id: 'pastoral', icon: Heart, label: 'Visitas' },
     { id: 'sermons', icon: Radio, label: 'Sermões' },
     { id: 'prayer', icon: PrayingHands, label: 'Orações' },

@@ -6,9 +6,10 @@ export const TithesAdminScreen = ({ config, onUpdate, showMessage }: { config: T
   const [pixKey, setPixKey] = useState(config.pixKey);
   const [bankName, setBankName] = useState(config.bankName);
   const [accountHolder, setAccountHolder] = useState(config.accountHolder);
+  const [pixQrUrl, setPixQrUrl] = useState(config.pixQrUrl || '');
 
   const handleSave = () => {
-    onUpdate({ pixKey, bankName, accountHolder });
+    onUpdate({ pixKey, bankName, accountHolder, pixQrUrl });
   };
 
   return (
@@ -54,6 +55,16 @@ export const TithesAdminScreen = ({ config, onUpdate, showMessage }: { config: T
               value={accountHolder}
               onChange={(e) => setAccountHolder(e.target.value)}
               placeholder="Nome completo do titular"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">URL do QR Code PIX</label>
+            <input 
+              type="text" 
+              value={pixQrUrl}
+              onChange={(e) => setPixQrUrl(e.target.value)}
+              placeholder="Cole a URL da imagem aqui"
               className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
             />
           </div>
