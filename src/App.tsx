@@ -431,8 +431,8 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig }: { onAuth
       >
         <div className="text-center space-y-2">
           <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
-            <img src={appearanceConfig.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl("https://renovar.warpserver.com.br/logo_preta.png", cacheVersion)} className="w-full h-full object-contain dark:hidden" alt="Logo" />
-            <img src={appearanceConfig.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain hidden dark:block" alt="Logo" />
+            <img src={appearanceConfig.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain dark:hidden" alt="Logo" />
+            <img src={appearanceConfig.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain hidden dark:block" alt="Logo" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{appearanceConfig?.churchName || APP_CONFIG.name}</h1>
           <p className="text-slate-500">
@@ -8730,8 +8730,7 @@ const joinCell = async (cellId: string) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900 transition-colors duration-300">
-        <div className="w-12 h-12 border-4 border-slate-200 dark:border-slate-700 border-t-slate-400 dark:border-t-slate-400 rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-white dark:bg-slate-900 transition-colors duration-300">
       </div>
     );
   }
