@@ -77,9 +77,15 @@ async function initWebPush() {
 }
 initWebPush();
 
-async function sendPushNotification(title: string, body: string, url: string = '/') {
+async function sendPushNotification(title: string, body: string, url: string = '/', targetUserIds?: string[]) {
     try {
-        const subscriptions = await storage.readCollection<any>("push_subscriptions");
+        let subscriptions = await storage.readCollection<any>("push_subscriptions");
+        
+        if (targetUserIds) {
+            const allowedUsers = new Set(targetUserIds);
+            subscriptions = subscriptions.filter((s:any) => allowedUsers.has(s.userId));
+        }
+        
         console.log(`Sending push to ${subscriptions.length} subscribers: ${title}`);
         
         const payload = JSON.stringify({ title, body, url });
@@ -1501,14 +1507,39 @@ async function startServer() {
 
   await ensureMinistries();
 
-  // Schedule Daily Verse at 09:00
-  cron.schedule('0 9 * * *', async () => {
-    console.log('Running daily verse notification...');
+  // Schedule Daily Verse
+  cron.schedule('0 * * * *', async () => {
     try {
-        const verse = await getDailyVerse();
-        if (!verse) return;
+        const now = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
+        const currentHour = now.getHours().toString().padStart(2, '0');
+        const currentTimeStr = `${currentHour}:00`;
 
-        await sendPushNotification("📖 Versículo do Dia", `"${verse.text}" - ${verse.ref}`, '/bible');
+        const users = await storage.readCollection<any>("users");
+        
+        let targetUsers = users.filter((u: any) => 
+            u.notificationSettings && 
+            u.notificationSettings.wordOfDayEnabled && 
+            !u.notificationSettings.allMuted && 
+            u.notificationSettings.wordOfDayTime === currentTimeStr
+        );
+        
+        // Also target users with no notification settings, only at 09:00
+        if (currentTimeStr === '09:00') {
+            const defaultUsers = users.filter((u: any) => 
+                !u.notificationSettings || 
+                (typeof u.notificationSettings.wordOfDayEnabled === 'undefined')
+            );
+            targetUsers = [...targetUsers, ...defaultUsers];
+        }
+
+        if (targetUsers.length > 0) {
+            console.log(`Running daily verse notification for ${targetUsers.length} users at ${currentTimeStr}...`);
+            const verse = await getDailyVerse();
+            if (!verse) return;
+            
+            const targetIds = targetUsers.map((u: any) => u.id);
+            await sendPushNotification("📖 Versículo do Dia", `"${verse.text}" - ${verse.ref}`, '/bible', targetIds);
+        }
     } catch (e) {
         console.error('Failed to send daily verse notification:', e);
     }

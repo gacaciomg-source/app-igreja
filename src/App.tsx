@@ -6023,12 +6023,16 @@ const NotificationSettingsScreen = ({ settings, onUpdate, onClose, showMessage }
                 <p className="text-xs text-slate-500 flex items-center gap-2">
                   <Clock className="w-3 h-3" /> Horário escolhido:
                 </p>
-                <input 
-                  type="time" 
+                <select 
                   value={localSettings.wordOfDayTime}
                   onChange={(e) => setLocalSettings({...localSettings, wordOfDayTime: e.target.value})}
                   className="bg-slate-50 border-none rounded-lg text-sm font-bold text-primary p-2 focus:ring-0"
-                />
+                >
+                  {Array.from({ length: 24 }).map((_, i) => {
+                    const hour = i.toString().padStart(2, '0');
+                    return <option key={`${hour}:00`} value={`${hour}:00`}>{hour}:00</option>;
+                  })}
+                </select>
               </div>
             )}
           </Card>
