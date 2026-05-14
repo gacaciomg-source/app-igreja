@@ -88,6 +88,12 @@ class ApiService {
     return this.request('/sysinfo');
   }
 
+  async getPublicConfig() {
+    const response = await fetch(getApiUrl('/public-config'));
+    if (!response.ok) throw new Error('Failed to fetch public config');
+    return response.json();
+  }
+
   setToken(token: string | null) {
     this.token = token;
     if (token) {

@@ -613,6 +613,27 @@ async function startServer() {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
+  app.get("/api/public-config", async (req, res) => {
+    try {
+      const config = await storage.readCollection<any>("config");
+      const appearance = config.find((c: any) => c.id === 'appearance');
+      res.json({
+        loginLogoLight: appearance?.loginLogoLight || null,
+        loginLogoDark: appearance?.loginLogoDark || null,
+        colorPrimary: appearance?.colorPrimary || null,
+        colorSecondary: appearance?.colorSecondary || null,
+        colorPrimaryLight: appearance?.colorPrimaryLight || null,
+        colorAccent: appearance?.colorAccent || null,
+        colorPrimaryDark: appearance?.colorPrimaryDark || null,
+        colorSecondaryDark: appearance?.colorSecondaryDark || null,
+        colorPrimaryLightDark: appearance?.colorPrimaryLightDark || null,
+        colorAccentDark: appearance?.colorAccentDark || null,
+      });
+    } catch (e) {
+      res.status(500).json({ error: "Erro ao carregar configurações públicas" });
+    }
+  });
+
   app.get("/api/proxy-image", async (req, res) => {
     try {
       const imageUrl = req.query.url as string;

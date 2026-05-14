@@ -379,6 +379,35 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
   const [message, setMessage] = useState('');
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [publicConfig, setPublicConfig] = useState<any>({});
+
+  useEffect(() => {
+    let mounted = true;
+    api.getPublicConfig().then(conf => {
+      if (mounted) {
+        setPublicConfig(conf);
+        if (typeof document !== 'undefined') {
+          const isDark = document.documentElement.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const root = document.documentElement;
+          
+          if (isDark) {
+            if (conf.colorPrimaryDark || conf.colorPrimary) root.style.setProperty('--color-primary', conf.colorPrimaryDark || conf.colorPrimary);
+            if (conf.colorSecondaryDark || conf.colorSecondary) root.style.setProperty('--color-secondary', conf.colorSecondaryDark || conf.colorSecondary);
+            if (conf.colorPrimaryLightDark || conf.colorPrimaryLight) root.style.setProperty('--color-primary-light', conf.colorPrimaryLightDark || conf.colorPrimaryLight);
+            if (conf.colorAccentDark || conf.colorAccent) root.style.setProperty('--color-accent', conf.colorAccentDark || conf.colorAccent);
+          } else {
+            if (conf.colorPrimary) root.style.setProperty('--color-primary', conf.colorPrimary);
+            if (conf.colorSecondary) root.style.setProperty('--color-secondary', conf.colorSecondary);
+            if (conf.colorPrimaryLight) root.style.setProperty('--color-primary-light', conf.colorPrimaryLight);
+            if (conf.colorAccent) root.style.setProperty('--color-accent', conf.colorAccent);
+          }
+        }
+      }
+    }).catch(err => {
+      console.error("Failed to load public config:", err);
+    });
+    return () => { mounted = false; };
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -431,8 +460,8 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
       >
         <div className="text-center space-y-2">
           <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
-            <img src={getCacheBustedUrl("https://renovar.warpserver.com.br/logo_preta.png", cacheVersion)} className="w-full h-full object-contain dark:hidden" alt="Logo" />
-            <img src={getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain hidden dark:block" alt="Logo" />
+            <img src={publicConfig.loginLogoLight ? (publicConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(publicConfig.loginLogoLight)}` : publicConfig.loginLogoLight) : getCacheBustedUrl("https://renovar.warpserver.com.br/logo_preta.png", cacheVersion)} className="w-full h-full object-contain dark:hidden" alt="Logo" />
+            <img src={publicConfig.loginLogoDark ? (publicConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(publicConfig.loginLogoDark)}` : publicConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain hidden dark:block" alt="Logo" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{APP_CONFIG.name}</h1>
           <p className="text-slate-500">
@@ -3872,7 +3901,7 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
   );
 };
 
-const AdminAppearanceScreen = ({ showMessage }: { showMessage: (msg: string) => void }) => {
+const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (msg: string) => void, isSuperAdmin?: boolean }) => {
   const [config, setConfig] = useState<any>({
     shareLogo: '',
     shareLogo2: '',
@@ -3931,11 +3960,13 @@ const AdminAppearanceScreen = ({ showMessage }: { showMessage: (msg: string) => 
     });
   };
 
-  const handleChangeBg = (id: string, field: string, value: string) => {
-    setConfig({
-      ...config,
-      shareBackgrounds: config.shareBackgrounds.map((bg: any) => bg.id === id ? { ...bg, [field]: value } : bg)
-    });
+  const handleChangeBg = (id: string, updates: Record<string, string>) => {
+    setConfig((prevConfig: any) => ({
+      ...prevConfig,
+      shareBackgrounds: prevConfig.shareBackgrounds.map((bg: any) => 
+        bg.id === id ? { ...bg, ...updates } : bg
+      )
+    }));
   };
 
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
@@ -4055,17 +4086,17 @@ const AdminAppearanceScreen = ({ showMessage }: { showMessage: (msg: string) => 
                 </div>
                 <div className="space-y-1 pr-6">
                   <label className="text-[10px] font-bold text-slate-400 uppercase">Nome / Título</label>
-                  <input type="text" value={bg.name} onChange={e => handleChangeBg(bg.id, 'name', e.target.value)} className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
+                  <input type="text" value={bg.name} onChange={e => handleChangeBg(bg.id, { name: e.target.value })} className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase">URL da Imagem (Unsplash, etc)</label>
-                  <input type="text" value={bg.url || ''} onChange={e => { handleChangeBg(bg.id, 'url', e.target.value); handleChangeBg(bg.id, 'gradient', ''); }} placeholder="https://..." className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
+                  <input type="text" value={bg.url || ''} onChange={e => handleChangeBg(bg.id, { url: e.target.value, gradient: '' })} placeholder="https://..." className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase">Logo Padrão deste Fundo</label>
                   <select 
                     value={bg.logoOption || 'logo1'} 
-                    onChange={e => handleChangeBg(bg.id, 'logoOption', e.target.value)}
+                    onChange={e => handleChangeBg(bg.id, { logoOption: e.target.value })}
                     className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm"
                   >
                     <option value="logo1">Logo 1</option>
@@ -4086,6 +4117,261 @@ const AdminAppearanceScreen = ({ showMessage }: { showMessage: (msg: string) => 
           {saving ? 'Salvando...' : 'Salvar Alterações'}
         </Button>
       </Card>
+
+      {isSuperAdmin && (
+        <Card className="p-6 space-y-4 border-amber-200 bg-amber-50/10">
+          <div className="flex flex-col mb-4">
+            <h3 className="font-bold text-amber-900">Configuração Exclusiva (Super Admin)</h3>
+            <p className="text-xs text-slate-500">Logos exibidas na tela de login.</p>
+          </div>
+          
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">Logo Login (Tema Claro)</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={config.loginLogoLight || ''} 
+                  onChange={e => setConfig({ ...config, loginLogoLight: e.target.value })} 
+                  placeholder="URL da Imagem"
+                  className="w-full p-4 bg-white border border-slate-200 rounded-xl outline-none min-w-0 flex-1"
+                />
+                <label className="flex items-center justify-center p-4 bg-white text-slate-600 rounded-xl cursor-pointer hover:bg-slate-50 border border-slate-200 transition-colors">
+                  <Upload className="w-5 h-5" />
+                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      try {
+                        setSaving(true);
+                        const { url } = await api.upload(file);
+                        setConfig({ ...config, loginLogoLight: url });
+                      } catch (err) {
+                        showMessage('Erro ao enviar imagem');
+                      } finally {
+                        setSaving(false);
+                      }
+                    }
+                  }} />
+                </label>
+              </div>
+              {config.loginLogoLight && (
+                <div className="h-16 w-16 bg-slate-100 rounded-lg p-2 border relative">
+                   <img src={config.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(config.loginLogoLight)}` : config.loginLogoLight} className="w-full h-full object-contain" alt="" />
+                </div>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">Logo Login (Tema Escuro)</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={config.loginLogoDark || ''} 
+                  onChange={e => setConfig({ ...config, loginLogoDark: e.target.value })} 
+                  placeholder="URL da Imagem"
+                  className="w-full p-4 bg-white border border-slate-200 rounded-xl outline-none min-w-0 flex-1"
+                />
+                <label className="flex items-center justify-center p-4 bg-white text-slate-600 rounded-xl cursor-pointer hover:bg-slate-50 border border-slate-200 transition-colors">
+                  <Upload className="w-5 h-5" />
+                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      try {
+                        setSaving(true);
+                        const { url } = await api.upload(file);
+                        setConfig({ ...config, loginLogoDark: url });
+                      } catch (err) {
+                        showMessage('Erro ao enviar imagem');
+                      } finally {
+                        setSaving(false);
+                      }
+                    }
+                  }} />
+                </label>
+              </div>
+              {config.loginLogoDark && (
+                <div className="h-16 w-16 bg-slate-800 rounded-lg p-2 border relative">
+                   <img src={config.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(config.loginLogoDark)}` : config.loginLogoDark} className="w-full h-full object-contain" alt="" />
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="pt-4 mt-2 border-t border-amber-200/50">
+            <div className="flex flex-col mb-4">
+              <h3 className="font-bold text-amber-900">Cores do Aplicativo (Tema Global)</h3>
+              <p className="text-xs text-slate-500">Defina as cores principais do seu app em formato HEX (ex: #006e1c).</p>
+            </div>
+            
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">Cor Principal (Primary)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="color" 
+                    value={config.colorPrimary || '#006e1c'} 
+                    onChange={e => setConfig({ ...config, colorPrimary: e.target.value })} 
+                    className="w-12 h-12 p-1 bg-white border border-slate-200 rounded-xl cursor-pointer"
+                  />
+                  <input 
+                    type="text" 
+                    value={config.colorPrimary || ''} 
+                    onChange={e => setConfig({ ...config, colorPrimary: e.target.value })} 
+                    placeholder="#006e1c"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-0"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">Fundo Secundário (Secondary)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="color" 
+                    value={config.colorSecondary || '#f0fdf0'} 
+                    onChange={e => setConfig({ ...config, colorSecondary: e.target.value })} 
+                    className="w-12 h-12 p-1 bg-white border border-slate-200 rounded-xl cursor-pointer"
+                  />
+                  <input 
+                    type="text" 
+                    value={config.colorSecondary || ''} 
+                    onChange={e => setConfig({ ...config, colorSecondary: e.target.value })} 
+                    placeholder="#f0fdf0"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-0"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">Cor Fundo Clara (Light Primary)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="color" 
+                    value={config.colorPrimaryLight || '#e6f4ea'} 
+                    onChange={e => setConfig({ ...config, colorPrimaryLight: e.target.value })} 
+                    className="w-12 h-12 p-1 bg-white border border-slate-200 rounded-xl cursor-pointer"
+                  />
+                  <input 
+                    type="text" 
+                    value={config.colorPrimaryLight || ''} 
+                    onChange={e => setConfig({ ...config, colorPrimaryLight: e.target.value })} 
+                    placeholder="#e6f4ea"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-0"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">Cor de Destaque (Accent)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="color" 
+                    value={config.colorAccent || '#ff4d4d'} 
+                    onChange={e => setConfig({ ...config, colorAccent: e.target.value })} 
+                    className="w-12 h-12 p-1 bg-white border border-slate-200 rounded-xl cursor-pointer"
+                  />
+                  <input 
+                    type="text" 
+                    value={config.colorAccent || ''} 
+                    onChange={e => setConfig({ ...config, colorAccent: e.target.value })} 
+                    placeholder="#ff4d4d"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-0"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 mt-2 border-t border-amber-200/50">
+            <div className="flex flex-col mb-4">
+              <h3 className="font-bold text-amber-900">Cores do Aplicativo (Tema Escuro/Noturno)</h3>
+              <p className="text-xs text-slate-500">As cores que serão utilizadas quando o usuário estiver no modo noturno.</p>
+            </div>
+            
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">Cor Principal (Dark)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="color" 
+                    value={config.colorPrimaryDark || '#006e1c'} 
+                    onChange={e => setConfig({ ...config, colorPrimaryDark: e.target.value })} 
+                    className="w-12 h-12 p-1 bg-white border border-slate-200 rounded-xl cursor-pointer"
+                  />
+                  <input 
+                    type="text" 
+                    value={config.colorPrimaryDark || ''} 
+                    onChange={e => setConfig({ ...config, colorPrimaryDark: e.target.value })} 
+                    placeholder="#006e1c"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-0"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">Fundo Secundário (Dark)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="color" 
+                    value={config.colorSecondaryDark || '#0d1a0d'} 
+                    onChange={e => setConfig({ ...config, colorSecondaryDark: e.target.value })} 
+                    className="w-12 h-12 p-1 bg-white border border-slate-200 rounded-xl cursor-pointer"
+                  />
+                  <input 
+                    type="text" 
+                    value={config.colorSecondaryDark || ''} 
+                    onChange={e => setConfig({ ...config, colorSecondaryDark: e.target.value })} 
+                    placeholder="#0d1a0d"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-0"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">Cor Fundo Clara (Dark)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="color" 
+                    value={config.colorPrimaryLightDark || '#1a331a'} 
+                    onChange={e => setConfig({ ...config, colorPrimaryLightDark: e.target.value })} 
+                    className="w-12 h-12 p-1 bg-white border border-slate-200 rounded-xl cursor-pointer"
+                  />
+                  <input 
+                    type="text" 
+                    value={config.colorPrimaryLightDark || ''} 
+                    onChange={e => setConfig({ ...config, colorPrimaryLightDark: e.target.value })} 
+                    placeholder="#1a331a"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-0"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">Cor de Destaque (Dark)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="color" 
+                    value={config.colorAccentDark || '#ff4d4d'} 
+                    onChange={e => setConfig({ ...config, colorAccentDark: e.target.value })} 
+                    className="w-12 h-12 p-1 bg-white border border-slate-200 rounded-xl cursor-pointer"
+                  />
+                  <input 
+                    type="text" 
+                    value={config.colorAccentDark || ''} 
+                    onChange={e => setConfig({ ...config, colorAccentDark: e.target.value })} 
+                    placeholder="#ff4d4d"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none min-w-0"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Button onClick={handleSave} className="w-full bg-amber-600 hover:bg-amber-700" disabled={saving}>
+            {saving ? 'Salvando...' : 'Salvar Configurações de Login'}
+          </Button>
+        </Card>
+      )}
     </div>
   );
 };
@@ -5990,7 +6276,6 @@ const MySchedulesScreen = ({ schedules, ministries, currentUser, onConfirm, onDe
 
 const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastoralVisits, schedules, ministries, whatsappConfig, onUpdateWhatsApp, isAdmin, onSwitchToAdmin, onSwitchToMember, showMessage, onOpenNotifications, initialIsEditing = false, darkMode, onToggleDarkMode, fontSize, onToggleFontSize }: { onLogout: () => void, user: UserType | null, onUpdateProfile: (data: Partial<UserType>) => Promise<void>, stats: { cells: number, prayers: number }, prayers?: PrayerRequest[], pastoralVisits?: PastoralVisit[], schedules?: MinistrySchedule[], ministries?: Ministry[], whatsappConfig?: WhatsAppConfig, onUpdateWhatsApp?: (data: WhatsAppConfig) => void, isAdmin?: boolean, onSwitchToAdmin?: () => void, onSwitchToMember?: () => void, showMessage: (msg: string) => void, onOpenNotifications?: () => void, initialIsEditing?: boolean, darkMode: boolean, onToggleDarkMode: () => void, fontSize?: 'small' | 'normal' | 'large' | 'xl', onToggleFontSize?: (size: any) => void }) => {
   const [isEditing, setIsEditing] = useState(initialIsEditing);
-  const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
@@ -6177,27 +6462,6 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
     );
   }
 
-  if (showWhatsAppConfig && user?.role === 'superadmin') {
-    return (
-      <div className="space-y-6 pb-24">
-        <header className="flex items-center gap-4">
-          <button onClick={() => setShowWhatsAppConfig(false)} className="p-2 hover:bg-slate-100 rounded-full">
-            <ArrowLeft className="w-6 h-6 text-slate-400" />
-          </button>
-          <h2 className="text-2xl font-bold text-slate-900">Gestão WhatsApp</h2>
-        </header>
-
-        {whatsappConfig && onUpdateWhatsApp && (
-          <WhatsAppAdminConfig 
-            config={whatsappConfig} 
-            onUpdate={onUpdateWhatsApp} 
-            showMessage={showMessage} 
-          />
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8 pb-24">
       {/* Font Size Selector Modal */}
@@ -6329,7 +6593,6 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
           { icon: Bell, label: 'Notificações', action: onOpenNotifications },
           { icon: Lock, label: 'Alterar Senha', action: () => setShowChangePassword(true) },
           user?.id && ministries?.some(m => m.memberIds.includes(user.id) || m.leaderIds.includes(user.id)) && { icon: Calendar, label: 'Minhas Escalas', action: () => setShowMySchedules(true) },
-          user?.role === 'superadmin' && { icon: MessageSquare, label: 'Configurar WhatsApp', action: () => setShowWhatsAppConfig(true) },
           { icon: darkMode ? Sun : Moon, label: darkMode ? 'Modo Claro' : 'Modo Noturno', action: onToggleDarkMode },
           { icon: Type, label: 'Tamanho da Letra', action: () => setShowFontSizeMenu(true) },
           { icon: PrayingHands, label: 'Minhas Orações', action: () => setShowMyPrayers(true) },
@@ -7475,6 +7738,24 @@ export default function App() {
     return () => unsubscribes.forEach(unsub => unsub());
   }, [isLoggedIn, userRole, currentUserData?.id]);
 
+  useEffect(() => {
+    if (typeof document !== 'undefined' && appearanceConfig) {
+      const root = document.documentElement;
+      
+      if (darkMode) {
+        if (appearanceConfig.colorPrimaryDark || appearanceConfig.colorPrimary) root.style.setProperty('--color-primary', appearanceConfig.colorPrimaryDark || appearanceConfig.colorPrimary);
+        if (appearanceConfig.colorSecondaryDark || appearanceConfig.colorSecondary) root.style.setProperty('--color-secondary', appearanceConfig.colorSecondaryDark || appearanceConfig.colorSecondary);
+        if (appearanceConfig.colorPrimaryLightDark || appearanceConfig.colorPrimaryLight) root.style.setProperty('--color-primary-light', appearanceConfig.colorPrimaryLightDark || appearanceConfig.colorPrimaryLight);
+        if (appearanceConfig.colorAccentDark || appearanceConfig.colorAccent) root.style.setProperty('--color-accent', appearanceConfig.colorAccentDark || appearanceConfig.colorAccent);
+      } else {
+        if (appearanceConfig.colorPrimary) root.style.setProperty('--color-primary', appearanceConfig.colorPrimary);
+        if (appearanceConfig.colorSecondary) root.style.setProperty('--color-secondary', appearanceConfig.colorSecondary);
+        if (appearanceConfig.colorPrimaryLight) root.style.setProperty('--color-primary-light', appearanceConfig.colorPrimaryLight);
+        if (appearanceConfig.colorAccent) root.style.setProperty('--color-accent', appearanceConfig.colorAccent);
+      }
+    }
+  }, [appearanceConfig, darkMode]);
+
   const deleteReadingPlan = async (id: string) => {
     try {
       await api.delete('readingPlans', id);
@@ -8428,7 +8709,13 @@ const joinCell = async (cellId: string) => {
             showMessage={showMessage} 
           />
         );
-        case 'appearance': return <AdminAppearanceScreen showMessage={showMessage} />;
+        case 'appearance': return <AdminAppearanceScreen showMessage={showMessage} isSuperAdmin={userRole === 'superadmin'} />;
+        case 'whatsapp': return userRole === 'superadmin' ? (
+          <div className="p-4 md:p-6 space-y-6">
+            <h2 className="text-2xl font-bold text-slate-900">Gestão WhatsApp</h2>
+            <WhatsAppAdminConfig config={whatsappConfig} onUpdate={updateWhatsAppConfig} showMessage={showMessage} />
+          </div>
+        ) : null;
         case 'hosting': return <AdminHostingScreen />;
         case 'admin_roles': return <AdminRolesScreen roles={adminRoles} onAddRole={handleAddAdminRole} onDeleteRole={handleDeleteAdminRole} showMessage={showMessage} />;
         case 'tithes': return <TithesAdminScreen config={titheConfig} onUpdate={updateTitheConfig} showMessage={showMessage} />;
@@ -8600,6 +8887,8 @@ const joinCell = async (cellId: string) => {
   const adminTabs = [
     { id: 'home', icon: PieChart, label: 'Dashboard' },
     { id: 'all_screens', icon: Grid, label: 'Telas' },
+    { id: 'appearance', icon: Palette, label: 'Personalização' },
+    ...(userRole === 'superadmin' ? [{ id: 'whatsapp', icon: MessageSquare, label: 'WhatsApp' }] : []),
     { id: 'financial', icon: DollarSign, label: 'Financeiro' },
     { id: 'tithes', icon: Heart, label: 'Dízimos e Ofertas' },
     { id: 'pastoral', icon: Heart, label: 'Visitas' },
