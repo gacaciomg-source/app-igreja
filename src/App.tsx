@@ -366,7 +366,7 @@ const TreeLogo = ({ className = "w-20 h-20" }: { className?: string }) => (
   </svg>
 );
 
-const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: UserType) => void, cacheVersion: number }) => {
+const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig }: { onAuthSuccess: (user: UserType) => void, cacheVersion: number, appearanceConfig: any }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -379,40 +379,6 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
   const [message, setMessage] = useState('');
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [publicConfig, setPublicConfig] = useState<any>({});
-
-  useEffect(() => {
-    let mounted = true;
-    api.getPublicConfig().then(conf => {
-      if (mounted) {
-        setPublicConfig(conf);
-        if (typeof document !== 'undefined') {
-          const isDark = document.documentElement.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches;
-          const root = document.documentElement;
-          
-          const setOrRemove = (prop: string, val: string | undefined) => {
-            if (val) root.style.setProperty(prop, val);
-            else root.style.removeProperty(prop);
-          };
-          
-          if (isDark) {
-            setOrRemove('--color-primary', conf.colorPrimaryDark || conf.colorPrimary);
-            setOrRemove('--color-secondary', conf.colorSecondaryDark || conf.colorSecondary);
-            setOrRemove('--color-primary-light', conf.colorPrimaryLightDark || conf.colorPrimaryLight);
-            setOrRemove('--color-accent', conf.colorAccentDark || conf.colorAccent);
-          } else {
-            setOrRemove('--color-primary', conf.colorPrimary);
-            setOrRemove('--color-secondary', conf.colorSecondary);
-            setOrRemove('--color-primary-light', conf.colorPrimaryLight);
-            setOrRemove('--color-accent', conf.colorAccent);
-          }
-        }
-      }
-    }).catch(err => {
-      console.error("Failed to load public config:", err);
-    });
-    return () => { mounted = false; };
-  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -465,10 +431,10 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
       >
         <div className="text-center space-y-2">
           <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
-            <img src={publicConfig.loginLogoLight ? (publicConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(publicConfig.loginLogoLight)}` : publicConfig.loginLogoLight) : getCacheBustedUrl("https://renovar.warpserver.com.br/logo_preta.png", cacheVersion)} className="w-full h-full object-contain dark:hidden" alt="Logo" />
-            <img src={publicConfig.loginLogoDark ? (publicConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(publicConfig.loginLogoDark)}` : publicConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain hidden dark:block" alt="Logo" />
+            <img src={appearanceConfig.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl("https://renovar.warpserver.com.br/logo_preta.png", cacheVersion)} className="w-full h-full object-contain dark:hidden" alt="Logo" />
+            <img src={appearanceConfig.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain hidden dark:block" alt="Logo" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">{publicConfig?.churchName || APP_CONFIG.name}</h1>
+          <h1 className="text-3xl font-bold text-slate-900">{appearanceConfig?.churchName || APP_CONFIG.name}</h1>
           <p className="text-slate-500">
             {mode === 'login' && 'Bem-vindo à nossa comunidade'}
             {mode === 'signup' && 'Crie sua conta para participar'}
@@ -7729,23 +7695,61 @@ export default function App() {
   }, [currentUserData]);
 
   useEffect(() => {
-    // Session restoration - only run once
-    try {
-      const savedUser = localStorage.getItem('auth_user');
-      if (savedUser) {
-        const user = JSON.parse(savedUser);
-        if (user && user.id) {
-          setCurrentUserData(user);
-          setIsLoggedIn(true);
-          setUserRole(user.role);
+    const initApp = async () => {
+      // 1. Session restoration
+      try {
+        const savedUser = localStorage.getItem('auth_user');
+        if (savedUser) {
+          const user = JSON.parse(savedUser);
+          if (user && user.id) {
+            setCurrentUserData(user);
+            setIsLoggedIn(true);
+            setUserRole(user.role);
+          }
         }
+      } catch (e) {
+        console.error("Failed to restore session:", e);
+        localStorage.removeItem('auth_user');
+        localStorage.removeItem('auth_token');
       }
-    } catch (e) {
-      console.error("Failed to restore session:", e);
-      localStorage.removeItem('auth_user');
-      localStorage.removeItem('auth_token');
-    }
-    setLoading(false);
+
+      // 2. Load public config
+      try {
+        const pubConfig = await api.getPublicConfig();
+        if (pubConfig) {
+          setAppearanceConfig((prev: any) => ({ ...prev, ...pubConfig }));
+          
+          if (typeof document !== "undefined") {
+            const root = document.documentElement;
+            const setOrRemove = (prop: string, val: string | undefined) => {
+              if (val) root.style.setProperty(prop, val);
+              else root.style.removeProperty(prop);
+            };
+            
+            const isDark = localStorage.getItem('theme') === 'dark' || 
+              (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+            if (isDark) {
+              setOrRemove('--color-primary', pubConfig.colorPrimaryDark || pubConfig.colorPrimary);
+              setOrRemove('--color-secondary', pubConfig.colorSecondaryDark || pubConfig.colorSecondary);
+              setOrRemove('--color-primary-light', pubConfig.colorPrimaryLightDark || pubConfig.colorPrimaryLight);
+              setOrRemove('--color-accent', pubConfig.colorAccentDark || pubConfig.colorAccent);
+            } else {
+              setOrRemove('--color-primary', pubConfig.colorPrimary);
+              setOrRemove('--color-secondary', pubConfig.colorSecondary);
+              setOrRemove('--color-primary-light', pubConfig.colorPrimaryLight);
+              setOrRemove('--color-accent', pubConfig.colorAccent);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch public config on load:', err);
+      }
+
+      setLoading(false);
+    };
+
+    initApp();
   }, []);
 
   // Registry push notifications automatically when logged in
@@ -8726,14 +8730,14 @@ const joinCell = async (cellId: string) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-secondary">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900 transition-colors duration-300">
+        <div className="w-12 h-12 border-4 border-slate-200 dark:border-slate-700 border-t-slate-400 dark:border-t-slate-400 rounded-full animate-spin"></div>
       </div>
     );
   }
 
   if (!isLoggedIn) {
-    return <LoginScreen onAuthSuccess={(u) => {
+    return <LoginScreen appearanceConfig={appearanceConfig} onAuthSuccess={(u) => {
       setCurrentUserData(u);
       setIsLoggedIn(true);
       setUserRole(u.role);
