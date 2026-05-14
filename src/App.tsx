@@ -4499,7 +4499,7 @@ const AdminHostingScreen = () => {
     setIsImporting(true);
     
     try {
-      const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+      const CHUNK_SIZE = 512 * 1024; // 512KB
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       const uploadId = Date.now().toString();
 
