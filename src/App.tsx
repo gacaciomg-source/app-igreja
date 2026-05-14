@@ -6616,6 +6616,13 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
           </div>
           <span className="font-bold">Sair do Aplicativo</span>
         </button>
+
+        <div className="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+          <p className="text-xs text-slate-400 font-medium">Desenvolvido por</p>
+          <a href="https://warpserver.com.br/" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1">
+            Warp Server
+          </a>
+        </div>
       </div>
 
       {showPrivacy && (
@@ -8981,6 +8988,13 @@ const joinCell = async (cellId: string) => {
                  <LogOut className="w-5 h-5 stroke-[2px]" />
                  <span className="font-bold text-sm">Voltar ao App</span>
                </button>
+
+               <div className="mt-4 pb-8 text-center flex flex-col items-center justify-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+                 <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Desenvolvido por</p>
+                 <a href="https://warpserver.com.br/" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1">
+                   Warp Server
+                 </a>
+               </div>
              </div>
            </nav>
         )}
