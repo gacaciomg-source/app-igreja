@@ -4509,12 +4509,15 @@ const AdminHostingScreen = () => {
         body: formData
       });
 
-      if (!response.ok) throw new Error('Erro ao importar');
+      if (!response.ok) {
+        const d = await response.json().catch(() => ({}));
+        throw new Error(d.error || 'Erro ao importar (status ' + response.status + ')');
+      }
       
       alert('Bakup importado com sucesso! O sistema irá recarregar para aplicar as mudanças.');
       window.location.reload();
-    } catch (e) {
-      alert('Erro ao importar arquivo');
+    } catch (e: any) {
+      alert('Erro ao importar arquivo: ' + (e.message || e) + (e.details ? "\nDetalhes: " + JSON.stringify(e.details) : ""));
       console.error(e);
     } finally {
       setIsImporting(false);

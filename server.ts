@@ -491,7 +491,7 @@ cron.schedule('0 23 * * *', async () => {
         form.append('caption', `📦 *Backup Automático Diário*\n📅 ${new Date().toLocaleString('pt-BR')}`);
         
         const fileBuffer = fs.readFileSync(filePath);
-        form.append('document', new Blob([fileBuffer]), `backup-automatico.zip`);
+        form.append('document', new File([fileBuffer], 'backup-automatico.zip', { type: 'application/zip' }));
 
         const telegramToken = cloudConfig.telegramToken.replace(/^bot/i, '');
         const response = await fetch(`https://api.telegram.org/bot${telegramToken}/sendDocument`, {
@@ -933,11 +933,15 @@ async function startServer() {
         if (fs.existsSync(localDataDir)) zipTele.addLocalFolder(localDataDir, 'data');
         if (fs.existsSync(uDir)) zipTele.addLocalFolder(uDir, 'uploads');
         
-        const buffer = zipTele.toBuffer();
+        const tempPreUpdatePath = path.join(process.cwd(), `backup-pre-update-${new Date().getTime()}.zip`);
+        zipTele.writeZip(tempPreUpdatePath);
+        
         const formTele = new FormData();
         formTele.append('chat_id', cloudConfig.telegramChatId);
         formTele.append('caption', `📦 *Backup de Segurança Pré-Atualização*\n📅 ${new Date().toLocaleString('pt-BR')}`);
-        formTele.append('document', new Blob([buffer]), `backup-pre-update-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`);
+        
+        const fileBuffer = fs.readFileSync(tempPreUpdatePath);
+        formTele.append('document', new File([fileBuffer], 'backup-pre-update.zip', { type: 'application/zip' }));
 
         const telegramToken = cloudConfig.telegramToken.replace(/^bot/i, '');
         const responseTele = await fetch(`https://api.telegram.org/bot${telegramToken}/sendDocument`, {
@@ -950,6 +954,8 @@ async function startServer() {
         } else {
             console.log('Backup do Telegram enviado com sucesso!');
         }
+        
+        try { fs.unlinkSync(tempPreUpdatePath); } catch (e) {}
       }
     } catch (teleErr) {
         console.error('Erro na rotina de backup do Telegram:', teleErr);
@@ -1080,18 +1086,23 @@ async function startServer() {
         zip.addLocalFolder(uDir, 'uploads');
       }
       
-      const buffer = zip.toBuffer();
+      const tempTestePath = path.join(process.cwd(), `teste-backup-${new Date().getTime()}.zip`);
+      zip.writeZip(tempTestePath);
 
       const form = new FormData();
       form.append('chat_id', cloudConfig.telegramChatId);
       form.append('caption', `🧪 *Teste de Backup*\n📅 ${new Date().toLocaleString('pt-BR')}`);
-      form.append('document', new Blob([buffer]), 'teste-backup.zip');
+      
+      const fileBuffer = fs.readFileSync(tempTestePath);
+      form.append('document', new File([fileBuffer], 'teste-backup.zip', { type: 'application/zip' }));
 
       const telegramToken = cloudConfig.telegramToken.replace(/^bot/i, '');
       const response = await fetch(`https://api.telegram.org/bot${telegramToken}/sendDocument`, {
         method: 'POST',
         body: form as any
       });
+      
+      try { fs.unlinkSync(tempTestePath); } catch (e) {}
 
       if (response.ok) {
         res.json({ ok: true });
@@ -1113,20 +1124,30 @@ async function startServer() {
     if (!file) return res.status(400).send("Arquivo não enviado");
 
     try {
+      console.log('Importing backup from:', file.path, 'size:', file.size, 'type:', file.mimetype);
       const zip = new AdmZip(file.path);
       const cwd = process.cwd();
       
-      // Extrai tudo para a raiz do projeto (vai sobrescrever data/ e uploads/)
-      zip.extractAllTo(cwd, true);
+      const entries = zip.getEntries();
+      let extractedCount = 0;
+      for (const entry of entries) {
+        try {
+          if (!entry.isDirectory) {
+            zip.extractEntryTo(entry, cwd, true, true);
+            extractedCount++;
+          }
+        } catch (innerErr: any) {
+          console.error(`Erro ao extrair ${entry.entryName}:`, innerErr);
+        }
+      }
       
-      // Cleanup uploaded file
-      fs.unlinkSync(file.path);
+      try { fs.unlinkSync(file.path); } catch (e) {}
       
-      console.log('Backup completo (dados e imagens) importado com sucesso!');
+      console.log(`Backup (dados e imagens) importado com sucesso! ${extractedCount} arquivos extraidos.`);
       res.json({ ok: true });
-    } catch (error) {
-      console.error("Erro ao importar backup:", error);
-      res.status(500).json({ error: "Erro ao processar arquivo de backup" });
+    } catch (error: any) {
+      console.error("Erro ao processar backup:", error);
+      res.status(500).json({ error: "Erro ao processar arquivo de backup: " + (error.message || error), details: error.stack });
     }
   });
 
