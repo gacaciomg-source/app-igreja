@@ -15,7 +15,8 @@
 }
 
 .dark body {
-  @apply bg-[#050a05] text-[#f8fafc];
+  background-color: var(--color-secondary, #050a05);
+  color: #f8fafc;
 }
 
 /* Force dark backgrounds on common light utility classes */
@@ -27,9 +28,9 @@
 .dark .bg-white\/80,
 .dark .bg-white\/90,
 .dark .bg-secondary {
-  background-color: #0d1a0d !important;
+  background-color: var(--color-secondary, #0d1a0d) !important;
   color: #f8fafc !important;
-  border-color: #1a331a !important;
+  border-color: var(--color-primary-light, #1a331a) !important;
 }
 
 /* Fix shadows */
@@ -121,19 +122,19 @@
 
 /* Border overrides */
 .dark .border-slate-100, .dark .border-slate-200, .dark .border-slate-300, .dark .border-primary\/20, .dark .border-white\/20 {
-  border-color: #1a331a !important;
+  border-color: var(--color-primary-light, #1a331a) !important;
 }
 
 /* Specific fixes for buttons and inputs */
 .dark .bg-primary-light {
-  background-color: rgba(0, 110, 28, 0.2) !important;
-  color: #34d399 !important;
+  background-color: var(--color-primary-light, rgba(0, 110, 28, 0.2)) !important;
+  color: var(--color-primary, #34d399) !important;
 }
 
 .dark input, .dark select, .dark textarea {
-  background-color: #1a331a !important;
+  background-color: var(--color-primary-light, #1a331a) !important;
   color: #f8fafc !important;
-  border-color: #2a4d2a !important;
+  border-color: var(--color-primary, #2a4d2a) !important;
 }
 .dark input::placeholder {
   color: #4b5563 !important;

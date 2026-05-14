@@ -390,16 +390,21 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
           const isDark = document.documentElement.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches;
           const root = document.documentElement;
           
+          const setOrRemove = (prop: string, val: string | undefined) => {
+            if (val) root.style.setProperty(prop, val);
+            else root.style.removeProperty(prop);
+          };
+          
           if (isDark) {
-            if (conf.colorPrimaryDark || conf.colorPrimary) root.style.setProperty('--color-primary', conf.colorPrimaryDark || conf.colorPrimary);
-            if (conf.colorSecondaryDark || conf.colorSecondary) root.style.setProperty('--color-secondary', conf.colorSecondaryDark || conf.colorSecondary);
-            if (conf.colorPrimaryLightDark || conf.colorPrimaryLight) root.style.setProperty('--color-primary-light', conf.colorPrimaryLightDark || conf.colorPrimaryLight);
-            if (conf.colorAccentDark || conf.colorAccent) root.style.setProperty('--color-accent', conf.colorAccentDark || conf.colorAccent);
+            setOrRemove('--color-primary', conf.colorPrimaryDark || conf.colorPrimary);
+            setOrRemove('--color-secondary', conf.colorSecondaryDark || conf.colorSecondary);
+            setOrRemove('--color-primary-light', conf.colorPrimaryLightDark || conf.colorPrimaryLight);
+            setOrRemove('--color-accent', conf.colorAccentDark || conf.colorAccent);
           } else {
-            if (conf.colorPrimary) root.style.setProperty('--color-primary', conf.colorPrimary);
-            if (conf.colorSecondary) root.style.setProperty('--color-secondary', conf.colorSecondary);
-            if (conf.colorPrimaryLight) root.style.setProperty('--color-primary-light', conf.colorPrimaryLight);
-            if (conf.colorAccent) root.style.setProperty('--color-accent', conf.colorAccent);
+            setOrRemove('--color-primary', conf.colorPrimary);
+            setOrRemove('--color-secondary', conf.colorSecondary);
+            setOrRemove('--color-primary-light', conf.colorPrimaryLight);
+            setOrRemove('--color-accent', conf.colorAccent);
           }
         }
       }
@@ -463,7 +468,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
             <img src={publicConfig.loginLogoLight ? (publicConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(publicConfig.loginLogoLight)}` : publicConfig.loginLogoLight) : getCacheBustedUrl("https://renovar.warpserver.com.br/logo_preta.png", cacheVersion)} className="w-full h-full object-contain dark:hidden" alt="Logo" />
             <img src={publicConfig.loginLogoDark ? (publicConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(publicConfig.loginLogoDark)}` : publicConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain hidden dark:block" alt="Logo" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">{APP_CONFIG.name}</h1>
+          <h1 className="text-3xl font-bold text-slate-900">{publicConfig?.churchName || APP_CONFIG.name}</h1>
           <p className="text-slate-500">
             {mode === 'login' && 'Bem-vindo à nossa comunidade'}
             {mode === 'signup' && 'Crie sua conta para participar'}
@@ -904,8 +909,8 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
 
 
             <div className="absolute bottom-8 left-0 right-0 text-center flex flex-col items-center">
-              <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">{APP_CONFIG.name}</p>
-              <p className="text-white/40 text-[9px] font-medium tracking-[0.1em] mt-0.5">{APP_CONFIG.social.instagram.replace('https://instagram.com/', '@')}</p>
+              <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">{config?.churchName || APP_CONFIG.name}</p>
+              <p className="text-white/40 text-[9px] font-medium tracking-[0.1em] mt-0.5">{(config?.churchInstagram ? `@${config.churchInstagram.replace('@', '')}` : APP_CONFIG.social.instagram.replace('https://instagram.com/', '@'))}</p>
               <p className="text-white/30 text-[8px] font-bold uppercase tracking-[0.15em] mt-1.5">{BIBLE_TRANSLATIONS.find(t => t.id === selectedTranslation)?.bollsStr || selectedTranslation.toUpperCase()}</p>
             </div>
 
@@ -2082,7 +2087,8 @@ const Dashboard = ({
   showMessage, 
   onRefresh, 
   cacheVersion,
-  onEventClick
+  onEventClick,
+  appearanceConfig
 }: { 
   events: Event[], 
   user: UserType | null, 
@@ -2098,7 +2104,8 @@ const Dashboard = ({
   showMessage?: (msg: string) => void, 
   onRefresh?: () => Promise<void>, 
   cacheVersion: number,
-  onEventClick: (e: Event) => void
+  onEventClick: (e: Event) => void,
+  appearanceConfig?: any
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentVerseText, setCurrentVerseText] = useState(dailyVerse?.text || '');
@@ -2144,7 +2151,7 @@ const Dashboard = ({
         <div className="flex items-center gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-900 leading-tight">Olá, {user?.name?.split(' ')[0] || 'Irmão'}!</h2>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{APP_CONFIG.name}</p>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{appearanceConfig?.churchName || APP_CONFIG.name}</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -3550,7 +3557,7 @@ const UserPastoralVisitsScreen = ({ visits, onAddRequest }: { visits: PastoralVi
   );
 };
 
-const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage, onRefreshVerses }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, onRefreshVerses?: () => Promise<void> }) => {
+const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage, onRefreshVerses, appearanceConfig }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, onRefreshVerses?: () => Promise<void>, appearanceConfig?: any }) => {
   const [showBirthdays, setShowBirthdays] = useState<'today' | 'month' | null>(null);
   const [dynamicDailyVerse, setDynamicDailyVerse] = useState<string | null>(null);
   const [dynamicTomorrowVerse, setDynamicTomorrowVerse] = useState<string | null>(null);
@@ -3626,7 +3633,7 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
     <header className="flex items-center justify-between">
       <div>
         <h2 className="text-2xl font-bold text-slate-900">GESTÃO</h2>
-        <p className="text-slate-500">Gestão da {APP_CONFIG.name}</p>
+        <p className="text-slate-500">Gestão da {appearanceConfig?.churchName || APP_CONFIG.name}</p>
       </div>
       <div className="flex gap-2">
         <button onClick={onSwitchToMember} className="flex items-center gap-2 px-3 py-2 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-colors">
@@ -3977,6 +3984,33 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
         <h2 className="text-2xl font-bold text-slate-900">Personalização</h2>
         <p className="text-slate-500">Gerencie imagens e temas do aplicativo.</p>
       </header>
+
+      <Card className="p-6 space-y-4">
+        <h3 className="font-bold">Informações Globais</h3>
+        <p className="text-xs text-slate-500">Dados da instituição que aparecem pelo app (incluindo imagens compartilhadas e login).</p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Nome da Igreja / Instituição</label>
+            <input 
+              type="text" 
+              value={config.churchName || ''} 
+              onChange={e => setConfig({ ...config, churchName: e.target.value })} 
+              placeholder={APP_CONFIG.name}
+              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Instagram (com ou sem @)</label>
+            <input 
+              type="text" 
+              value={config.churchInstagram || ''} 
+              onChange={e => setConfig({ ...config, churchInstagram: e.target.value.replace('@', '') })} 
+              placeholder="ex: igreja.renovar"
+              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            />
+          </div>
+        </div>
+      </Card>
 
       <Card className="p-6 space-y-4">
         <h3 className="font-bold">Compartilhamento de Versículo</h3>
@@ -7749,16 +7783,21 @@ export default function App() {
     if (typeof document !== 'undefined' && appearanceConfig) {
       const root = document.documentElement;
       
+      const setOrRemove = (prop: string, val: string | undefined) => {
+        if (val) root.style.setProperty(prop, val);
+        else root.style.removeProperty(prop);
+      };
+      
       if (darkMode) {
-        if (appearanceConfig.colorPrimaryDark || appearanceConfig.colorPrimary) root.style.setProperty('--color-primary', appearanceConfig.colorPrimaryDark || appearanceConfig.colorPrimary);
-        if (appearanceConfig.colorSecondaryDark || appearanceConfig.colorSecondary) root.style.setProperty('--color-secondary', appearanceConfig.colorSecondaryDark || appearanceConfig.colorSecondary);
-        if (appearanceConfig.colorPrimaryLightDark || appearanceConfig.colorPrimaryLight) root.style.setProperty('--color-primary-light', appearanceConfig.colorPrimaryLightDark || appearanceConfig.colorPrimaryLight);
-        if (appearanceConfig.colorAccentDark || appearanceConfig.colorAccent) root.style.setProperty('--color-accent', appearanceConfig.colorAccentDark || appearanceConfig.colorAccent);
+        setOrRemove('--color-primary', appearanceConfig.colorPrimaryDark || appearanceConfig.colorPrimary);
+        setOrRemove('--color-secondary', appearanceConfig.colorSecondaryDark || appearanceConfig.colorSecondary);
+        setOrRemove('--color-primary-light', appearanceConfig.colorPrimaryLightDark || appearanceConfig.colorPrimaryLight);
+        setOrRemove('--color-accent', appearanceConfig.colorAccentDark || appearanceConfig.colorAccent);
       } else {
-        if (appearanceConfig.colorPrimary) root.style.setProperty('--color-primary', appearanceConfig.colorPrimary);
-        if (appearanceConfig.colorSecondary) root.style.setProperty('--color-secondary', appearanceConfig.colorSecondary);
-        if (appearanceConfig.colorPrimaryLight) root.style.setProperty('--color-primary-light', appearanceConfig.colorPrimaryLight);
-        if (appearanceConfig.colorAccent) root.style.setProperty('--color-accent', appearanceConfig.colorAccent);
+        setOrRemove('--color-primary', appearanceConfig.colorPrimary);
+        setOrRemove('--color-secondary', appearanceConfig.colorSecondary);
+        setOrRemove('--color-primary-light', appearanceConfig.colorPrimaryLight);
+        setOrRemove('--color-accent', appearanceConfig.colorAccent);
       }
     }
   }, [appearanceConfig, darkMode]);
@@ -8699,7 +8738,7 @@ const joinCell = async (cellId: string) => {
       };
 
       switch (currentTab) {
-        case 'home': return <AdminDashboard stats={stats} users={visibleUsers} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} onRefreshVerses={refreshData} />;
+        case 'home': return <AdminDashboard appearanceConfig={appearanceConfig} stats={stats} users={visibleUsers} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} onRefreshVerses={refreshData} />;
         case 'bible': return <AdminVerses onBack={() => setCurrentTab('home')} showMessage={showMessage} isSuperAdmin={userRole === 'superadmin'} />;
         case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} />;
         case 'financial': return (
@@ -8787,7 +8826,7 @@ const joinCell = async (cellId: string) => {
             />
           );
         }
-        default: return <AdminDashboard stats={stats} users={users} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} onRefreshVerses={refreshData} />;
+        default: return <AdminDashboard appearanceConfig={appearanceConfig} stats={stats} users={users} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} onRefreshVerses={refreshData} />;
       }
     }
 
@@ -8935,7 +8974,8 @@ const joinCell = async (cellId: string) => {
       onRefresh: refreshData,
       cacheVersion,
       darkMode,
-      onToggleDarkMode: () => setDarkMode(!darkMode)
+      onToggleDarkMode: () => setDarkMode(!darkMode),
+      appearanceConfig
     };
 
   return (

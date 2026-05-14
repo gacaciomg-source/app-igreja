@@ -628,6 +628,8 @@ async function startServer() {
         colorSecondaryDark: appearance?.colorSecondaryDark || null,
         colorPrimaryLightDark: appearance?.colorPrimaryLightDark || null,
         colorAccentDark: appearance?.colorAccentDark || null,
+        churchName: appearance?.churchName || null,
+        churchInstagram: appearance?.churchInstagram || null,
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao carregar configurações públicas" });
