@@ -1142,6 +1142,22 @@ async function startServer() {
         console.log(`All chunks received! Extracting file...`);
         const zip = new AdmZip(finalZipPath);
         const cwd = process.cwd();
+        
+        // --- PRESERVE NOTIFICATIONS & USERS ---
+        let existingPushSubscriptions = null;
+        let existingUsers = null;
+        try {
+            const pushPath = path.join(cwd, 'data', 'push_subscriptions.json');
+            if (fs.existsSync(pushPath)) {
+                existingPushSubscriptions = fs.readFileSync(pushPath, 'utf-8');
+            }
+            const usersPath = path.join(cwd, 'data', 'users.json');
+            if (fs.existsSync(usersPath)) {
+                existingUsers = JSON.parse(fs.readFileSync(usersPath, 'utf-8'));
+            }
+        } catch(e) { console.error('Erro lendo config previa', e) }
+        // ------------------------------------
+
         const entries = zip.getEntries();
         let extractedCount = 0;
         for (const entry of entries) {
@@ -1154,6 +1170,29 @@ async function startServer() {
             console.error(`Erro ao extrair ${entry.entryName}:`, innerErr);
           }
         }
+        
+        // --- RESTORE NOTIFICATIONS & USERS ---
+        try {
+            if (existingPushSubscriptions) {
+                fs.writeFileSync(path.join(cwd, 'data', 'push_subscriptions.json'), existingPushSubscriptions);
+            }
+            if (existingUsers && Array.isArray(existingUsers)) {
+                const newUsersPath = path.join(cwd, 'data', 'users.json');
+                if (fs.existsSync(newUsersPath)) {
+                    const newUsers = JSON.parse(fs.readFileSync(newUsersPath, 'utf-8'));
+                    const mergedUsers = newUsers.map((nu: any) => {
+                        const oldUser = existingUsers.find((ou: any) => ou.id === nu.id || ou.email === nu.email);
+                        if (oldUser && oldUser.notificationSettings) {
+                            nu.notificationSettings = oldUser.notificationSettings;
+                        }
+                        return nu;
+                    });
+                    fs.writeFileSync(newUsersPath, JSON.stringify(mergedUsers, null, 2));
+                }
+            }
+        } catch(e) { console.error('Erro restaurando notfs', e) }
+        // ------------------------------------
+        
         try { fs.unlinkSync(finalZipPath); } catch(e) {}
         
         console.log(`Backup (dados e imagens) importado com sucesso! ${extractedCount} arquivos extraidos.`);
@@ -1179,6 +1218,21 @@ async function startServer() {
       const zip = new AdmZip(file.path);
       const cwd = process.cwd();
       
+      // --- PRESERVE NOTIFICATIONS & USERS ---
+      let existingPushSubscriptions = null;
+      let existingUsers = null;
+      try {
+          const pushPath = path.join(cwd, 'data', 'push_subscriptions.json');
+          if (fs.existsSync(pushPath)) {
+              existingPushSubscriptions = fs.readFileSync(pushPath, 'utf-8');
+          }
+          const usersPath = path.join(cwd, 'data', 'users.json');
+          if (fs.existsSync(usersPath)) {
+              existingUsers = JSON.parse(fs.readFileSync(usersPath, 'utf-8'));
+          }
+      } catch(e) { console.error('Erro lendo config previa', e) }
+      // ------------------------------------
+
       const entries = zip.getEntries();
       let extractedCount = 0;
       for (const entry of entries) {
@@ -1191,6 +1245,28 @@ async function startServer() {
           console.error(`Erro ao extrair ${entry.entryName}:`, innerErr);
         }
       }
+      
+      // --- RESTORE NOTIFICATIONS & USERS ---
+      try {
+          if (existingPushSubscriptions) {
+              fs.writeFileSync(path.join(cwd, 'data', 'push_subscriptions.json'), existingPushSubscriptions);
+          }
+          if (existingUsers && Array.isArray(existingUsers)) {
+              const newUsersPath = path.join(cwd, 'data', 'users.json');
+              if (fs.existsSync(newUsersPath)) {
+                  const newUsers = JSON.parse(fs.readFileSync(newUsersPath, 'utf-8'));
+                  const mergedUsers = newUsers.map((nu: any) => {
+                      const oldUser = existingUsers.find((ou: any) => ou.id === nu.id || ou.email === nu.email);
+                      if (oldUser && oldUser.notificationSettings) {
+                          nu.notificationSettings = oldUser.notificationSettings;
+                      }
+                      return nu;
+                  });
+                  fs.writeFileSync(newUsersPath, JSON.stringify(mergedUsers, null, 2));
+              }
+          }
+      } catch(e) { console.error('Erro restaurando notfs', e) }
+      // ------------------------------------
       
       try { fs.unlinkSync(file.path); } catch (e) {}
       
@@ -1474,6 +1550,38 @@ async function startServer() {
   app.post("/api/whatsapp/reconnect", authenticateToken, async (req, res) => {
     await initWhatsApp();
     res.json({ status: 'Initiated' });
+  });
+
+  let activeUploads: { [key: string]: { path: string, originalName: string } } = {};
+
+  app.post("/api/upload-chunk", authenticateToken, upload.single('chunk'), (req: any, res) => {
+    try {
+      const { chunkIndex, totalChunks, uploadId, fileName } = req.body;
+      if (!req.file) return res.status(400).json({ error: "Chunk não enviado" });
+      
+      const tempDir = path.join(process.cwd(), 'temp_uploads');
+      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+      
+      const chunkFile = path.join(tempDir, `${uploadId}`);
+      const chunkBuffer = fs.readFileSync(req.file.path);
+      fs.appendFileSync(chunkFile, chunkBuffer);
+      
+      try { fs.unlinkSync(req.file.path); } catch(e) {}
+      
+      if (parseInt(chunkIndex) === parseInt(totalChunks) - 1) {
+        // Ultimo chunk
+        const ext = path.extname(fileName) || '';
+        const finalName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
+        const finalPath = path.join(process.cwd(), 'uploads', finalName);
+        fs.renameSync(chunkFile, finalPath);
+        return res.json({ complete: true, url: `/uploads/${finalName}` });
+      }
+      
+      res.json({ complete: false });
+    } catch (error) {
+      console.error("Erro no chunk do upload:", error);
+      res.status(500).json({ error: "Erro no chunk" });
+    }
   });
 
   app.post("/api/upload", authenticateToken, upload.single('file'), (req: any, res) => {

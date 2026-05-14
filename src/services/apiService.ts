@@ -170,10 +170,10 @@ class ApiService {
     let fileToUpload = file;
     if (file.type.startsWith('image/')) {
         try {
-          // Import dynamic to avoid breaking SSR or build
           const imageCompression = (await import('browser-image-compression')).default;
+          // Compression defaults
           const options = {
-            maxSizeMB: 1, // Max 1MB
+            maxSizeMB: 1, 
             maxWidthOrHeight: 1920,
             useWebWorker: true
           };
@@ -183,32 +183,73 @@ class ApiService {
         }
     }
 
-    const formData = new FormData();
-    formData.append('file', fileToUpload);
-    
     const headers = {
       ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
     };
 
-    const url = `${API_URL}/upload`;
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
+    const CHUNK_SIZE = 512 * 1024; // 512KB
+    if (fileToUpload.size > CHUNK_SIZE) {
+      const totalChunks = Math.ceil(fileToUpload.size / CHUNK_SIZE);
+      const uploadId = Date.now().toString();
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Erro no upload' }));
-        throw new Error(error.error || 'Falha ao enviar arquivo');
-      }
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, fileToUpload.size);
+        const chunk = fileToUpload.slice(start, end);
 
-      return response.json();
-    } catch (err) {
-      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
-        throw new Error('Falha de conexão com o servidor de upload. O arquivo pode ser muito grande ou o servidor está offline.');
+        const formDataChunk = new FormData();
+        formDataChunk.append('chunk', chunk, fileToUpload.name);
+        formDataChunk.append('chunkIndex', i.toString());
+        formDataChunk.append('totalChunks', totalChunks.toString());
+        formDataChunk.append('uploadId', uploadId);
+        formDataChunk.append('fileName', fileToUpload.name);
+
+        try {
+          const response = await fetch(`${API_URL}/upload-chunk`, {
+            method: 'POST',
+            headers,
+            body: formDataChunk,
+          });
+
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Erro no upload do chunk' }));
+            throw new Error(error.error || `Falha ao enviar chunk ${i + 1}`);
+          }
+          
+          const result = await response.json();
+          if (result.complete) {
+            return result;
+          }
+        } catch (err) {
+          if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+            throw new Error('Falha de conexão. O servidor pode estar offline ou bloqueando a requisição.');
+          }
+          throw err;
+        }
       }
-      throw err;
+    } else {
+      const formData = new FormData();
+      formData.append('file', fileToUpload);
+      
+      try {
+        const response = await fetch(`${API_URL}/upload`, {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: 'Erro no upload' }));
+          throw new Error(error.error || 'Falha ao enviar arquivo');
+        }
+
+        return response.json();
+      } catch (err) {
+        if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+          throw new Error('Falha de conexão com o servidor de upload. O arquivo pode ser muito grande ou o servidor está offline.');
+        }
+        throw err;
+      }
     }
   }
 

@@ -7115,6 +7115,8 @@ const PastoralVisitForm = ({ user, onSubmit, onCancel }: { user: UserType | null
 const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
   const [selectedSermon, setSelectedSermon] = useState<Sermon | null>(null);
 
+  const sortedSermons = [...sermons].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   const getYouTubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
@@ -7135,7 +7137,7 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
       </header>
 
       <div className="space-y-4">
-        {sermons.length > 0 ? sermons.map(sermon => (
+        {sortedSermons.length > 0 ? sortedSermons.map(sermon => (
           <Card 
             key={sermon.id} 
             onClick={() => handleSermonClick(sermon)}
@@ -7407,7 +7409,7 @@ const AdminSermonsScreen = ({ sermons, onAdd, onUpdate, onDelete }: { sermons: S
       )}
 
       <div className="grid gap-4">
-        {sermons.map(sermon => (
+        {[...sermons].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(sermon => (
           <Card key={sermon.id} className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center">
