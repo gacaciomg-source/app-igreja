@@ -158,8 +158,24 @@ class ApiService {
   }
 
   async upload(file: File) {
+    let fileToUpload = file;
+    if (file.type.startsWith('image/')) {
+        try {
+          // Import dynamic to avoid breaking SSR or build
+          const imageCompression = (await import('browser-image-compression')).default;
+          const options = {
+            maxSizeMB: 1, // Max 1MB
+            maxWidthOrHeight: 1920,
+            useWebWorker: true
+          };
+          fileToUpload = await imageCompression(file, options) as File;
+        } catch (e) {
+          console.warn('Image compression failed, trying to upload original', e);
+        }
+    }
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', fileToUpload);
     
     const headers = {
       ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),

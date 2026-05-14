@@ -652,11 +652,28 @@ const SHARE_BACKGROUNDS = [
 
 const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { text: string, ref: string }, onClose: () => void, cacheVersion: number, config: any }) => {
   const backgrounds = config?.shareBackgrounds?.length ? config.shareBackgrounds : SHARE_BACKGROUNDS;
+  const logoUrl = config?.shareLogo || getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion);
+  const logo2Url = config?.shareLogo2;
   const [selectedBg, setSelectedBg] = useState(backgrounds[0]);
+  const [selectedLogo, setSelectedLogo] = useState(backgrounds[0]?.logoOption || 'logo1');
+  
+  const handleSelectBg = (bg: any) => {
+    setSelectedBg(bg);
+    setSelectedLogo(bg.logoOption || 'logo1');
+    setLogoError(false);
+  };
+  
   const verseCardRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [logoError, setLogoError] = useState(false);
+
+  useEffect(() => {
+    setLogoError(false);
+  }, [selectedLogo, config]);
+
+  const currentLogoSrc = selectedLogo === 'logo1' ? logoUrl : (logo2Url || logoUrl) || logoUrl;
+  const proxyLogoSrc = currentLogoSrc.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(currentLogoSrc)}` : currentLogoSrc;
   const [currentText, setCurrentText] = useState(verse.text);
   const [selectedTranslation, setSelectedTranslation] = useState('almeida');
   const [isFetchingText, setIsFetchingText] = useState(false);
@@ -823,7 +840,7 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
             {!logoError && (
               <div className="absolute top-12 left-1/2 -translate-x-1/2 w-32 h-32 flex items-center justify-center p-3 z-10 overflow-hidden">
                 <img 
-                  src={config?.shareLogo || getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} 
+                  src={proxyLogoSrc} 
                   className="w-full h-full object-contain" 
                   alt="Logo" 
                   crossOrigin="anonymous"
@@ -847,6 +864,15 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
                 {verse.ref}
               </p>
             </div>
+            
+            {/* Seletor de Logo (apenas se houver duas logos) */}
+            {logo2Url && (
+                <div className="absolute top-2 right-2 z-20 flex gap-1">
+                    <button onClick={() => setSelectedLogo('logo1')} className={`w-8 h-8 rounded-full border-2 ${selectedLogo === 'logo1' ? 'border-primary' : 'border-white/50'}`} style={{backgroundImage: `url(${logoUrl})`, backgroundSize: 'contain'}}></button>
+                    <button onClick={() => setSelectedLogo('logo2')} className={`w-8 h-8 rounded-full border-2 ${selectedLogo === 'logo2' ? 'border-primary' : 'border-white/50'}`} style={{backgroundImage: `url(${logo2Url})`, backgroundSize: 'contain'}}></button>
+                </div>
+            )}
+
 
             <div className="absolute bottom-8 left-0 right-0 text-center flex flex-col items-center">
               <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">{APP_CONFIG.name}</p>
@@ -884,7 +910,7 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
               {backgrounds.map((bg: any) => (
                 <button
                   key={bg.id}
-                  onClick={() => setSelectedBg(bg)}
+                  onClick={() => handleSelectBg(bg)}
                   className={cn(
                     "min-w-16 h-16 rounded-xl border-2 transition-all overflow-hidden relative",
                     selectedBg.id === bg.id ? "border-primary scale-105" : "border-transparent opacity-70 hover:opacity-100"
@@ -3849,6 +3875,7 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
 const AdminAppearanceScreen = ({ showMessage }: { showMessage: (msg: string) => void }) => {
   const [config, setConfig] = useState<any>({
     shareLogo: '',
+    shareLogo2: '',
     shareBackgrounds: SHARE_BACKGROUNDS
   });
   const [loading, setLoading] = useState(true);
@@ -3922,28 +3949,110 @@ const AdminAppearanceScreen = ({ showMessage }: { showMessage: (msg: string) => 
 
       <Card className="p-6 space-y-4">
         <h3 className="font-bold">Compartilhamento de Versículo</h3>
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-400 uppercase">URL da Logo na Imagem Gerada</label>
-          <input 
-            type="text" 
-            value={config.shareLogo || ''} 
-            onChange={e => setConfig({ ...config, shareLogo: e.target.value })} 
-            placeholder="Ex: https://meusite.com/logo.png"
-            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-          />
-          <p className="text-xs text-slate-500">Essa logo aparecerá no lugar do ícone padrão do app quando os membros compartilharem um versículo.</p>
+        <p className="text-xs text-slate-500">Recomendação para logos: PNG com fundo transparente, tamanho de 256x256 pixels.</p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Logo 1 (Principal)</label>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={config.shareLogo || ''} 
+                onChange={e => setConfig({ ...config, shareLogo: e.target.value })} 
+                placeholder="Ex: https://meusite.com/logo1.png"
+                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all flex-1"
+              />
+              <label className="flex items-center justify-center p-4 bg-slate-100 text-slate-600 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors">
+                <Upload className="w-5 h-5" />
+                <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    try {
+                      setSaving(true);
+                      const { url } = await api.upload(file);
+                      setConfig({ ...config, shareLogo: url });
+                    } catch (err) {
+                      console.error(err);
+                      showMessage('Erro ao enviar imagem');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }
+                }} />
+              </label>
+            </div>
+            {config.shareLogo && (
+              <div className="h-16 w-16 bg-slate-800 rounded-lg p-2 border relative">
+                 <img src={config.shareLogo.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(config.shareLogo)}` : config.shareLogo} className="w-full h-full object-contain" alt="" />
+              </div>
+            )}
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Logo 2 (Secundária - Opcional)</label>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={config.shareLogo2 || ''} 
+                onChange={e => setConfig({ ...config, shareLogo2: e.target.value })} 
+                placeholder="Ex: https://meusite.com/logo2.png"
+                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all flex-1"
+              />
+              <label className="flex items-center justify-center p-4 bg-slate-100 text-slate-600 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors">
+                <Upload className="w-5 h-5" />
+                <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    try {
+                      setSaving(true);
+                      const { url } = await api.upload(file);
+                      setConfig({ ...config, shareLogo2: url });
+                    } catch (err) {
+                      console.error(err);
+                      showMessage('Erro ao enviar imagem');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }
+                }} />
+              </label>
+            </div>
+            {config.shareLogo2 && (
+              <div className="h-16 w-16 bg-slate-800 rounded-lg p-2 border relative">
+                 <img src={config.shareLogo2.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(config.shareLogo2)}` : config.shareLogo2} className="w-full h-full object-contain" alt="" />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4 pt-4 border-t border-slate-100">
           <div className="flex justify-between items-center">
             <h4 className="font-bold text-slate-700">Imagens de Fundo (Versículo)</h4>
-            <Button onClick={handleAddBg} variant="outline" className="text-xs py-1 h-8"><Plus className="w-4 h-4 mr-1" /> Adicionar Fundo</Button>
+            <div className="flex gap-2">
+              <Button onClick={handleAddBg} variant="outline" className="text-xs py-1 h-8"><Plus className="w-4 h-4 mr-1" /> Adicionar</Button>
+            </div>
           </div>
           
           <div className="grid gap-4 sm:grid-cols-2">
-            {(config.shareBackgrounds || []).map((bg: any) => (
+            {(config.shareBackgrounds || []).map((bg: any, index: number) => (
               <div key={bg.id} className="p-4 border border-slate-100 rounded-xl space-y-3 bg-slate-50 relative">
-                <button onClick={() => handleRemoveBg(bg.id)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500"><XCircle className="w-5 h-5" /></button>
+                <div className="flex justify-between">
+                  <div className="flex gap-1">
+                      <Button onClick={() => {
+                          const newBgs = [...(config.shareBackgrounds || [])];
+                          if (index > 0) {
+                              [newBgs[index], newBgs[index-1]] = [newBgs[index-1], newBgs[index]];
+                              setConfig({...config, shareBackgrounds: newBgs});
+                          }
+                      }} variant="ghost" className="p-1 h-6 w-6"><ChevronUp className="w-4 h-4"/></Button>
+                      <Button onClick={() => {
+                          const newBgs = [...(config.shareBackgrounds || [])];
+                          if (index < newBgs.length - 1) {
+                              [newBgs[index], newBgs[index+1]] = [newBgs[index+1], newBgs[index]];
+                              setConfig({...config, shareBackgrounds: newBgs});
+                          }
+                      }} variant="ghost" className="p-1 h-6 w-6"><ChevronDown className="w-4 h-4"/></Button>
+                  </div>
+                  <button onClick={() => handleRemoveBg(bg.id)} className="text-slate-400 hover:text-red-500"><XCircle className="w-5 h-5" /></button>
+                </div>
                 <div className="space-y-1 pr-6">
                   <label className="text-[10px] font-bold text-slate-400 uppercase">Nome / Título</label>
                   <input type="text" value={bg.name} onChange={e => handleChangeBg(bg.id, 'name', e.target.value)} className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
@@ -3953,8 +4062,15 @@ const AdminAppearanceScreen = ({ showMessage }: { showMessage: (msg: string) => 
                   <input type="text" value={bg.url || ''} onChange={e => { handleChangeBg(bg.id, 'url', e.target.value); handleChangeBg(bg.id, 'gradient', ''); }} placeholder="https://..." className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">- OU - Degradê CSS (Ex: linear-gradient...)</label>
-                  <input type="text" value={bg.gradient || ''} onChange={e => { handleChangeBg(bg.id, 'gradient', e.target.value); handleChangeBg(bg.id, 'url', ''); }} className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Logo Padrão deste Fundo</label>
+                  <select 
+                    value={bg.logoOption || 'logo1'} 
+                    onChange={e => handleChangeBg(bg.id, 'logoOption', e.target.value)}
+                    className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm"
+                  >
+                    <option value="logo1">Logo 1</option>
+                    <option value="logo2">Logo 2</option>
+                  </select>
                 </div>
                 {/* Preview */}
                 <div className="h-16 w-full rounded-lg bg-slate-200 overflow-hidden relative border border-slate-100" style={{ background: bg.gradient }}>
@@ -6822,9 +6938,10 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
   );
 };
 
-const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], onAdd: (data: any) => void, onDelete: (id: string) => void }) => {
+const AdminSermonsScreen = ({ sermons, onAdd, onUpdate, onDelete }: { sermons: Sermon[], onAdd: (data: any) => void, onUpdate: (id: string, data: any) => void, onDelete: (id: string) => void }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     preacher: '',
@@ -6853,10 +6970,30 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
     }
   };
 
+  const handleEdit = (sermon: Sermon) => {
+    setFormData({
+      title: sermon.title,
+      preacher: sermon.preacher,
+      date: sermon.date,
+      description: sermon.description || '',
+      videoUrl: sermon.videoUrl || '',
+      audioUrl: sermon.audioUrl || '',
+      pdfUrl: sermon.pdfUrl || '',
+      thumbnail: sermon.thumbnail || ''
+    });
+    setEditingId(sermon.id);
+    setShowAdd(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd(formData);
+    if (editingId) {
+      onUpdate(editingId, formData);
+    } else {
+      onAdd(formData);
+    }
     setShowAdd(false);
+    setEditingId(null);
     setFormData({ title: '', preacher: '', date: new Date().toISOString().split('T')[0], description: '', videoUrl: '', audioUrl: '', pdfUrl: '', thumbnail: '' });
   };
 
@@ -6864,14 +7001,14 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-900">Gerenciar Sermões</h2>
-        <Button onClick={() => setShowAdd(true)} className="flex items-center gap-2">
+        <Button onClick={() => { setEditingId(null); setFormData({ title: '', preacher: '', date: new Date().toISOString().split('T')[0], description: '', videoUrl: '', audioUrl: '', pdfUrl: '', thumbnail: '' }); setShowAdd(true); }} className="flex items-center gap-2">
           <Plus className="w-4 h-4" /> Adicionar
         </Button>
       </header>
 
       {showAdd && (
         <Card className="p-6 space-y-4">
-          <h3 className="font-bold text-lg">Novo Sermão</h3>
+          <h3 className="font-bold text-lg">{editingId ? 'Editar Sermão' : 'Novo Sermão'}</h3>
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -6927,8 +7064,8 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
               <input className="w-full p-3 bg-slate-50 rounded-xl border-none text-sm" value={formData.pdfUrl} onChange={e => setFormData({...formData, pdfUrl: e.target.value})} />
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancelar</Button>
-              <Button type="submit">Salvar Sermão</Button>
+              <Button variant="ghost" onClick={() => { setShowAdd(false); setEditingId(null); setFormData({ title: '', preacher: '', date: new Date().toISOString().split('T')[0], description: '', videoUrl: '', audioUrl: '', pdfUrl: '', thumbnail: '' }); }}>Cancelar</Button>
+              <Button type="submit">{editingId ? 'Atualizar Sermão' : 'Salvar Sermão'}</Button>
             </div>
           </form>
         </Card>
@@ -6946,9 +7083,14 @@ const AdminSermonsScreen = ({ sermons, onAdd, onDelete }: { sermons: Sermon[], o
                 <p className="text-xs text-slate-500">{sermon.preacher} • {formatDate(sermon.date)}</p>
               </div>
             </div>
-            <button onClick={() => window.confirm('Excluir sermão?') && onDelete(sermon.id)} className="p-2 text-slate-300 hover:text-red-500">
-              <Plus className="w-5 h-5 rotate-45" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => handleEdit(sermon)} className="p-2 text-slate-300 hover:text-blue-500">
+                <Edit2 className="w-5 h-5" />
+              </button>
+              <button onClick={() => window.confirm('Excluir sermão?') && onDelete(sermon.id)} className="p-2 text-slate-300 hover:text-red-500">
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
           </Card>
         ))}
       </div>
@@ -7590,6 +7732,18 @@ export default function App() {
     } catch (err) {
       setSermons(prev => prev.filter(s => s.id !== tempSermon.id));
       handleApiError(err, 'addSermon');
+    }
+  };
+
+  const updateSermon = async (id: string, data: Partial<Sermon>) => {
+    const originalSermons = [...sermons];
+    setSermons(prev => prev.map(s => s.id === id ? { ...s, ...data } : s));
+    try {
+      await api.update('sermons', id, data);
+      handleApiSuccess('Sermão atualizado com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'updateSermon');
+      setSermons(originalSermons);
     }
   };
 
@@ -8306,7 +8460,7 @@ const joinCell = async (cellId: string) => {
         case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} onDelete={deleteMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
         case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
-        case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onDelete={deleteSermon} />;
+        case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onUpdate={updateSermon} onDelete={deleteSermon} />;
         case 'pastoral': return <AdminPastoralVisits visits={pastoralVisits} onUpdateStatus={updatePastoralVisitStatus} />;
         case 'profile': {
           const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
