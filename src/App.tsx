@@ -99,7 +99,7 @@ import {
   CartesianGrid
 } from 'recharts';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, EventRegistration, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction, FinancialRule } from './types';
-import { BIBLE_BOOKS, READING_PLAN_TEMPLATES } from './constants';
+import { BIBLE_BOOKS, READING_PLAN_TEMPLATES, SYSTEM_VERSION } from './constants';
 import { api, getApiUrl, BASE_URL } from './services/apiService';
 
 const DEFAULT_AVATAR = "https://renovar.warpserver.com.br/avatar.png";
@@ -4009,6 +4009,16 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
               className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
             />
           </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Logo (Site / Favicon)</label>
+            <input 
+              type="text" 
+              value={config.faviconUrl || ''} 
+              onChange={e => setConfig({ ...config, faviconUrl: e.target.value })} 
+              placeholder="Ex: https://meusite.com/logo.png"
+              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            />
+          </div>
         </div>
       </Card>
 
@@ -4760,6 +4770,9 @@ const AdminHostingScreen = () => {
           <div className="space-y-3">
             <p className="text-xs text-slate-500 leading-relaxed">
               Sincroniza o servidor com a última versão do seu repositório Git.
+            </p>
+            <p className="text-sm font-bold text-slate-800 bg-slate-50 p-2 rounded-lg border border-slate-100 text-center">
+              Versão atual do sistema: {SYSTEM_VERSION}
             </p>
             <Button 
               onClick={handleGitUpdate} 
@@ -7798,6 +7811,10 @@ export default function App() {
         setOrRemove('--color-secondary', appearanceConfig.colorSecondary);
         setOrRemove('--color-primary-light', appearanceConfig.colorPrimaryLight);
         setOrRemove('--color-accent', appearanceConfig.colorAccent);
+      }
+      
+      if (appearanceConfig.faviconUrl && document.querySelector("link[rel~='icon']")) {
+        (document.querySelector("link[rel~='icon']") as HTMLLinkElement).href = appearanceConfig.faviconUrl;
       }
     }
   }, [appearanceConfig, darkMode]);

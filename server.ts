@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import * as storage from "./src/lib/storage";
 import { seedVerses } from "./src/lib/seedVerses";
+import { fetchVerseText } from "./src/lib/bible";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode';
@@ -340,33 +341,53 @@ async function getDailyVerse(specificDate?: string) {
     const targetDate = specificDate || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     
     // Check if verse for today already selected
+    let selectedVerse: any;
     const dateEntry = history.find(entry => entry.date === targetDate);
     if (dateEntry) {
-        return verses.find(v => v.id === dateEntry.verseId);
-    }
-    
-    // Select new verse
-    const history180DaysAgo = new Date();
-    history180DaysAgo.setDate(history180DaysAgo.getDate() - 180);
-    const history180DaysAgoStr = history180DaysAgo.toISOString().split('T')[0];
-    
-    // Filtra histórico para pegar ordens de versículos usados recently
-    const recentVerseUsedIds = new Set(history
-        .filter(entry => entry.date >= history180DaysAgoStr)
-        .map(entry => entry.verseId));
-        
-    const candidateVerses = verses.filter(v => !recentVerseUsedIds.has(v.id));
-    
-    let selectedVerse;
-    if (candidateVerses.length > 0) {
-        selectedVerse = candidateVerses[Math.floor(Math.random() * candidateVerses.length)];
+        selectedVerse = verses.find(v => v.id === dateEntry.verseId);
     } else {
-        // Se todos foram usados nos últimos 180 dias, escolhe qualquer um aleatório
-        selectedVerse = verses[Math.floor(Math.random() * verses.length)];
+        // Select new verse
+        const history180DaysAgo = new Date();
+        history180DaysAgo.setDate(history180DaysAgo.getDate() - 180);
+        const history180DaysAgoStr = history180DaysAgo.toISOString().split('T')[0];
+        
+        // Filtra histórico para pegar ordens de versículos usados recently
+        const recentVerseUsedIds = new Set(history
+            .filter(entry => entry.date >= history180DaysAgoStr)
+            .map(entry => entry.verseId));
+            
+        const candidateVerses = verses.filter(v => !recentVerseUsedIds.has(v.id));
+        
+        if (candidateVerses.length > 0) {
+            selectedVerse = candidateVerses[Math.floor(Math.random() * candidateVerses.length)];
+        } else {
+            // Se todos foram usados nos últimos 180 dias, escolhe qualquer um aleatório
+            selectedVerse = verses[Math.floor(Math.random() * verses.length)];
+        }
+        
+        // Save to history
+        await storage.insert("verseHistory", { id: uuidv4(), verseId: selectedVerse.id, date: targetDate });
     }
-    
-    // Save to history
-    await storage.insert("verseHistory", { id: uuidv4(), verseId: selectedVerse.id, date: targetDate });
+
+    if (selectedVerse && (!selectedVerse.text || selectedVerse.text.startsWith('Texto') || selectedVerse.text.startsWith('Carregando'))) {
+        try {
+            const fetchedText = await fetchVerseText(selectedVerse.ref, 'acf');
+            if (fetchedText) {
+                selectedVerse = { ...selectedVerse, text: fetchedText };
+                
+                // Update in DB so we don't fetch from external API repeatedly
+                await storage.update("verses", selectedVerse.id, { text: fetchedText });
+                
+                // Also update local cache
+                const verseInCache = verses.find((v: any) => v.id === selectedVerse.id);
+                if (verseInCache) {
+                    verseInCache.text = fetchedText;
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch verse text in server:', err);
+        }
+    }
     
     return selectedVerse;
 }

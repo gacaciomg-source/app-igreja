@@ -1,3 +1,5 @@
+export const SYSTEM_VERSION = "1.2 (Beta)";
+
 export const BIBLE_BOOKS = [
   { name: 'Gênesis', chapters: 50, category: 'Antigo Testamento' },
   { name: 'Êxodo', chapters: 40, category: 'Antigo Testamento' },
