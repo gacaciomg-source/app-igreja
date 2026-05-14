@@ -492,7 +492,8 @@ cron.schedule('0 23 * * *', async () => {
         form.append('caption', `📦 *Backup Automático Diário*\n📅 ${new Date().toLocaleString('pt-BR')}`);
         form.append('document', fs.createReadStream(filePath));
 
-        const response = await fetch(`https://api.telegram.org/bot${cloudConfig.telegramToken}/sendDocument`, {
+        const telegramToken = cloudConfig.telegramToken.replace(/^bot/i, '');
+        const response = await fetch(`https://api.telegram.org/bot${telegramToken}/sendDocument`, {
           method: 'POST',
           body: form as any
         });
@@ -917,6 +918,42 @@ async function startServer() {
     
     const { exec } = await import('child_process');
     
+    // Passo -1: Enviar ZIP caso o Telegram esteja configurado (Backup que pode ser restaurado no painel)
+    try {
+      const configs = await storage.readCollection<any>("config");
+      const cloudConfig = configs.find((c: any) => c.id === "cloudBackup");
+
+      if (cloudConfig?.telegramEnabled && cloudConfig.telegramToken && cloudConfig.telegramChatId) {
+        console.log('Enviando backup via Telegram antes de atualizar...');
+        const zipTele = new AdmZip();
+        const localDataDir = path.join(process.cwd(), 'data');
+        const uDir = path.join(process.cwd(), 'uploads');
+        
+        if (fs.existsSync(localDataDir)) zipTele.addLocalFolder(localDataDir, 'data');
+        if (fs.existsSync(uDir)) zipTele.addLocalFolder(uDir, 'uploads');
+        
+        const buffer = zipTele.toBuffer();
+        const formTele = new FormData();
+        formTele.append('chat_id', cloudConfig.telegramChatId);
+        formTele.append('caption', `📦 *Backup de Segurança Pré-Atualização*\n📅 ${new Date().toLocaleString('pt-BR')}`);
+        formTele.append('document', buffer, { filename: `backup-pre-update-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`, contentType: 'application/zip' });
+
+        const telegramToken = cloudConfig.telegramToken.replace(/^bot/i, '');
+        const responseTele = await fetch(`https://api.telegram.org/bot${telegramToken}/sendDocument`, {
+          method: 'POST',
+          body: formTele as any
+        });
+        
+        if (!responseTele.ok) {
+            console.error('Falha ao enviar backup Telegram pré-update:', await responseTele.text());
+        } else {
+            console.log('Backup do Telegram enviado com sucesso!');
+        }
+      }
+    } catch (teleErr) {
+        console.error('Erro na rotina de backup do Telegram:', teleErr);
+    }
+    
     // Passo 0: Backup de Segurança (Snapshot antes da atualização)
     const backupDir = path.join(process.cwd(), 'backups/system_snapshots');
     if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
@@ -1049,7 +1086,8 @@ async function startServer() {
       form.append('caption', `🧪 *Teste de Backup*\n📅 ${new Date().toLocaleString('pt-BR')}`);
       form.append('document', buffer, { filename: 'teste-backup.zip', contentType: 'application/zip' });
 
-      const response = await fetch(`https://api.telegram.org/bot${cloudConfig.telegramToken}/sendDocument`, {
+      const telegramToken = cloudConfig.telegramToken.replace(/^bot/i, '');
+      const response = await fetch(`https://api.telegram.org/bot${telegramToken}/sendDocument`, {
         method: 'POST',
         body: form as any
       });

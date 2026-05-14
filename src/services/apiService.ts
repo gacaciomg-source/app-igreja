@@ -36,6 +36,9 @@ class ApiService {
         const error = await response.json().catch(() => ({ error: 'Ocorreu um erro no servidor' }));
         const errorMessage = error.error || `Erro ${response.status}: ${response.statusText}`;
         
+        let errObj: any = new Error(errorMessage);
+        if (error.details) errObj.details = error.details;
+        
         if (response.status === 401 || response.status === 403) {
           this.logout();
           if (typeof window !== 'undefined' && 
@@ -44,7 +47,7 @@ class ApiService {
             window.location.href = '/';
           }
         }
-        throw new Error(errorMessage);
+        throw errObj;
       }
 
       return response.json();

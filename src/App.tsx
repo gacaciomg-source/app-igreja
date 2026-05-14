@@ -4589,13 +4589,10 @@ const AdminHostingScreen = () => {
     }
     alert('Tentando enviar o backup atual para o seu Telegram. Aguarde alguns segundos...');
     try {
-      // Usaremos o endpoint que já existe de gerar backup diário, mas modificado ou um novo
-      // Por simplicidade, vamos apenas avisar que o próximo backup diário usará essas configs
-      // Ou melhor, podemos criar um endpoint /api/backup/test-cloud
-      await api.request('/backup/test-cloud', { method: 'POST' });
+      const resp = await api.request('/backup/test-cloud', { method: 'POST' });
       alert('Teste concluído! Verifique seu Telegram.');
-    } catch (e) {
-      alert('Erro no teste. Verifique o Token e o Chat ID.');
+    } catch (e: any) {
+      alert('Erro no teste. Verifique o Token e o Chat ID. Detalhes: ' + (e.details ? JSON.stringify(e.details) : e.message || e));
     }
   };
 
