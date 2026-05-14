@@ -17,7 +17,6 @@ import qrcodeTerminal from 'qrcode-terminal';
 import cron from 'node-cron';
 import AdmZip from 'adm-zip';
 import multer from 'multer';
-import FormData from 'form-data';
 import webpush from 'web-push';
 
 const storageConfig = multer.diskStorage({
@@ -490,7 +489,9 @@ cron.schedule('0 23 * * *', async () => {
         const form = new FormData();
         form.append('chat_id', cloudConfig.telegramChatId);
         form.append('caption', `📦 *Backup Automático Diário*\n📅 ${new Date().toLocaleString('pt-BR')}`);
-        form.append('document', fs.createReadStream(filePath));
+        
+        const fileBuffer = fs.readFileSync(filePath);
+        form.append('document', new Blob([fileBuffer]), `backup-automatico.zip`);
 
         const telegramToken = cloudConfig.telegramToken.replace(/^bot/i, '');
         const response = await fetch(`https://api.telegram.org/bot${telegramToken}/sendDocument`, {
@@ -936,7 +937,7 @@ async function startServer() {
         const formTele = new FormData();
         formTele.append('chat_id', cloudConfig.telegramChatId);
         formTele.append('caption', `📦 *Backup de Segurança Pré-Atualização*\n📅 ${new Date().toLocaleString('pt-BR')}`);
-        formTele.append('document', buffer, { filename: `backup-pre-update-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`, contentType: 'application/zip' });
+        formTele.append('document', new Blob([buffer]), `backup-pre-update-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`);
 
         const telegramToken = cloudConfig.telegramToken.replace(/^bot/i, '');
         const responseTele = await fetch(`https://api.telegram.org/bot${telegramToken}/sendDocument`, {
@@ -1084,7 +1085,7 @@ async function startServer() {
       const form = new FormData();
       form.append('chat_id', cloudConfig.telegramChatId);
       form.append('caption', `🧪 *Teste de Backup*\n📅 ${new Date().toLocaleString('pt-BR')}`);
-      form.append('document', buffer, { filename: 'teste-backup.zip', contentType: 'application/zip' });
+      form.append('document', new Blob([buffer]), 'teste-backup.zip');
 
       const telegramToken = cloudConfig.telegramToken.replace(/^bot/i, '');
       const response = await fetch(`https://api.telegram.org/bot${telegramToken}/sendDocument`, {
