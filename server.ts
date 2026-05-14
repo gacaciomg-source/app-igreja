@@ -657,6 +657,7 @@ async function startServer() {
         colorSecondaryDark: appearance?.colorSecondaryDark || null,
         colorPrimaryLightDark: appearance?.colorPrimaryLightDark || null,
         colorAccentDark: appearance?.colorAccentDark || null,
+        defaultTheme: appearance?.defaultTheme || null,
         churchName: appearance?.churchName || null,
         churchInstagram: appearance?.churchInstagram || null,
       });

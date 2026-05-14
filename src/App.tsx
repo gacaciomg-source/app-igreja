@@ -366,7 +366,7 @@ const TreeLogo = ({ className = "w-20 h-20" }: { className?: string }) => (
   </svg>
 );
 
-const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig }: { onAuthSuccess: (user: UserType) => void, cacheVersion: number, appearanceConfig: any }) => {
+const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }: { onAuthSuccess: (user: UserType) => void, cacheVersion: number, appearanceConfig: any, darkMode: boolean }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -431,8 +431,11 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig }: { onAuth
       >
         <div className="text-center space-y-2">
           <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
-            <img src={appearanceConfig.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain dark:hidden" alt="Logo" />
-            <img src={appearanceConfig.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain hidden dark:block" alt="Logo" />
+            {!darkMode ? (
+              <img src={appearanceConfig?.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+            ) : (
+              <img src={appearanceConfig?.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+            )}
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{appearanceConfig?.churchName || APP_CONFIG.name}</h1>
           <p className="text-slate-500">
@@ -4132,9 +4135,23 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
         <Card className="p-6 space-y-4 border-amber-200 bg-amber-50/10">
           <div className="flex flex-col mb-4">
             <h3 className="font-bold text-amber-900">Configuração Exclusiva (Super Admin)</h3>
-            <p className="text-xs text-slate-500">Logos exibidas na tela de login.</p>
+            <p className="text-xs text-slate-500">Logos exibidas na tela de login e tema padrão do sistema.</p>
           </div>
           
+          <div className="space-y-2 mb-4">
+            <label className="text-xs font-bold text-slate-400 uppercase">Tema Padrão Inicial</label>
+            <p className="text-[10px] text-slate-500 mb-1">Qual tema será carregado por padrão para novos usuários (ou ao abrir pela primeira vez).</p>
+            <select 
+              value={config.defaultTheme || ''} 
+              onChange={e => setConfig({ ...config, defaultTheme: e.target.value })}
+              className="w-full p-4 bg-white border border-slate-200 rounded-xl outline-none min-w-0"
+            >
+              <option value="">Automático (Seguir sistema / aparelho)</option>
+              <option value="light">Sempre Claro</option>
+              <option value="dark">Sempre Escuro</option>
+            </select>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase">Logo Login (Tema Claro)</label>
@@ -7462,12 +7479,24 @@ export default function App() {
   const [fontSize, setFontSize] = useState<'small' | 'normal' | 'large' | 'xl'>(() => {
     return (localStorage.getItem('font-size') as any) || 'normal';
   });
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<UserRole>('member');
-  const [currentUserData, setCurrentUserData] = useState<UserType | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try { return !!localStorage.getItem('auth_user'); } catch { return false; }
+  });
+  const [userRole, setUserRole] = useState<UserRole>(() => {
+    try {
+      const user = localStorage.getItem('auth_user');
+      return user ? JSON.parse(user).role : 'member';
+    } catch { return 'member'; }
+  });
+  const [currentUserData, setCurrentUserData] = useState<UserType | null>(() => {
+    try {
+      const user = localStorage.getItem('auth_user');
+      return user ? JSON.parse(user) : null;
+    } catch { return null; }
+  });
   const [currentTab, setCurrentTab] = useState('home');
   const [profileAutoEdit, setProfileAutoEdit] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Dynamic State
   const [events, setEvents] = useState<Event[]>([]);
@@ -7726,8 +7755,13 @@ export default function App() {
               else root.style.removeProperty(prop);
             };
             
-            const isDark = localStorage.getItem('theme') === 'dark' || 
+            let isDark = localStorage.getItem('theme') === 'dark' || 
               (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+            if (!localStorage.getItem('theme') && pubConfig.defaultTheme) {
+              isDark = pubConfig.defaultTheme === 'dark';
+              setDarkMode(isDark);
+            }
 
             if (isDark) {
               setOrRemove('--color-primary', pubConfig.colorPrimaryDark || pubConfig.colorPrimary);
@@ -8728,15 +8762,10 @@ const joinCell = async (cellId: string) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-slate-900 transition-colors duration-300">
-      </div>
-    );
-  }
+
 
   if (!isLoggedIn) {
-    return <LoginScreen appearanceConfig={appearanceConfig} onAuthSuccess={(u) => {
+    return <LoginScreen darkMode={darkMode} appearanceConfig={appearanceConfig} onAuthSuccess={(u) => {
       setCurrentUserData(u);
       setIsLoggedIn(true);
       setUserRole(u.role);
