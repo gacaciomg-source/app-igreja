@@ -1038,7 +1038,7 @@ async function startServer() {
       
       for (const entry of history) {
           if (entry.date === todayStr || entry.date === tomorrowStr) {
-              await storage.delete("verseHistory", entry.id);
+              await storage.remove("verseHistory", entry.id);
           }
       }
 
@@ -1217,7 +1217,17 @@ async function startServer() {
          const restrictedCollections = ['ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles'];
          
          if (restrictedCollections.includes(req.params.name) && requester.role !== 'admin' && requester.role !== 'superadmin') {
-           return res.status(403).json({ error: "Você não tem permissão para editar itens desta coleção." });
+           // Permitir que membros solicitem entrada (patch no campo pendingRequestIds)
+           if (req.params.name === 'ministries' && (req.method === 'PATCH' || req.method === 'PUT')) {
+             const updates = Object.keys(req.body);
+             if (updates.length === 1 && updates[0] === 'pendingRequestIds') {
+               // OK - permitimos apenas este campo para solicitação de entrada
+             } else {
+               return res.status(403).json({ error: "Você não tem permissão para editar itens desta coleção." });
+             }
+           } else {
+             return res.status(403).json({ error: "Você não tem permissão para editar itens desta coleção." });
+           }
          }
          
          if (['prayers', 'eventRegistrations', 'pastoralVisits', 'userProgress', 'verseHighlights'].includes(req.params.name)) {

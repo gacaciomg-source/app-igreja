@@ -81,7 +81,8 @@ import {
   GitCompare,
   Edit2,
   AlertTriangle,
-  Trash2
+  Trash2,
+  Palette
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { 
@@ -429,8 +430,9 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion }: { onAuthSuccess: (user: Us
         className="w-full max-w-md space-y-8"
       >
         <div className="text-center space-y-2">
-          <div className="w-24 h-24 bg-white rounded-3xl mx-auto flex items-center justify-center p-4 shadow-xl shadow-primary/5 mb-4 overflow-hidden">
-            <img src={getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+          <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
+            <img src={getCacheBustedUrl("https://renovar.warpserver.com.br/logo_preta.png", cacheVersion)} className="w-full h-full object-contain dark:hidden" alt="Logo" />
+            <img src={getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain hidden dark:block" alt="Logo" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{APP_CONFIG.name}</h1>
           <p className="text-slate-500">
@@ -648,8 +650,9 @@ const SHARE_BACKGROUNDS = [
   { id: 'abstract-1', url: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=100&w=1080', name: 'Abstrato' },
 ];
 
-const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: string }, onClose: () => void }) => {
-  const [selectedBg, setSelectedBg] = useState(SHARE_BACKGROUNDS[0]);
+const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { text: string, ref: string }, onClose: () => void, cacheVersion: number, config: any }) => {
+  const backgrounds = config?.shareBackgrounds?.length ? config.shareBackgrounds : SHARE_BACKGROUNDS;
+  const [selectedBg, setSelectedBg] = useState(backgrounds[0]);
   const verseCardRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -820,9 +823,10 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
             {!logoError && (
               <div className="absolute top-12 left-1/2 -translate-x-1/2 w-32 h-32 flex items-center justify-center p-3 z-10 overflow-hidden">
                 <img 
-                  src="https://renovar.warpserver.com.br/icon1024.png" 
+                  src={config?.shareLogo || getCacheBustedUrl(APP_CONFIG.logos.icon, cacheVersion)} 
                   className="w-full h-full object-contain" 
                   alt="Logo" 
+                  crossOrigin="anonymous"
                   onError={() => setLogoError(true)}
                 />
               </div>
@@ -877,7 +881,7 @@ const VerseShareModal = ({ verse, onClose }: { verse: { text: string, ref: strin
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Escolha o Fundo</label>
             <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-              {SHARE_BACKGROUNDS.map((bg) => (
+              {backgrounds.map((bg: any) => (
                 <button
                   key={bg.id}
                   onClick={() => setSelectedBg(bg)}
@@ -2206,7 +2210,7 @@ const Dashboard = ({
         <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
           {events
             .filter(event => !isPastDate(event.date))
-            .sort((a, b) => new Date(a.date + 'T00:00:00').getTime() - new Date(b.date + 'T00:00:00').getTime())
+            .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''))
             .slice(0, 2)
             .map(event => (
             <Card key={event.id} className="p-0 overflow-hidden h-full relative cursor-pointer group active:scale-[0.98] transition-all" onClick={() => onEventClick(event)}>
@@ -2465,7 +2469,7 @@ const EventActionModal = ({
   );
 };
 
-const EventsScreen = ({ events, registrations, isAdmin, currentUser, onDelete, onEdit, onAdd, onRegister, onUpdateRegistration, onShowOrações, showMessage, cacheVersion, titheConfig, onEventClick }: { events: Event[], registrations: EventRegistration[], isAdmin?: boolean, currentUser: UserType | null, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onAdd?: () => void, onRegister: (id: string) => void, onUpdateRegistration: (id: any, status: any, paid?: boolean) => void, onShowOrações?: () => void, showMessage?: (msg: string) => void, cacheVersion: number, titheConfig: TitheConfig, onEventClick: (e: Event) => void }) => {
+const EventsScreen = ({ events, registrations, isAdmin, currentUser, onDelete, onEdit, onAdd, onRegister, onUpdateRegistration, onShowPrayers, showMessage, cacheVersion, titheConfig, onEventClick }: { events: Event[], registrations: EventRegistration[], isAdmin?: boolean, currentUser: UserType | null, onDelete?: (id: string) => void, onEdit?: (e: Event) => void, onAdd?: () => void, onRegister: (id: string) => void, onUpdateRegistration: (id: any, status: any, paid?: boolean) => void, onShowPrayers?: () => void, showMessage?: (msg: string) => void, cacheVersion: number, titheConfig: TitheConfig, onEventClick: (e: Event) => void }) => {
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [showArchived, setShowArchived] = useState(false);
 
@@ -2480,9 +2484,8 @@ const EventsScreen = ({ events, registrations, isAdmin, currentUser, onDelete, o
     
     return matchesCategory && !isPast;
   }).sort((a, b) => {
-    const dateA = new Date(a.date + 'T00:00:00').getTime();
-    const dateB = new Date(b.date + 'T00:00:00').getTime();
-    return showArchived ? dateB - dateA : dateA - dateB;
+    const cmp = a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || '');
+    return showArchived ? -cmp : cmp;
   });
 
   return (
@@ -3843,6 +3846,134 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
   );
 };
 
+const AdminAppearanceScreen = ({ showMessage }: { showMessage: (msg: string) => void }) => {
+  const [config, setConfig] = useState<any>({
+    shareLogo: '',
+    shareBackgrounds: SHARE_BACKGROUNDS
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const configs = await api.list('config');
+        const appearanceConfig = configs.find((c: any) => c.id === 'appearance');
+        if (appearanceConfig) {
+          setConfig(appearanceConfig);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const configs = await api.list('config');
+      const appearanceConfig = configs.find((c: any) => c.id === 'appearance');
+      if (appearanceConfig) {
+        await api.update('config', appearanceConfig._id || appearanceConfig.id, { ...config, id: 'appearance' });
+      } else {
+        await api.create('config', { ...config, id: 'appearance' });
+      }
+      showMessage('Configurações de aparência salvas');
+    } catch (err) {
+      console.error(err);
+      showMessage('Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddBg = () => {
+    setConfig({
+      ...config,
+      shareBackgrounds: [...(config.shareBackgrounds || []), { id: `new-${Date.now()}`, name: 'Novo Fundo', url: '' }]
+    });
+  };
+
+  const handleRemoveBg = (id: string) => {
+    setConfig({
+      ...config,
+      shareBackgrounds: config.shareBackgrounds.filter((bg: any) => bg.id !== id)
+    });
+  };
+
+  const handleChangeBg = (id: string, field: string, value: string) => {
+    setConfig({
+      ...config,
+      shareBackgrounds: config.shareBackgrounds.map((bg: any) => bg.id === id ? { ...bg, [field]: value } : bg)
+    });
+  };
+
+  if (loading) return <div className="p-8 text-center">Carregando...</div>;
+
+  return (
+    <div className="space-y-6 pb-24">
+      <header className="space-y-2">
+        <h2 className="text-2xl font-bold text-slate-900">Personalização</h2>
+        <p className="text-slate-500">Gerencie imagens e temas do aplicativo.</p>
+      </header>
+
+      <Card className="p-6 space-y-4">
+        <h3 className="font-bold">Compartilhamento de Versículo</h3>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase">URL da Logo na Imagem Gerada</label>
+          <input 
+            type="text" 
+            value={config.shareLogo || ''} 
+            onChange={e => setConfig({ ...config, shareLogo: e.target.value })} 
+            placeholder="Ex: https://meusite.com/logo.png"
+            className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+          />
+          <p className="text-xs text-slate-500">Essa logo aparecerá no lugar do ícone padrão do app quando os membros compartilharem um versículo.</p>
+        </div>
+
+        <div className="space-y-4 pt-4 border-t border-slate-100">
+          <div className="flex justify-between items-center">
+            <h4 className="font-bold text-slate-700">Imagens de Fundo (Versículo)</h4>
+            <Button onClick={handleAddBg} variant="outline" className="text-xs py-1 h-8"><Plus className="w-4 h-4 mr-1" /> Adicionar Fundo</Button>
+          </div>
+          
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(config.shareBackgrounds || []).map((bg: any) => (
+              <div key={bg.id} className="p-4 border border-slate-100 rounded-xl space-y-3 bg-slate-50 relative">
+                <button onClick={() => handleRemoveBg(bg.id)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500"><XCircle className="w-5 h-5" /></button>
+                <div className="space-y-1 pr-6">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Nome / Título</label>
+                  <input type="text" value={bg.name} onChange={e => handleChangeBg(bg.id, 'name', e.target.value)} className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">URL da Imagem (Unsplash, etc)</label>
+                  <input type="text" value={bg.url || ''} onChange={e => { handleChangeBg(bg.id, 'url', e.target.value); handleChangeBg(bg.id, 'gradient', ''); }} placeholder="https://..." className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">- OU - Degradê CSS (Ex: linear-gradient...)</label>
+                  <input type="text" value={bg.gradient || ''} onChange={e => { handleChangeBg(bg.id, 'gradient', e.target.value); handleChangeBg(bg.id, 'url', ''); }} className="w-full p-2 bg-white rounded-lg border border-slate-200 text-sm" />
+                </div>
+                {/* Preview */}
+                <div className="h-16 w-full rounded-lg bg-slate-200 overflow-hidden relative border border-slate-100" style={{ background: bg.gradient }}>
+                   {bg.url && <img src={bg.url} className="w-full h-full object-cover" alt="Preview" />}
+                   {(!bg.url && !bg.gradient) && <div className="flex items-center justify-center h-full text-xs text-slate-400">Sem Imagem</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <Button onClick={handleSave} className="w-full" disabled={saving}>
+          {saving ? 'Salvando...' : 'Salvar Alterações'}
+        </Button>
+      </Card>
+    </div>
+  );
+};
+
 const AdminHostingScreen = () => {
   const [sysInfo, setSysInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -4481,6 +4612,7 @@ const AdminAllScreens = ({ onTabChange, isTabAllowed }: { onTabChange: (tab: str
     { id: 'sermons', label: 'Gerenciar Sermões', icon: Radio, color: 'bg-orange-600' },
     { id: 'tithes', label: 'Configuração de Dízimos', icon: DollarSign, color: 'bg-emerald-600' },
     { id: 'admin_roles', label: 'Perfis de Acesso Adm', icon: Shield, color: 'bg-red-600' },
+    { id: 'appearance', label: 'Personalização do App', icon: Palette, color: 'bg-pink-500' },
     { id: 'hosting', label: 'Servidor e Backups', icon: Server, color: 'bg-slate-700' },
   ].filter(s => isTabAllowed(s.id));
 
@@ -6912,6 +7044,7 @@ export default function App() {
   const [userReadingProgress, setUserReadingProgress] = useState<Record<string, string[]>>({});
   const [allUserProgress, setAllUserProgress] = useState<Record<string, Record<string, string[]>>>({});
   const [titheConfig, setTitheConfig] = useState<TitheConfig>({ pixKey: '', bankName: '', accountHolder: '' });
+  const [appearanceConfig, setAppearanceConfig] = useState<any>({ shareLogo: '', shareBackgrounds: SHARE_BACKGROUNDS });
   const [whatsappConfig, setWhatsappConfig] = useState<WhatsAppConfig>({ phoneNumberId: '', isEnabled: false });
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
@@ -6999,6 +7132,9 @@ export default function App() {
       const tConfig = (config || []).find((cfg: any) => cfg.id === 'tithes');
       if (tConfig) setTitheConfig(tConfig);
       
+      const appConfig = (config || []).find((cfg: any) => cfg.id === 'appearance');
+      if (appConfig) setAppearanceConfig(appConfig);
+
       const wConfig = (config || []).find((cfg: any) => cfg.id === 'whatsapp');
       if (wConfig) setWhatsappConfig(wConfig);
 
@@ -7183,6 +7319,9 @@ export default function App() {
       const tConfig = data.find((c: any) => c.id === 'tithes');
       if (tConfig) setTitheConfig(tConfig);
       
+      const appConfig = data.find((c: any) => c.id === 'appearance');
+      if (appConfig) setAppearanceConfig(appConfig);
+
       const wConfig = data.find((c: any) => c.id === 'whatsapp');
       if (wConfig) setWhatsappConfig(wConfig);
     }, 5000));
@@ -7301,6 +7440,7 @@ export default function App() {
   const deleteMinistry = async (id: string) => {
     try {
       await api.delete('ministries', id);
+      setMinistries(prev => prev.filter(m => m.id !== id));
       handleApiSuccess('Ministério excluído com sucesso!');
     } catch (err) {
       handleApiError(err, 'deleteMinistry');
@@ -8134,10 +8274,11 @@ const joinCell = async (cellId: string) => {
             showMessage={showMessage} 
           />
         );
+        case 'appearance': return <AdminAppearanceScreen showMessage={showMessage} />;
         case 'hosting': return <AdminHostingScreen />;
         case 'admin_roles': return <AdminRolesScreen roles={adminRoles} onAddRole={handleAddAdminRole} onDeleteRole={handleDeleteAdminRole} showMessage={showMessage} />;
         case 'tithes': return <TithesAdminScreen config={titheConfig} onUpdate={updateTitheConfig} showMessage={showMessage} />;
-        case 'events': return <EventsScreen events={events} registrations={registrations} isAdmin currentUser={currentUserData} onDelete={deleteEvent} onAdd={() => setShowAddEvent(true)} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} onRegister={handleEventRegistration} onUpdateRegistration={handleUpdateRegistrationStatus} showMessage={showMessage} cacheVersion={cacheVersion} titheConfig={titheConfig} />;
+        case 'events': return <EventsScreen events={events} registrations={registrations} isAdmin currentUser={currentUserData} onDelete={deleteEvent} onAdd={() => setShowAddEvent(true)} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} onRegister={handleEventRegistration} onUpdateRegistration={handleUpdateRegistrationStatus} showMessage={showMessage} cacheVersion={cacheVersion} titheConfig={titheConfig} onEventClick={setSelectedEventAction} />;
         case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin onDelete={deleteAnnouncement} onAdd={() => setShowAddAnnouncement(true)} showMessage={showMessage} cacheVersion={cacheVersion} />;
         case 'groups': return <GroupsScreen cells={cells} users={users} isAdmin currentUser={currentUserData} onAdd={() => setShowAddCell(true)} onDelete={deleteCell} onEdit={(c) => { setEditingCell(c); setShowAddCell(true); }} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
         case 'users':
@@ -8505,7 +8646,7 @@ const joinCell = async (cellId: string) => {
           )}
           {selectedShareVerse && (
             <Modal title="Compartilhar Versículo" onClose={() => setSelectedShareVerse(null)}>
-              <VerseShareModal verse={selectedShareVerse} onClose={() => setSelectedShareVerse(null)} />
+              <VerseShareModal verse={selectedShareVerse} onClose={() => setSelectedShareVerse(null)} cacheVersion={cacheVersion} config={appearanceConfig} />
             </Modal>
           )}
           {selectedRecord && (
