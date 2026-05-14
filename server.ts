@@ -1116,6 +1116,57 @@ async function startServer() {
     }
   });
 
+  app.post("/api/backup/import-chunk", authenticateToken, upload.single('chunk'), async (req, res) => {
+    const userRole = (req as any).user?.role;
+    if (userRole !== 'superadmin' && userRole !== 'admin') return res.status(403).send("Acesso negado");
+
+    const file = (req as any).file;
+    if (!file) return res.status(400).send("Chunk não enviado");
+
+    try {
+      const { chunkIndex, totalChunks, uploadId } = req.body;
+      const tempDir = path.join(process.cwd(), 'temp_uploads');
+      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+      
+      const finalZipPath = path.join(tempDir, `${uploadId}.zip`);
+      const chunkBuffer = fs.readFileSync(file.path);
+      
+      // Append content in order
+      fs.appendFileSync(finalZipPath, chunkBuffer);
+      try { fs.unlinkSync(file.path); } catch (e) {}
+      
+      console.log(`Receiving chunk ${parseInt(chunkIndex) + 1} of ${totalChunks}...`);
+      
+      if (parseInt(chunkIndex) === parseInt(totalChunks) - 1) {
+        // Last chunk, extract
+        console.log(`All chunks received! Extracting file...`);
+        const zip = new AdmZip(finalZipPath);
+        const cwd = process.cwd();
+        const entries = zip.getEntries();
+        let extractedCount = 0;
+        for (const entry of entries) {
+          try {
+            if (!entry.isDirectory) {
+              zip.extractEntryTo(entry, cwd, true, true);
+              extractedCount++;
+            }
+          } catch (innerErr: any) {
+            console.error(`Erro ao extrair ${entry.entryName}:`, innerErr);
+          }
+        }
+        try { fs.unlinkSync(finalZipPath); } catch(e) {}
+        
+        console.log(`Backup (dados e imagens) importado com sucesso! ${extractedCount} arquivos extraidos.`);
+        return res.json({ ok: true, complete: true });
+      }
+      
+      res.json({ ok: true, complete: false });
+    } catch (error: any) {
+      console.error("Erro no chunk do backup:", error);
+      res.status(500).json({ error: "Erro no chunk: " + (error.message || error) });
+    }
+  });
+
   app.post("/api/backup/import", authenticateToken, upload.single('file'), async (req, res) => {
     const userRole = (req as any).user?.role;
     if (userRole !== 'superadmin' && userRole !== 'admin') return res.status(403).send("Acesso negado");

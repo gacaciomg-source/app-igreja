@@ -4497,21 +4497,35 @@ const AdminHostingScreen = () => {
     }
 
     setIsImporting(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
+    
     try {
-      const response = await fetch(getApiUrl('/backup/import'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: formData
-      });
+      const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      const uploadId = Date.now().toString();
 
-      if (!response.ok) {
-        const d = await response.json().catch(() => ({}));
-        throw new Error(d.error || 'Erro ao importar (status ' + response.status + ')');
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        
+        const formData = new FormData();
+        formData.append('chunk', chunk, file.name);
+        formData.append('chunkIndex', i.toString());
+        formData.append('totalChunks', totalChunks.toString());
+        formData.append('uploadId', uploadId);
+
+        const response = await fetch(getApiUrl('/backup/import-chunk'), {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          },
+          body: formData
+        });
+
+        if (!response.ok) {
+          const d = await response.json().catch(() => ({}));
+          throw new Error(d.error || 'Erro ao importar (status ' + response.status + ') no chunk ' + (i + 1));
+        }
       }
       
       alert('Bakup importado com sucesso! O sistema irá recarregar para aplicar as mudanças.');
