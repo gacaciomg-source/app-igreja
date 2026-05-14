@@ -7476,6 +7476,8 @@ export default function App() {
     return localStorage.getItem('theme') === 'dark' || 
            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
+  const isFirstMountTheme = useRef(true);
+
   const [fontSize, setFontSize] = useState<'small' | 'normal' | 'large' | 'xl'>(() => {
     return (localStorage.getItem('font-size') as any) || 'normal';
   });
@@ -7549,11 +7551,12 @@ export default function App() {
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      if (!isFirstMountTheme.current || localStorage.getItem('theme')) localStorage.setItem('theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      if (!isFirstMountTheme.current || localStorage.getItem('theme')) localStorage.setItem('theme', 'light');
     }
+    isFirstMountTheme.current = false;
   }, [darkMode]);
 
   useEffect(() => {
