@@ -117,6 +117,13 @@ class ApiService {
     return res;
   }
 
+  async resetPassword(email: string): Promise<{ success: true, message: string }> {
+    return this.request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
   async register(userData: any): Promise<AuthResponse> {
     const res = await this.request('/auth/register', {
       method: 'POST',

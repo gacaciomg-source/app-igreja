@@ -412,7 +412,9 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
         localStorage.setItem('auth_user', JSON.stringify(newUser));
         onAuthSuccess(newUser);
       } else if (mode === 'reset') {
-        setMessage('A funcionalidade de recuperação de senha não está disponível para arquivos locais.');
+        const response = await api.resetPassword(normalizedEmail);
+        setMessage(response.message || 'Senha enviada com sucesso!');
+        setTimeout(() => setMode('login'), 5000);
       }
     } catch (err: any) {
       console.error('Authentication error:', err);
@@ -612,7 +614,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
           >
             {loading ? 'Carregando...' : (
               mode === 'login' ? 'Entrar' : 
-              mode === 'signup' ? 'Criar Conta' : 'Enviar E-mail'
+              mode === 'signup' ? 'Criar Conta' : 'Recuperar pelo WhatsApp'
             )}
           </Button>
         </form>

@@ -864,6 +864,47 @@ async function startServer() {
     }
   });
 
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      const normalizedEmail = email.toLowerCase();
+      const users = await storage.readCollection<any>("users");
+      const user = users.find(u => u.email && u.email.toLowerCase() === normalizedEmail);
+
+      if (!user) {
+        return res.status(404).json({ error: "E-mail não encontrado no sistema" });
+      }
+
+      if (!user.phone) {
+        return res.status(400).json({ error: "O usuário não possui telefone cadastrado para recuperar a senha." });
+      }
+
+      if (!whatsappClient || whatsappStatus !== 'READY') {
+          return res.status(500).json({ error: "O sistema de WhatsApp da igreja não está conectado no momento. Tente novamente mais tarde ou contate um administrador." });
+      }
+
+      const tempPassword = Math.random().toString(36).slice(-6).toUpperCase();
+      const hashedPassword = await bcrypt.hash(tempPassword, 10);
+      
+      await storage.update<any>("users", user.id, { password: hashedPassword });
+      
+      const message = `Olá *${user.name}*, 👋\n\nSua senha temporária para acessar o aplicativo da igreja é: *${tempPassword}*\n\nRecomendamos que você altere sua senha no menu "Perfil" após acessar o sistema.`;
+      
+      const chatId = await getWhatsAppChatId(user.phone);
+      if (chatId) {
+          await whatsappClient.sendMessage(chatId, message);
+          res.json({ success: true, message: "Nova senha enviada para seu WhatsApp cadastrado com sucesso!" });
+      } else {
+          // Revert password change if WhatsApp sending fails? Or just return error
+          return res.status(500).json({ error: "Não foi possível enviar mensagem para este número do WhatsApp. Verifique se o número está correto." });
+      }
+
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ error: "Erro interno ao redefinir a senha" });
+    }
+  });
+
   // --- Generic Data API ---
   app.get("/api/sysinfo", authenticateToken, (req, res) => {
     try {
