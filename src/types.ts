@@ -25,6 +25,7 @@ export interface User {
   birthDate?: string; // ISO format or YYYY-MM-DD
   age?: number;
   address?: string;
+  mustChangePassword?: boolean;
   leaderOf?: string; // ID of the CellGroup they lead
   cellIds?: string[]; // IDs of the CellGroups they belong to
   memberStatus?: MemberStatus;

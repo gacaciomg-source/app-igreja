@@ -381,7 +381,7 @@ async function getDailyVerse(specificDate?: string) {
                 selectedVerse = { ...selectedVerse, text: fetchedText };
                 
                 // Update in DB so we don't fetch from external API repeatedly
-                await storage.update("verses", selectedVerse.id, { text: fetchedText });
+                await storage.update<any>("verses", selectedVerse.id, { text: fetchedText });
                 
                 // Also update local cache
                 const verseInCache = verses.find((v: any) => v.id === selectedVerse.id);
@@ -697,14 +697,21 @@ async function startServer() {
       
       if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
       
-      if (!(await bcrypt.compare(currentPassword, user.password))) {
-        return res.status(400).json({ error: "Senha atual incorreta" });
+      if (currentPassword) {
+        if (!(await bcrypt.compare(currentPassword, user.password))) {
+          return res.status(400).json({ error: "Senha atual incorreta" });
+        }
+      } else if (!user.mustChangePassword) {
+         return res.status(400).json({ error: "A senha atual é obrigatória para esta operação." });
       }
       
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await storage.update<any>("users", userId, { password: hashedPassword });
+      await storage.update<any>("users", userId, { 
+        password: hashedPassword,
+        mustChangePassword: false 
+      });
       
-      res.json({ success: true });
+      res.json({ success: true, message: "Senha alterada com sucesso." });
     } catch (error) {
       res.status(500).json({ error: "Erro ao alterar senha" });
     }
@@ -883,16 +890,21 @@ async function startServer() {
           return res.status(500).json({ error: "O sistema de WhatsApp da igreja não está conectado no momento. Tente novamente mais tarde ou contate um administrador." });
       }
 
-      const tempPassword = Math.random().toString(36).slice(-6).toUpperCase();
+      const tempPassword = Math.floor(100000 + Math.random() * 900000).toString();
       const hashedPassword = await bcrypt.hash(tempPassword, 10);
       
-      await storage.update<any>("users", user.id, { password: hashedPassword });
+      await storage.update<any>("users", user.id, { 
+        password: hashedPassword,
+        mustChangePassword: true
+      });
       
-      const message = `Olá *${user.name}*, 👋\n\nSua senha temporária para acessar o aplicativo da igreja é: *${tempPassword}*\n\nRecomendamos que você altere sua senha no menu "Perfil" após acessar o sistema.`;
+      const message1 = `Olá *${user.name}*, 👋\n\nSua senha temporária para acessar o aplicativo da igreja é a seguinte:\n\n👇 Copie o código abaixo e cole no aplicativo. Recomendamos que você altere sua senha no menu "Perfil" após acessar o sistema.`;
+      const message2 = `${tempPassword}`;
       
       const chatId = await getWhatsAppChatId(user.phone);
       if (chatId) {
-          await whatsappClient.sendMessage(chatId, message);
+          await whatsappClient.sendMessage(chatId, message1);
+          await whatsappClient.sendMessage(chatId, message2);
           res.json({ success: true, message: "Nova senha enviada para seu WhatsApp cadastrado com sucesso!" });
       } else {
           // Revert password change if WhatsApp sending fails? Or just return error

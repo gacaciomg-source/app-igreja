@@ -7468,6 +7468,121 @@ const MediaScreen = ({ showMessage }: { showMessage: (msg: string) => void }) =>
   </div>
 );
 
+const ForceChangePasswordScreen = ({ onComplete, appearanceConfig, cacheVersion, darkMode }: { onComplete: () => void, appearanceConfig: any, cacheVersion: number, darkMode: boolean }) => {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if(newPassword !== confirmPassword) {
+      setError('As senhas não coincidem.');
+      return;
+    }
+    if(newPassword.length < 6) {
+      setError('A senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.request('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ newPassword })
+      });
+      
+      const userStr = localStorage.getItem('auth_user');
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        u.mustChangePassword = false;
+        localStorage.setItem('auth_user', JSON.stringify(u));
+      }
+      
+      onComplete();
+    } catch(err: any) {
+      setError(err.message || 'Erro ao redefinir a senha.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-500 relative ${darkMode ? 'bg-slate-900' : 'bg-slate-50'}`}>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className={`absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] opacity-50 translate-x-1/3 -translate-y-1/3 mix-blend-multiply ${darkMode ? 'mix-blend-lighten' : ''}`} />
+        <div className={`absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary/20 rounded-full blur-[120px] opacity-50 -translate-x-1/3 translate-y-1/3 mix-blend-multiply ${darkMode ? 'mix-blend-lighten' : ''}`} />
+      </div>
+
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md space-y-8 relative z-10"
+      >
+        <div className="text-center space-y-2">
+          <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
+            {!darkMode ? (
+              <img src={appearanceConfig?.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+            ) : (
+              <img src={appearanceConfig?.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+            )}
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">Atualização Obrigatória</h1>
+          <p className="text-slate-500">Por segurança, redefina sua senha temporária.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="bg-white p-8 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Nova Senha</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input 
+                  type="password" 
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="No mínimo 6 caracteres" 
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Confirmar Nova Senha</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input 
+                  type="password" 
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Repita a nova senha" 
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50"
+                  required
+                />
+              </div>
+            </div>
+
+            {error && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2 text-red-600 text-sm">
+                <div className="mt-0.5"><div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[10px] font-bold">!</div></div>
+                {error}
+              </motion.div>
+            )}
+
+            <Button 
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 text-base font-bold shadow-lg shadow-primary/25"
+            >
+              {loading ? 'Salvando...' : 'Salvar Nova Senha'}
+            </Button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -8775,6 +8890,20 @@ const joinCell = async (cellId: string) => {
       setIsLoggedIn(true);
       setUserRole(u.role);
     }} cacheVersion={cacheVersion} />;
+  }
+
+  if (currentUserData?.mustChangePassword) {
+    return (
+      <ForceChangePasswordScreen 
+        darkMode={darkMode} 
+        appearanceConfig={appearanceConfig} 
+        cacheVersion={cacheVersion} 
+        onComplete={() => {
+          setCurrentUserData(prev => prev ? { ...prev, mustChangePassword: false } : prev);
+          showMessage('Senha alterada com sucesso! Bem-vindo(a).');
+        }} 
+      />
+    );
   }
 
   const handleAddAdminRole = async (role: AdminRole) => {
