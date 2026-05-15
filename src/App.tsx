@@ -434,9 +434,9 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
         <div className="text-center space-y-2">
           <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
             {!darkMode ? (
-              <img src={appearanceConfig?.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+              <img src={appearanceConfig?.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
             ) : (
-              <img src={appearanceConfig?.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+              <img src={appearanceConfig?.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
             )}
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{appearanceConfig?.churchName || APP_CONFIG.name}</h1>
@@ -3999,6 +3999,7 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase">Logo 1 (Principal)</label>
+            <p className="text-[10px] text-slate-500 mb-2">Recomendado: 256x256 ou 512x512 px, formato PNG sem fundo.</p>
             <div className="flex gap-2">
               <input 
                 type="text" 
@@ -4034,6 +4035,7 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase">Logo 2 (Secundária - Opcional)</label>
+            <p className="text-[10px] text-slate-500 mb-2">Recomendado: 256x256 ou 512x512 px, formato PNG sem fundo.</p>
             <div className="flex gap-2">
               <input 
                 type="text" 
@@ -4157,6 +4159,7 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase">Logo Login (Tema Claro)</label>
+              <p className="text-[10px] text-slate-500 mb-2">Recomendado: 512x512 px, formato PNG com fundo transparente. Para aparecer bem no app, evite deixar margens inúteis na imagem.</p>
               <div className="flex gap-2">
                 <input 
                   type="text" 
@@ -4185,13 +4188,14 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
               </div>
               {config.loginLogoLight && (
                 <div className="h-16 w-16 bg-slate-100 rounded-lg p-2 border relative">
-                   <img src={config.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(config.loginLogoLight)}` : config.loginLogoLight} className="w-full h-full object-contain" alt="" />
+                   <img src={config.loginLogoLight.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(config.loginLogoLight)}` : config.loginLogoLight} className="w-full h-full object-contain" alt="" />
                 </div>
               )}
             </div>
             
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase">Logo Login (Tema Escuro)</label>
+              <p className="text-[10px] text-slate-500 mb-2">Recomendado: 512x512 px, formato PNG com fundo transparente. Especialmente para visualização em modo noturno (idealmente logo clara/branca).</p>
               <div className="flex gap-2">
                 <input 
                   type="text" 
@@ -4220,7 +4224,7 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
               </div>
               {config.loginLogoDark && (
                 <div className="h-16 w-16 bg-slate-800 rounded-lg p-2 border relative">
-                   <img src={config.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(config.loginLogoDark)}` : config.loginLogoDark} className="w-full h-full object-contain" alt="" />
+                   <img src={config.loginLogoDark.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(config.loginLogoDark)}` : config.loginLogoDark} className="w-full h-full object-contain" alt="" />
                 </div>
               )}
             </div>
@@ -7363,7 +7367,7 @@ const AdminSermonsScreen = ({ sermons, onAdd, onUpdate, onDelete }: { sermons: S
                   )}
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="text-[10px]" disabled={uploading} />
                 </div>
-                <p className="text-[9px] text-slate-400 font-medium italic mt-1">Ideal: 512x512 (Quadrada)</p>
+                <p className="text-[9px] text-slate-400 font-medium italic mt-1">Recomendado: 1024x1024 px (formato quadrado).</p>
                 <input placeholder="Ou URL da Thumbnail" className="w-full p-2 bg-slate-50 rounded-xl border-none text-xs" value={formData.thumbnail} onChange={e => setFormData({...formData, thumbnail: e.target.value})} />
               </div>
             </div>
@@ -7516,9 +7520,9 @@ const ForceChangePasswordScreen = ({ onComplete, appearanceConfig, cacheVersion,
         <div className="text-center space-y-2">
           <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
             {!darkMode ? (
-              <img src={appearanceConfig?.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+              <img src={appearanceConfig?.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
             ) : (
-              <img src={appearanceConfig?.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+              <img src={appearanceConfig?.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
             )}
           </div>
           <h1 className="text-3xl font-bold text-slate-900">Atualização de Senha</h1>
@@ -9555,7 +9559,7 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
           </div>
           <div className="flex-1">
             <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs mb-1" disabled={uploading} />
-            <p className="text-[10px] text-slate-400 font-medium italic">Recomendado: Quadrada (Ex: 512x512) para melhor visualização, mas aceita qualquer tamanho.</p>
+            <p className="text-[10px] text-slate-400 font-medium italic">Recomendado: 1024x1024 px (formato quadrado, proporção 1:1) para melhor visualização, mas aceita qualquer tamanho e será ajustada.</p>
           </div>
         </div>
       </div>
@@ -9860,7 +9864,7 @@ const AnnouncementForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
           )}
           <div className="flex-1">
             <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs mb-1" disabled={uploading} />
-            <p className="text-[10px] text-slate-400 font-medium italic">Ideal: 512x512 (Quadrada)</p>
+            <p className="text-[10px] text-slate-400 font-medium italic">Recomendado: 1024x1024 px (formato quadrado, 1:1).</p>
           </div>
         </div>
       </div>
@@ -9959,7 +9963,7 @@ const ReadingPlanForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
             )}
             <div className="flex-1">
               <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs mb-1" disabled={uploading} />
-              <p className="text-[10px] text-slate-400 font-medium italic">Ideal: 512x512 (Quadrada)</p>
+              <p className="text-[10px] text-slate-400 font-medium italic">Recomendado: 1024x1024 px (formato quadrado, 1:1).</p>
             </div>
           </div>
           <input placeholder="Ou cole a URL da Imagem" className="w-full p-3 rounded-xl border text-sm" value={form.imageUrl} onChange={e => setForm({...form, imageUrl: e.target.value})} />
