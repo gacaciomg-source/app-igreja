@@ -7507,16 +7507,11 @@ const ForceChangePasswordScreen = ({ onComplete, appearanceConfig, cacheVersion,
   };
 
   return (
-    <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-500 relative ${darkMode ? 'bg-slate-900' : 'bg-slate-50'}`}>
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className={`absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] opacity-50 translate-x-1/3 -translate-y-1/3 mix-blend-multiply ${darkMode ? 'mix-blend-lighten' : ''}`} />
-        <div className={`absolute bottom-0 left-0 w-[500px] h-[500px] bg-secondary/20 rounded-full blur-[120px] opacity-50 -translate-x-1/3 translate-y-1/3 mix-blend-multiply ${darkMode ? 'mix-blend-lighten' : ''}`} />
-      </div>
-
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-secondary">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md space-y-8 relative z-10"
+        className="w-full max-w-md space-y-8"
       >
         <div className="text-center space-y-2">
           <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
@@ -7526,57 +7521,61 @@ const ForceChangePasswordScreen = ({ onComplete, appearanceConfig, cacheVersion,
               <img src={appearanceConfig?.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
             )}
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Atualização Obrigatória</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Atualização de Senha</h1>
           <p className="text-slate-500">Por segurança, redefina sua senha temporária.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-white p-8 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Nova Senha</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input 
-                  type="password" 
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  placeholder="No mínimo 6 caracteres" 
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50"
-                  required
-                />
-              </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Nova Senha</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input 
+                type="password" 
+                value={newPassword}
+                onChange={e => {
+                  setNewPassword(e.target.value);
+                  setError('');
+                }}
+                placeholder="No mínimo 6 caracteres" 
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white dark:bg-transparent"
+                required
+              />
             </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Confirmar Nova Senha</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input 
-                  type="password" 
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder="Repita a nova senha" 
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-slate-50"
-                  required
-                />
-              </div>
-            </div>
-
-            {error && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2 text-red-600 text-sm">
-                <div className="mt-0.5"><div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[10px] font-bold">!</div></div>
-                {error}
-              </motion.div>
-            )}
-
-            <Button 
-              type="submit"
-              disabled={loading}
-              className="w-full py-4 text-base font-bold shadow-lg shadow-primary/25"
-            >
-              {loading ? 'Salvando...' : 'Salvar Nova Senha'}
-            </Button>
           </div>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Confirmar Nova Senha</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input 
+                type="password" 
+                value={confirmPassword}
+                onChange={e => {
+                  setConfirmPassword(e.target.value);
+                  setError('');
+                }}
+                placeholder="Repita a nova senha" 
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white dark:bg-transparent"
+                required
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 text-red-500 rounded-xl text-sm font-medium">
+              <AlertCircle className="w-4 h-4" />
+              {error}
+            </div>
+          )}
+
+          <Button 
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 mt-2"
+          >
+            {loading ? 'Salvando...' : 'Salvar Nova Senha'}
+          </Button>
         </form>
       </motion.div>
     </div>
