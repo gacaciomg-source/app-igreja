@@ -8,6 +8,13 @@ export const BASE_URL = IS_CAPACITOR
   ? APP_CONFIG.apiUrl 
   : (typeof window !== 'undefined' ? window.location.origin : '');
 
+export const getAbsoluteUrl = (url?: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  const base = BASE_URL || APP_CONFIG.apiUrl || 'https://app.igrejarenovar.com';
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 const API_URL = `${BASE_URL}/api`;
 
 export const getApiUrl = (path: string) => `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;

@@ -101,7 +101,7 @@ import {
 } from 'recharts';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, EventRegistration, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction, FinancialRule } from './types';
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES, SYSTEM_VERSION } from './constants';
-import { api, getApiUrl, BASE_URL } from './services/apiService';
+import { api, getApiUrl, BASE_URL, getAbsoluteUrl } from './services/apiService';
 
 const DEFAULT_AVATAR = "https://renovar.warpserver.com.br/avatar.png";
 
@@ -2192,7 +2192,7 @@ const Dashboard = ({
           </button>
           <button onClick={() => onTabChange('profile')} className="p-0.5 bg-white rounded-full shadow-sm border-2 border-primary/20">
             <img 
-              src={user?.avatar || DEFAULT_AVATAR} 
+              src={getAbsoluteUrl(user?.avatar) || DEFAULT_AVATAR} 
               className="w-9 h-9 rounded-full object-cover" 
               alt="Perfil" 
             />
@@ -6441,7 +6441,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
     if (file) {
       try {
         const { url } = await api.upload(file);
-        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        const imageUrl = getAbsoluteUrl(url);
         setForm(prev => ({ ...prev, avatar: imageUrl }));
         await onUpdateProfile({ avatar: imageUrl });
         showMessage('Foto de perfil atualizada!');
@@ -6624,7 +6624,7 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
       )}
       <header className="text-center pt-8 space-y-4">
         <div className="relative inline-block">
-          <img src={form.avatar || user?.avatar || DEFAULT_AVATAR} className="w-32 h-32 rounded-full border-4 border-white shadow-xl mx-auto object-cover" alt="Profile" />
+          <img src={getAbsoluteUrl(form.avatar) || getAbsoluteUrl(user?.avatar) || DEFAULT_AVATAR} className="w-32 h-32 rounded-full border-4 border-white shadow-xl mx-auto object-cover" alt="Profile" />
           <label className="absolute bottom-1 right-1 p-2 bg-primary text-white rounded-full shadow-lg border-2 border-white cursor-pointer">
             <Settings className="w-5 h-5" />
             <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
@@ -7340,7 +7340,7 @@ const AdminSermonsScreen = ({ sermons, onAdd, onUpdate, onDelete }: { sermons: S
       setUploading(true);
       try {
         const { url } = await api.upload(file);
-        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        const imageUrl = getAbsoluteUrl(url);
         setFormData({ ...formData, thumbnail: imageUrl });
       } catch (err) {
         console.error('Sermon thumbnail upload failed:', err);
@@ -9542,13 +9542,19 @@ const joinCell = async (cellId: string) => {
 // --- Helper Components ---
 
 const Modal = ({ title, children, onClose }: { title: string, children: React.ReactNode, onClose: () => void }) => {
+  const onCloseRef = useRef(onClose);
+  
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     const modalId = 'modal-' + Math.random().toString(36).substring(2, 8);
     window.location.hash = modalId;
 
     const handleHashChange = () => {
       if (window.location.hash !== '#' + modalId) {
-        onClose();
+        onCloseRef.current();
       }
     };
     window.addEventListener('hashchange', handleHashChange);
@@ -9559,7 +9565,7 @@ const Modal = ({ title, children, onClose }: { title: string, children: React.Re
         window.history.back();
       }
     };
-  }, [onClose]);
+  }, []);
 
   return (
   <motion.div 
@@ -9610,7 +9616,7 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
       try {
         const { url } = await api.upload(file);
         // Ensure URL starts with / if it doesn't (though server should return /uploads/...)
-        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        const imageUrl = getAbsoluteUrl(url);
         setForm({ ...form, image: imageUrl });
       } catch (err: any) {
         console.error('Upload failed:', err);
@@ -9909,7 +9915,7 @@ const AnnouncementForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
       setUploading(true);
       try {
         const { url } = await api.upload(file);
-        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        const imageUrl = getAbsoluteUrl(url);
         setForm({ ...form, imageUrl: imageUrl });
       } catch (err) {
         console.error('Announcement image upload failed:', err);
@@ -9962,7 +9968,7 @@ const ReadingPlanForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
       setUploading(true);
       try {
         const { url } = await api.upload(file);
-        const imageUrl = url.startsWith('http') ? url : (BASE_URL + url);
+        const imageUrl = getAbsoluteUrl(url);
         setForm({ ...form, imageUrl });
       } catch (err) {
         console.error('Reading plan image upload failed:', err);
