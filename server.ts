@@ -1411,6 +1411,61 @@ async function startServer() {
     }
   });
 
+  app.post("/api/ministries/:id/notes", authenticateToken, async (req: any, res) => {
+    try {
+      const { content, type, attachments } = req.body;
+      const ministryId = req.params.id;
+      
+      const ministry = await storage.findById("ministries", ministryId) as any;
+      const users = await storage.readCollection<any>("users");
+      
+      if (!ministry) return res.status(404).json({ error: "Ministério não encontrado" });
+      
+      const newNote = {
+          id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+          content,
+          type: type || 'text',
+          attachments,
+          authorId: req.user.id,
+          createdAt: new Date().toISOString()
+      };
+      
+      const currentNotes = ministry.notes || [];
+      ministry.notes = [...currentNotes, newNote];
+      await storage.update("ministries", ministryId, ministry);
+      
+      const targetUserIds = ministry.memberIds || [];
+      
+      // Push Notification
+      const pushTitle = `🗒️ Nota: ${ministry.name}`;
+      const pushBody = content.length > 50 ? content.substring(0, 50) + "..." : content;
+      sendPushNotification(pushTitle, pushBody, '/', targetUserIds).catch(err => console.error("Push failed:", err));
+      
+      // WhatsApp Notifications
+      if (whatsappClient && whatsappStatus === 'READY') {
+          const author = users.find(u => u.id === req.user.id);
+          const authorName = author ? author.name : 'Líder';
+          const waMessage = `*Anotação no ministério ${ministry.name}*\n\n${content}\n\n_Por ${authorName}_`;
+          
+          for (const uid of targetUserIds) {
+              const u = users.find(u => u.id === uid);
+              if (u && u.phone && String(u.phone).trim()) {
+                 const chatId = await getWhatsAppChatId(u.phone);
+                 if (chatId) {
+                     await whatsappClient.sendMessage(chatId, waMessage).catch(() => {});
+                     await new Promise(r => setTimeout(r, 100)); // anti-spam delay
+                 }
+              }
+          }
+      }
+      
+      res.json(newNote);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Erro ao adicionar anotação" });
+    }
+  });
+
   app.post("/api/collections/:name/batch", authenticateToken, async (req: any, res) => {
     try {
       const requester = req.user;
@@ -1536,8 +1591,17 @@ async function startServer() {
            // Permitir que membros solicitem entrada (patch no campo pendingRequestIds)
            if (req.params.name === 'ministries' && (req.method === 'PATCH' || req.method === 'PUT')) {
              const updates = Object.keys(req.body);
+             const ministry = await storage.findById<any>("ministries", req.params.id);
+             const isLeader = ministry && ministry.leaderIds && ministry.leaderIds.includes(requester.id);
+
              if (updates.length === 1 && updates[0] === 'pendingRequestIds') {
                // OK - permitimos apenas este campo para solicitação de entrada
+             } else if (isLeader) {
+               const allowed = ['memberIds', 'pendingRequestIds', 'notes'];
+               const isDisallowed = updates.some(k => !allowed.includes(k));
+               if (isDisallowed) {
+                 return res.status(403).json({ error: "Você não tem permissão para editar estes campos." });
+               }
              } else {
                return res.status(403).json({ error: "Você não tem permissão para editar itens desta coleção." });
              }

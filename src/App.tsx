@@ -82,7 +82,8 @@ import {
   Edit2,
   AlertTriangle,
   Trash2,
-  Palette
+  Palette,
+  Megaphone
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { 
@@ -434,9 +435,9 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
         <div className="text-center space-y-2">
           <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
             {!darkMode ? (
-              <img src={appearanceConfig?.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+              <img src={appearanceConfig?.loginLogoLight ? appearanceConfig.loginLogoLight : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
             ) : (
-              <img src={appearanceConfig?.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+              <img src={appearanceConfig?.loginLogoDark ? appearanceConfig.loginLogoDark : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
             )}
           </div>
           <h1 className="text-3xl font-bold text-slate-900">{appearanceConfig?.churchName || APP_CONFIG.name}</h1>
@@ -1157,6 +1158,60 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
               <p className="text-center text-slate-400 py-6 text-sm">Nenhuma escala agendada.</p>
             )}
           </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-slate-900" id="avisos">Quadro de Avisos</h3>
+            {(isAdmin || isLeader(selectedMinistry)) && (
+              <button 
+                onClick={() => {
+                  const content = window.prompt("Digite o novo aviso/anotação para a equipe (Será enviado por Push/WhatsApp):");
+                  if (content) {
+                    api.request(`ministries/${selectedMinistry.id}/notes`, {
+                      method: 'POST',
+                      body: JSON.stringify({ content })
+                    }).then(note => {
+                      onUpdate(selectedMinistry.id, { notes: [...(selectedMinistry.notes || []), note] });
+                      showMessage?.("Anotação adicionada e equipe notificada!");
+                    }).catch(e => {
+                      console.error("Erro ao adicionar nota", e);
+                      showMessage?.("Erro ao adicionar anotação");
+                    });
+                  }
+                }}
+                className="text-xs font-bold text-primary flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Adicionar
+              </button>
+            )}
+          </div>
+          {(selectedMinistry.notes || []).length > 0 ? (
+            <div className="grid gap-3">
+              {[...(selectedMinistry.notes || [])].reverse().map(note => {
+                const author = users.find(u => u.id === note.authorId);
+                return (
+                  <Card key={note.id} className="p-4 space-y-2 relative overflow-hidden bg-gradient-to-r from-blue-50 to-indigo-50 border-none shadow-sm">
+                    <div className="absolute top-0 right-0 p-3 opacity-20 pointer-events-none">
+                      <Megaphone className="w-8 h-8 text-blue-500" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <img src={author?.avatar || DEFAULT_AVATAR} className="w-5 h-5 rounded-full object-cover" />
+                       <span className="text-[10px] font-bold text-slate-500 uppercase">{author?.name || 'Líder'}</span>
+                       <span className="text-[10px] text-slate-400">&bull; {new Date(note.createdAt).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div className="text-sm font-medium text-slate-800 whitespace-pre-wrap leading-relaxed relative z-10">
+                      {note.content.split(/\b(https?:\/\/\S+)\b/).map((part, i) => 
+                        /^https?:\/\//.test(part) ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{part}</a> : part
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-center text-slate-400 py-6 text-sm bg-slate-50 rounded-2xl border border-dashed border-slate-200">Nenhum aviso no momento.</p>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -7520,9 +7575,9 @@ const ForceChangePasswordScreen = ({ onComplete, appearanceConfig, cacheVersion,
         <div className="text-center space-y-2">
           <div className="w-32 h-32 mx-auto flex items-center justify-center mb-2">
             {!darkMode ? (
-              <img src={appearanceConfig?.loginLogoLight ? (appearanceConfig.loginLogoLight.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoLight)}` : appearanceConfig.loginLogoLight) : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+              <img src={appearanceConfig?.loginLogoLight ? appearanceConfig.loginLogoLight : getCacheBustedUrl(APP_CONFIG.logos.dark || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
             ) : (
-              <img src={appearanceConfig?.loginLogoDark ? (appearanceConfig.loginLogoDark.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(appearanceConfig.loginLogoDark)}` : appearanceConfig.loginLogoDark) : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
+              <img src={appearanceConfig?.loginLogoDark ? appearanceConfig.loginLogoDark : getCacheBustedUrl(APP_CONFIG.logos.light || APP_CONFIG.logos.icon, cacheVersion)} className="w-full h-full object-contain" alt="Logo" />
             )}
           </div>
           <h1 className="text-3xl font-bold text-slate-900">Atualização de Senha</h1>
@@ -9486,19 +9541,39 @@ const joinCell = async (cellId: string) => {
 
 // --- Helper Components ---
 
-const Modal = ({ title, children, onClose }: { title: string, children: React.ReactNode, onClose: () => void }) => (
+const Modal = ({ title, children, onClose }: { title: string, children: React.ReactNode, onClose: () => void }) => {
+  useEffect(() => {
+    const modalId = 'modal-' + Math.random().toString(36).substring(2, 8);
+    window.location.hash = modalId;
+
+    const handleHashChange = () => {
+      if (window.location.hash !== '#' + modalId) {
+        onClose();
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      if (window.location.hash === '#' + modalId) {
+        window.history.back();
+      }
+    };
+  }, [onClose]);
+
+  return (
   <motion.div 
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
     exit={{ opacity: 0 }}
-    className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-sm"
+    className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm"
     onClick={onClose}
   >
     <motion.div 
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
       exit={{ y: "100%" }}
-      className="bg-white w-full max-w-md md:max-w-xl rounded-t-3xl md:rounded-3xl p-6 space-y-6 shadow-2xl"
+      className="bg-white w-full max-w-md md:max-w-xl rounded-t-3xl md:rounded-3xl p-6 space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto"
       onClick={e => e.stopPropagation()}
     >
       <div className="flex items-center justify-between">
@@ -9510,7 +9585,8 @@ const Modal = ({ title, children, onClose }: { title: string, children: React.Re
       {children}
     </motion.div>
   </motion.div>
-);
+  );
+};
 
 const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, initialData?: Event }) => {
   const [form, setForm] = useState<Partial<Event>>(initialData || { 

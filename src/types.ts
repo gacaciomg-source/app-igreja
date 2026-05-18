@@ -183,6 +183,13 @@ export interface TitheTransaction {
   status: 'pending' | 'completed';
 }
 
+export interface MinistryNote {
+  id: string;
+  content: string;
+  createdAt: string;
+  authorId: string;
+}
+
 export interface Ministry {
   id: string;
   name: string;
@@ -192,8 +199,9 @@ export interface Ministry {
   pendingRequestIds: string[];
   imageUrl?: string;
   category: string;
-  allowedRoleIds?: string[]; // IDs of AdminRole that can be assigned within this ministry
-  memberRoles?: Record<string, string>; // Maps userId to one AdminRole id
+  allowedRoleIds?: string[];
+  memberRoles?: Record<string, string>;
+  notes?: MinistryNote[];
 }
 
 export interface MinistrySchedule {
