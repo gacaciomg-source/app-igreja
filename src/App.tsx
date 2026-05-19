@@ -1389,6 +1389,75 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
             </Card>
           </div>
         )}
+
+        <AnimatePresence>
+          {showAddNote && selectedMinistry && (
+            <Modal title="Quadro de Avisos" onClose={() => setShowAddNote(false)}>
+              <div className="space-y-6">
+                <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex gap-4 items-start">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                    <Megaphone className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">Novo Aviso</h4>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Este aviso será fixado no quadro da equipe e enviado imediatamente para todos os membros pelo <strong className="text-emerald-600">WhatsApp</strong> da igreja.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="relative">
+                    <textarea 
+                      placeholder="Digite sua mensagem aqui..." 
+                      className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50/50 min-h-[140px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all text-sm leading-relaxed" 
+                      value={noteContent} 
+                      onChange={e => setNoteContent(e.target.value)} 
+                    />
+                    <div className="absolute bottom-3 right-3 text-[10px] font-bold text-slate-400">
+                      {noteContent.length} caracteres
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 rounded-xl"
+                    onClick={() => setShowAddNote(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20" 
+                    disabled={!noteContent.trim() || isSendingNote}
+                    onClick={() => {
+                      setIsSendingNote(true);
+                      api.request(`ministries/${selectedMinistry.id}/notes`, {
+                        method: 'POST',
+                        body: JSON.stringify({ content: noteContent })
+                      }).then(note => {
+                        const updatedNotes = [...(selectedMinistry.notes || []), note];
+                        onUpdate(selectedMinistry.id, { notes: updatedNotes });
+                        setSelectedMinistry({ ...selectedMinistry, notes: updatedNotes });
+                        showMessage?.("Aviso enviado via WhatsApp e registrado no quadro!");
+                        setShowAddNote(false);
+                        setNoteContent('');
+                      }).catch(e => {
+                        console.error("Erro ao adicionar nota", e);
+                        showMessage?.("Erro ao adicionar o aviso.");
+                      }).finally(() => {
+                        setIsSendingNote(false);
+                      });
+                    }}
+                  >
+                    {isSendingNote ? 'Enviando...' : 'Enviar Aviso agora'}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -1564,75 +1633,6 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
           </Card>
         </div>
       )}
-
-      <AnimatePresence>
-        {showAddNote && selectedMinistry && (
-          <Modal title="Quadro de Avisos" onClose={() => setShowAddNote(false)}>
-            <div className="space-y-6">
-              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex gap-4 items-start">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                  <Megaphone className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Novo Aviso</h4>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Este aviso será fixado no quadro da equipe e enviado imediatamente para todos os membros pelo <strong className="text-emerald-600">WhatsApp</strong> da igreja.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="relative">
-                  <textarea 
-                    placeholder="Digite sua mensagem aqui..." 
-                    className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50/50 min-h-[140px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all text-sm leading-relaxed" 
-                    value={noteContent} 
-                    onChange={e => setNoteContent(e.target.value)} 
-                  />
-                  <div className="absolute bottom-3 right-3 text-[10px] font-bold text-slate-400">
-                    {noteContent.length} caracteres
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button 
-                  variant="outline" 
-                  className="flex-1 rounded-xl"
-                  onClick={() => setShowAddNote(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20" 
-                  disabled={!noteContent.trim() || isSendingNote}
-                  onClick={() => {
-                    setIsSendingNote(true);
-                    api.request(`ministries/${selectedMinistry.id}/notes`, {
-                      method: 'POST',
-                      body: JSON.stringify({ content: noteContent })
-                    }).then(note => {
-                      const updatedNotes = [...(selectedMinistry.notes || []), note];
-                      onUpdate(selectedMinistry.id, { notes: updatedNotes });
-                      setSelectedMinistry({ ...selectedMinistry, notes: updatedNotes });
-                      showMessage?.("Aviso enviado via WhatsApp e registrado no quadro!");
-                      setShowAddNote(false);
-                      setNoteContent('');
-                    }).catch(e => {
-                      console.error("Erro ao adicionar nota", e);
-                      showMessage?.("Erro ao adicionar o aviso.");
-                    }).finally(() => {
-                      setIsSendingNote(false);
-                    });
-                  }}
-                >
-                  {isSendingNote ? 'Enviando...' : 'Enviar Aviso agora'}
-                </Button>
-              </div>
-            </div>
-          </Modal>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
