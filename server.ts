@@ -1448,7 +1448,7 @@ async function startServer() {
       if (whatsappClient && whatsappStatus === 'READY') {
           const author = users.find(u => u.id === req.user.id);
           const authorName = author ? author.name : 'Líder';
-          const waMessage = `*Anotação no ministério ${ministry.name}*\n\n${content}\n\n_Por ${authorName}_`;
+          const waMessage = `📢 *Novo aviso do ministério ${ministry.name}*\n\n${content}\n\n_Enviado por: ${authorName}_`;
           
           for (const uid of targetUserIds) {
               const u = users.find(u => u.id === uid);

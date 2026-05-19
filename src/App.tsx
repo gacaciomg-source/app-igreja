@@ -1183,16 +1183,36 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
               {[...(selectedMinistry.notes || [])].reverse().map(note => {
                 const author = users.find(u => u.id === note.authorId);
                 return (
-                  <Card key={note.id} className="p-4 space-y-2 relative overflow-hidden bg-gradient-to-r from-blue-50 to-indigo-50 border-none shadow-sm">
+                  <Card key={note.id} className="p-4 space-y-2 relative overflow-hidden bg-blue-50 dark:bg-blue-900/20 border-none shadow-sm">
                     <div className="absolute top-0 right-0 p-3 opacity-20 pointer-events-none">
                       <Megaphone className="w-8 h-8 text-blue-500" />
                     </div>
-                    <div className="flex items-center gap-2">
-                       <img src={author?.avatar || DEFAULT_AVATAR} className="w-5 h-5 rounded-full object-cover" />
-                       <span className="text-[10px] font-bold text-slate-500 uppercase">{author?.name || 'Líder'}</span>
-                       <span className="text-[10px] text-slate-400">&bull; {new Date(note.createdAt).toLocaleDateString('pt-BR')}</span>
+                    <div className="flex items-start justify-between gap-2 relative z-10">
+                       <div className="flex items-center gap-2">
+                         <img src={author?.avatar || DEFAULT_AVATAR} className="w-6 h-6 rounded-full object-cover" />
+                         <div>
+                           <span className="text-[10px] font-bold text-slate-500 uppercase block leading-none">{author?.name || 'Líder'}</span>
+                           <span className="text-[10px] text-slate-400 block mt-0.5">{new Date(note.createdAt).toLocaleDateString('pt-BR')} às {new Date(note.createdAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
+                         </div>
+                       </div>
+                       {(isAdmin || isLeader(selectedMinistry)) && (
+                         <button 
+                           onClick={() => {
+                             if(window.confirm('Tem certeza que deseja excluir este aviso?')) {
+                               const updatedNotes = (selectedMinistry.notes || []).filter(n => n.id !== note.id);
+                               onUpdate(selectedMinistry.id, { notes: updatedNotes });
+                               setSelectedMinistry({ ...selectedMinistry, notes: updatedNotes });
+                               showMessage?.("Aviso apagado.");
+                             }
+                           }}
+                           className="text-red-400 hover:text-red-600 bg-white/50 hover:bg-white rounded p-1 transition-all"
+                           title="Apagar Aviso"
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </button>
+                       )}
                     </div>
-                    <div className="text-sm font-medium text-slate-800 whitespace-pre-wrap leading-relaxed relative z-10">
+                    <div className="text-sm font-medium text-slate-800 dark:text-slate-100 whitespace-pre-wrap leading-relaxed relative z-10 pt-1">
                       {note.content.split(/\b(https?:\/\/\S+)\b/).map((part, i) => 
                         /^https?:\/\//.test(part) ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{part}</a> : part
                       )}
