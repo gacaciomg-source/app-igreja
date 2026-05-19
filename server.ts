@@ -1434,7 +1434,10 @@ async function startServer() {
       ministry.notes = [...currentNotes, newNote];
       await storage.update("ministries", ministryId, ministry);
       
-      const targetUserIds = ministry.memberIds || [];
+      const allTargetIds = new Set([...(ministry.memberIds || []), ...(ministry.leaderIds || [])]);
+      // Remove author from receiving push/whatsapp for their own note
+      allTargetIds.delete(req.user.id);
+      const targetUserIds = Array.from(allTargetIds);
       
       // Push Notification
       const pushTitle = `🗒️ Nota: ${ministry.name}`;

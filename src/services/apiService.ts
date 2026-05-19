@@ -35,7 +35,7 @@ class ApiService {
     };
 
     try {
-      const url = `${API_URL}${path}`;
+      const url = getApiUrl(path);
       if (IS_CAPACITOR) console.log(`API Request: ${url}`);
       const response = await fetch(url, { ...options, headers });
       

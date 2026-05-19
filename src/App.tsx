@@ -994,6 +994,9 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
   const [showAddSchedule, setShowAddSchedule] = useState(false);
   const [showMinistryForm, setShowMinistryForm] = useState(false);
   const [editingMinistry, setEditingMinistry] = useState<Ministry | null>(null);
+  const [showAddNote, setShowAddNote] = useState(false);
+  const [noteContent, setNoteContent] = useState('');
+  const [isSendingNote, setIsSendingNote] = useState(false);
   
   const [newMinistry, setNewMinistry] = useState<Partial<Ministry>>({
     name: '', description: '', category: 'Geral', imageUrl: ''
@@ -1166,19 +1169,8 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
             {(isAdmin || isLeader(selectedMinistry)) && (
               <button 
                 onClick={() => {
-                  const content = window.prompt("Digite o novo aviso/anotação para a equipe (Será enviado por Push/WhatsApp):");
-                  if (content) {
-                    api.request(`ministries/${selectedMinistry.id}/notes`, {
-                      method: 'POST',
-                      body: JSON.stringify({ content })
-                    }).then(note => {
-                      onUpdate(selectedMinistry.id, { notes: [...(selectedMinistry.notes || []), note] });
-                      showMessage?.("Anotação adicionada e equipe notificada!");
-                    }).catch(e => {
-                      console.error("Erro ao adicionar nota", e);
-                      showMessage?.("Erro ao adicionar anotação");
-                    });
-                  }
+                  setShowAddNote(true);
+                  setNoteContent('');
                 }}
                 className="text-xs font-bold text-primary flex items-center gap-1"
               >
@@ -1572,6 +1564,75 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
           </Card>
         </div>
       )}
+
+      <AnimatePresence>
+        {showAddNote && selectedMinistry && (
+          <Modal title="Quadro de Avisos" onClose={() => setShowAddNote(false)}>
+            <div className="space-y-6">
+              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex gap-4 items-start">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                  <Megaphone className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">Novo Aviso</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Este aviso será fixado no quadro da equipe e enviado imediatamente para todos os membros pelo <strong className="text-emerald-600">WhatsApp</strong> da igreja.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="relative">
+                  <textarea 
+                    placeholder="Digite sua mensagem aqui..." 
+                    className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50/50 min-h-[140px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all text-sm leading-relaxed" 
+                    value={noteContent} 
+                    onChange={e => setNoteContent(e.target.value)} 
+                  />
+                  <div className="absolute bottom-3 right-3 text-[10px] font-bold text-slate-400">
+                    {noteContent.length} caracteres
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 rounded-xl"
+                  onClick={() => setShowAddNote(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20" 
+                  disabled={!noteContent.trim() || isSendingNote}
+                  onClick={() => {
+                    setIsSendingNote(true);
+                    api.request(`ministries/${selectedMinistry.id}/notes`, {
+                      method: 'POST',
+                      body: JSON.stringify({ content: noteContent })
+                    }).then(note => {
+                      const updatedNotes = [...(selectedMinistry.notes || []), note];
+                      onUpdate(selectedMinistry.id, { notes: updatedNotes });
+                      setSelectedMinistry({ ...selectedMinistry, notes: updatedNotes });
+                      showMessage?.("Aviso enviado via WhatsApp e registrado no quadro!");
+                      setShowAddNote(false);
+                      setNoteContent('');
+                    }).catch(e => {
+                      console.error("Erro ao adicionar nota", e);
+                      showMessage?.("Erro ao adicionar o aviso.");
+                    }).finally(() => {
+                      setIsSendingNote(false);
+                    });
+                  }}
+                >
+                  {isSendingNote ? 'Enviando...' : 'Enviar Aviso agora'}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -9542,31 +9603,6 @@ const joinCell = async (cellId: string) => {
 // --- Helper Components ---
 
 const Modal = ({ title, children, onClose }: { title: string, children: React.ReactNode, onClose: () => void }) => {
-  const onCloseRef = useRef(onClose);
-  
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    const modalId = 'modal-' + Math.random().toString(36).substring(2, 8);
-    window.location.hash = modalId;
-
-    const handleHashChange = () => {
-      if (window.location.hash !== '#' + modalId) {
-        onCloseRef.current();
-      }
-    };
-    window.addEventListener('hashchange', handleHashChange);
-
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-      if (window.location.hash === '#' + modalId) {
-        window.history.back();
-      }
-    };
-  }, []);
-
   return (
   <motion.div 
     initial={{ opacity: 0 }}
