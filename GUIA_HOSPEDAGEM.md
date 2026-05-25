@@ -151,3 +151,18 @@ Outra solução é usar plataformas como o `Railway.app` com um volume permanent
 O seu sistema atual usa "Bancos de Dados baseados em arquivos".
 Toda vez que você fecha o servidor ou faz deploy no sistema gratuíto do Render, os servidores gratuitos sofrem "restart" diário/semanal, o que pode apagar o `data.json`.
 Se for levar a sério com pessoas pagando os dízimos, no futuro solicite ao AI Studio a mudança para um banco externo como **PostgreSQL** ou **MongoDB**, que é independente e muito seguro (e também possui opções totalmente gratuitas na Supabase, Render ou Mongo Atlas). 
+
+---
+
+## 7. Como Alterar o Nome da Versão (Aba de Servidor) 🏷️
+
+Se você fez atualizações no projeto e quer alterar o nome/número da versão que aparece na página de "Servidor" dentro do aplicativo:
+
+1. Acesse o projeto no seu computador ou diretamente no **GitHub**.
+2. Abra o arquivo **`src/constants.ts`**.
+3. Bem na primeira linha do arquivo, você encontrará o código:
+   ```typescript
+   export const SYSTEM_VERSION = "1.2 (Beta)";
+   ```
+4. Altere o texto entre aspas para a nova versão que desejar (Exemplo: `"2.0 Oficial"` ou `"1.3"`).
+5. Salve o arquivo (caso esteja no GitHub, faça o *commit*). Quando seu servidor na nuvem for atualizado (ou quando você compilar o novo APK), o nome da versão nova aparecerá automaticamente para todos os usuários na aba de Servidor!

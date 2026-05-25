@@ -11,6 +11,7 @@ import {
 import { toPng } from 'html-to-image';
 import { fetchVerseText, BIBLE_TRANSLATIONS } from './lib/bible';
 import AdminVerses from './components/AdminVerses';
+import { ServiceReportsScreen } from './components/ServiceReportsScreen';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { 
@@ -5199,6 +5200,7 @@ const AdminAllScreens = ({ onTabChange, isTabAllowed }: { onTabChange: (tab: str
     { id: 'pastoral', label: 'Visitas Pastorais', icon: Heart, color: 'bg-rose-500' },
     { id: 'sermons', label: 'Gerenciar Sermões', icon: Radio, color: 'bg-orange-600' },
     { id: 'tithes', label: 'Configuração de Dízimos', icon: DollarSign, color: 'bg-emerald-600' },
+    { id: 'serviceReports', label: 'Relatórios de Culto', icon: FileText, color: 'bg-sky-500' },
     { id: 'admin_roles', label: 'Perfis de Acesso Adm', icon: Shield, color: 'bg-red-600' },
     { id: 'appearance', label: 'Personalização do App', icon: Palette, color: 'bg-pink-500' },
     { id: 'hosting', label: 'Servidor e Backups', icon: Server, color: 'bg-slate-700' },
@@ -5993,6 +5995,7 @@ const AdminRolesScreen = ({
     { id: 'pastoral', label: 'Visitas Pastorais' },
     { id: 'users', label: 'Gestão de Usuários' },
     { id: 'readingPlans', label: 'Planos de Leitura' },
+    { id: 'serviceReports', label: 'Relatórios de Culto' },
   ];
 
   const handleSave = async () => {
@@ -7770,6 +7773,7 @@ export default function App() {
   const [verseHighlights, setVerseHighlights] = useState<VerseHighlight[]>([]);
   const [attendanceHistory, setAttendanceHistory] = useState<Attendance[]>([]);
   const [pastoralVisits, setPastoralVisits] = useState<PastoralVisit[]>([]);
+  const [serviceReports, setServiceReports] = useState<ServiceReport[]>([]);
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [ministrySchedules, setMinistrySchedules] = useState<MinistrySchedule[]>([]);
   const [adminRoles, setAdminRoles] = useState<AdminRole[]>([]);
@@ -7824,7 +7828,7 @@ export default function App() {
     setCacheVersion(new Date().getTime());
     try {
       const [
-        e, p, c, u, a, r, s, h, at, pv, m, ms, config, roles, verseToday, vStats, reg
+        e, p, c, u, a, r, s, h, at, pv, m, ms, config, roles, verseToday, vStats, reg, sReports
       ] = await Promise.all([
         api.list('events'),
         api.list('prayers'),
@@ -7842,7 +7846,8 @@ export default function App() {
         api.list('adminRoles').catch(() => []), // Handle if doesn't exist
         api.request('/verses/today').catch(() => null),
         api.request('/verses/stats').catch(() => null),
-        api.list('eventRegistrations').catch(() => [])
+        api.list('eventRegistrations').catch(() => []),
+        api.list('serviceReports').catch(() => [])
       ]);
 
       setDailyVerse(verseToday);
@@ -7857,6 +7862,7 @@ export default function App() {
       setVerseHighlights((h || []).filter((vh: any) => vh.uid === currentUserData?.id));
       setAttendanceHistory(at || []);
       setPastoralVisits(pv || []);
+      setServiceReports(sReports || []);
       setMinistries(m || []);
       setMinistrySchedules(ms || []);
       setAdminRoles(roles || []);
@@ -8414,6 +8420,26 @@ export default function App() {
       showMessage('Sermão excluído!');
     } catch (err) {
       handleApiError(err, 'deleteSermon');
+    }
+  };
+
+  const addServiceReport = async (data: Partial<ServiceReport>) => {
+    try {
+      await api.create('serviceReports', {
+        ...data,
+      });
+      showMessage('Relatório salvo com sucesso!');
+    } catch (err) {
+      handleApiError(err, 'addServiceReport');
+    }
+  };
+
+  const deleteServiceReport = async (id: string) => {
+    try {
+      await api.delete('serviceReports', id);
+      showMessage('Relatório excluído!');
+    } catch (err) {
+      handleApiError(err, 'deleteServiceReport');
     }
   };
 
@@ -9066,7 +9092,7 @@ const joinCell = async (cellId: string) => {
   };
 
   const renderContent = () => {
-    if (isAdmin && isAdminPanel) {
+    if (hasAdminPanelAccess && isAdminPanel) {
       if (!isTabAllowed(currentTab)) {
         return <div className="p-8 text-center text-slate-500">Você não tem permissão para acessar esta tela.</div>;
       }
@@ -9136,6 +9162,7 @@ const joinCell = async (cellId: string) => {
         case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onUpdate={updateSermon} onDelete={deleteSermon} />;
+        case 'serviceReports': return <ServiceReportsScreen reports={serviceReports} users={users} isAdmin={true} onAdd={addServiceReport} onDelete={deleteServiceReport} />;
         case 'pastoral': return <AdminPastoralVisits visits={pastoralVisits} onUpdateStatus={updatePastoralVisitStatus} />;
         case 'profile': {
           const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
@@ -9152,7 +9179,7 @@ const joinCell = async (cellId: string) => {
               ministries={ministries}
               whatsappConfig={whatsappConfig}
               onUpdateWhatsApp={updateWhatsAppConfig}
-              isAdmin={isAdmin} 
+              isAdmin={hasAdminPanelAccess} 
               onSwitchToMember={() => navigate('/')} 
               showMessage={showMessage} 
               initialIsEditing={profileAutoEdit}
@@ -9200,7 +9227,7 @@ const joinCell = async (cellId: string) => {
             ministries={ministries}
             whatsappConfig={whatsappConfig}
             onUpdateWhatsApp={updateWhatsAppConfig}
-            isAdmin={isAdmin} 
+            isAdmin={hasAdminPanelAccess} 
             onSwitchToAdmin={() => navigate('/admin')} 
             showMessage={showMessage} 
             initialIsEditing={profileAutoEdit}
@@ -9272,6 +9299,8 @@ const joinCell = async (cellId: string) => {
     return adminPermissions.includes(tabId);
   };
 
+  const hasAdminPanelAccess = userRole === 'admin' || userRole === 'superadmin' || (adminPermissions && adminPermissions.length > 0);
+
   const adminTabs = [
     { id: 'home', icon: PieChart, label: 'Dashboard' },
     { id: 'all_screens', icon: Grid, label: 'Telas' },
@@ -9282,13 +9311,14 @@ const joinCell = async (cellId: string) => {
     { id: 'pastoral', icon: Heart, label: 'Visitas' },
     { id: 'sermons', icon: Radio, label: 'Sermões' },
     { id: 'prayer', icon: PrayingHands, label: 'Orações' },
+    { id: 'serviceReports', icon: FileText, label: 'Relatórios' },
     { id: 'profile', icon: Settings, label: 'Perfil' },
     { id: 'hosting', icon: Server, label: 'Servidor' },
   ].filter(t => isTabAllowed(t.id));
 
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const isAdminPanel = location.pathname.startsWith('/admin');
-  const tabs = isAdmin && isAdminPanel ? adminTabs : memberTabs;
+  const tabs = hasAdminPanelAccess && isAdminPanel ? adminTabs : memberTabs;
 
     const dashboardProps = {
       events,
@@ -9622,7 +9652,7 @@ const joinCell = async (cellId: string) => {
 
 // --- Helper Components ---
 
-const Modal = ({ title, children, onClose }: { title: string, children: React.ReactNode, onClose: () => void }) => {
+export const Modal = ({ title, children, onClose }: { title: string, children: React.ReactNode, onClose: () => void }) => {
   return (
   <motion.div 
     initial={{ opacity: 0 }}

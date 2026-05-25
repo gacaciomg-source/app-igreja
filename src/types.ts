@@ -39,6 +39,19 @@ export interface User {
   };
 }
 
+export interface ServiceReport {
+  id: string;
+  date: string;
+  serviceName: string;
+  adultsCount: number;
+  childrenCount: number;
+  visitorsCount: number;
+  totalCount: number;
+  notes?: string;
+  authorId: string;
+  createdAt: string;
+}
+
 export interface PastoralVisit {
   id: string;
   uid: string;

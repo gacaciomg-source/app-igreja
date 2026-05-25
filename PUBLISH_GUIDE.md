@@ -66,3 +66,18 @@ Atualmente o app usa um servidor Express básico. Se você planeja ter milhares 
 1. Recomendamos ativar o **Firebase**.
 2. Peça ao assistente do AI Studio: "Configure o Firebase para sincronização em tempo real".
 3. Isso garantirá que quando você enviar um aviso em um celular, ele apareça instantaneamente em todos os outros sem precisar atualizar a tela.
+
+---
+
+### 5. Como Alterar o Nome/Número da Versão (Aba de Servidor) 🏷️
+
+Para gerenciar as atualizações enviadas ao GitHub e aos usuários, siga os passos abaixo para mudar o número da versão que é exibido na aba "Servidor" interna do App:
+
+1. Vá até o repositório do aplicativo, seja no **GitHub** ou no seu próprio VS Code.
+2. Acesse o arquivo **`src/constants.ts`**.
+3. Na primeira linha de código, haverá uma declaração como esta:
+   ```typescript
+   export const SYSTEM_VERSION = "1.2 (Beta)";
+   ```
+4. Mude `"1.2 (Beta)"` para o nome que desejar usar de agora em diante (ex: `"1.3 Oficial"` ou `"2.0"`).
+5. Salve (`commit`) as alterações em seu repositório. Feito isso, gere seu novo arquivo `.aab` (ou `.apk`) e o sistema já mostrará a nova versão! Se for apenas a web, o servidor da nuvem atualizará automaticamente na próxima *build*.
