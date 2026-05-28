@@ -7832,7 +7832,13 @@ export default function App() {
   const [userReadingProgress, setUserReadingProgress] = useState<Record<string, string[]>>({});
   const [allUserProgress, setAllUserProgress] = useState<Record<string, Record<string, string[]>>>({});
   const [titheConfig, setTitheConfig] = useState<TitheConfig>({ pixKey: '', bankName: '', accountHolder: '' });
-  const [appearanceConfig, setAppearanceConfig] = useState<any>({ shareLogo: '', shareBackgrounds: SHARE_BACKGROUNDS });
+  const [appearanceConfig, setAppearanceConfig] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem('app_appearance_config');
+      if (cached) return JSON.parse(cached);
+    } catch(e) {}
+    return { shareLogo: '', shareBackgrounds: SHARE_BACKGROUNDS };
+  });
   const [whatsappConfig, setWhatsappConfig] = useState<WhatsAppConfig>({ phoneNumberId: '', isEnabled: false });
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
@@ -7870,6 +7876,12 @@ export default function App() {
     }
     isFirstMountTheme.current = false;
   }, [darkMode]);
+
+  useEffect(() => {
+    if (appearanceConfig) {
+      localStorage.setItem('app_appearance_config', JSON.stringify(appearanceConfig));
+    }
+  }, [appearanceConfig]);
 
   useEffect(() => {
     localStorage.setItem('font-size', fontSize);
@@ -8101,6 +8113,35 @@ export default function App() {
     };
 
     initApp();
+  }, []);
+
+  useEffect(() => {
+    const fetchPublicConfig = async () => {
+      try {
+        const pubConfig = await api.getPublicConfig();
+        if (pubConfig) {
+          setAppearanceConfig((prev: any) => {
+             const newConfig = { ...prev, ...pubConfig };
+             if (JSON.stringify(prev) !== JSON.stringify(newConfig)) {
+               return newConfig;
+             }
+             return prev;
+          });
+        }
+      } catch(e) {}
+    };
+
+    const intervalId = setInterval(fetchPublicConfig, 15000);
+    
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchPublicConfig();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   // Registry push notifications automatically when logged in

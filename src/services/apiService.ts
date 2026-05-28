@@ -99,7 +99,7 @@ class ApiService {
   }
 
   async getPublicConfig() {
-    const response = await fetch(getApiUrl('/public-config'));
+    const response = await fetch(getApiUrl(`/public-config?t=${Date.now()}`));
     if (!response.ok) throw new Error('Failed to fetch public config');
     return response.json();
   }

@@ -325,6 +325,9 @@ async function initWhatsApp() {
         };
         await storage.insert('crmTickets', ticket);
       } else {
+        if (ticket.status === 'closed') {
+          ticket.assignedTo = null; // Re-open unassigned so someone can pick it up
+        }
         ticket.status = 'open';
         ticket.updatedAt = new Date().toISOString();
         ticket.unreadCount = (ticket.unreadCount || 0) + 1;
@@ -711,6 +714,7 @@ async function startServer() {
         defaultTheme: appearance?.defaultTheme || null,
         churchName: appearance?.churchName || null,
         churchInstagram: appearance?.churchInstagram || null,
+        enabledModules: appearance?.enabledModules || null,
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao carregar configurações públicas" });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, UserCheck, Clock, CheckCircle, MessageSquare, ListTodo, Paperclip, AlertCircle, RefreshCw, LogOut } from 'lucide-react';
+import { Search, Send, UserCheck, Clock, CheckCircle, MessageSquare, ListTodo, Paperclip, AlertCircle, RefreshCw, LogOut, Edit } from 'lucide-react';
 import { CRMTicket, CRMMessage, User as UserType } from '../types';
 import { Card, Button } from '../App';
 import { api } from '../services/apiService';
@@ -26,6 +26,10 @@ export const CRMScreen = ({
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Edit ticket state
+  const [showEditTicket, setShowEditTicket] = useState(false);
+  const [editTicketData, setEditTicketData] = useState({ contactName: '', tag: '' });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -156,7 +160,7 @@ export const CRMScreen = ({
   const filteredTickets = tickets.filter(t => {
     if (search && !t.contactName.toLowerCase().includes(search.toLowerCase()) && !t.phoneNumber.includes(search)) return false;
     if (filter === 'open') return t.status === 'open' && !t.assignedTo;
-    if (filter === 'mine') return t.assignedTo === currentUser?.id;
+    if (filter === 'mine') return t.assignedTo === currentUser?.id && t.status === 'open';
     return true; // all
   }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
@@ -223,7 +227,14 @@ export const CRMScreen = ({
               )}
             >
               <div className="flex justify-between items-start">
-                <span className="font-bold text-sm text-slate-900 truncate pr-2">{t.contactName}</span>
+                <div className="flex flex-col truncate pr-2">
+                  <span className="font-bold text-sm text-slate-900 truncate">{t.contactName}</span>
+                  {(t as any).tag && (
+                    <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md inline-block w-max mt-0.5 font-medium">
+                      {(t as any).tag}
+                    </span>
+                  )}
+                </div>
                 <span className="text-[10px] text-slate-400 whitespace-nowrap">
                   {new Date(t.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                 </span>
@@ -270,8 +281,26 @@ export const CRMScreen = ({
                   <UserCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900">{activeTicket.contactName}</h3>
-                  <p className="text-xs text-slate-500">{activeTicket.phoneNumber}</p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-900">{activeTicket.contactName}</h3>
+                    <button 
+                      onClick={() => {
+                        setEditTicketData({ contactName: activeTicket.contactName, tag: (activeTicket as any).tag || '' });
+                        setShowEditTicket(true);
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-colors"
+                    >
+                      <Edit className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-slate-500">{activeTicket.phoneNumber}</p>
+                    {(activeTicket as any).tag && (
+                      <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md inline-block font-medium">
+                        {(activeTicket as any).tag}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {linkedUser && (
                   <div className="ml-4 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100">
@@ -428,6 +457,46 @@ export const CRMScreen = ({
           </div>
         )}
       </div>
+
+      {showEditTicket && activeTicketId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800">Editar Contato</h3>
+              <button onClick={() => setShowEditTicket(false)} className="text-slate-400 hover:text-slate-600">×</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Nome do Contato</label>
+                <input 
+                  type="text" 
+                  value={editTicketData.contactName} 
+                  onChange={e => setEditTicketData({ ...editTicketData, contactName: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border font-bold text-slate-800 focus:border-primary/50 text-sm" 
+                  placeholder="Nome do Contato"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Tag / Identificação</label>
+                <input 
+                  type="text" 
+                  value={editTicketData.tag} 
+                  onChange={e => setEditTicketData({ ...editTicketData, tag: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border text-slate-800 focus:border-primary/50 text-sm" 
+                  placeholder="Ex: Visitante, Membro, Dúvida..."
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50">
+              <Button variant="outline" onClick={() => setShowEditTicket(false)}>Cancelar</Button>
+              <Button onClick={() => {
+                updateTicketData(activeTicketId, { contactName: editTicketData.contactName, tag: editTicketData.tag } as Partial<CRMTicket>);
+                setShowEditTicket(false);
+              }}>Salvar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
