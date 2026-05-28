@@ -34,7 +34,7 @@ export const CRMScreen = ({
 
   const loadData = async () => {
     try {
-      const dbTickets = await api.list('whatsapp/crm/tickets');
+      const dbTickets = await api.request('/whatsapp/crm/tickets');
       setTickets(dbTickets);
     } catch (e) {
       console.error(e);
@@ -75,8 +75,9 @@ export const CRMScreen = ({
     if (!activeTicketId || !inputText.trim()) return;
     try {
       setSending(true);
-      const newMsg = await api.create(`whatsapp/crm/tickets/${activeTicketId}/send`, {
-        text: inputText
+      const newMsg = await api.request(`/whatsapp/crm/tickets/${activeTicketId}/send`, {
+        method: 'POST',
+        body: JSON.stringify({ text: inputText })
       });
       setMessages(prev => ({
         ...prev,
@@ -98,10 +99,13 @@ export const CRMScreen = ({
     }
     try {
       setSending(true);
-      const newMsg = await api.create(`whatsapp/crm/tickets/${activeTicketId}/send`, {
-        text: pollText,
-        isPoll: true,
-        pollOptions: pollOptions.filter(o => o.trim() !== '')
+      const newMsg = await api.request(`/whatsapp/crm/tickets/${activeTicketId}/send`, {
+        method: 'POST',
+        body: JSON.stringify({
+          text: pollText,
+          isPoll: true,
+          pollOptions: pollOptions.filter(o => o.trim() !== '')
+        })
       });
       setMessages(prev => ({
         ...prev,
@@ -120,7 +124,10 @@ export const CRMScreen = ({
 
   const updateTicketData = async (ticketId: string, updates: Partial<CRMTicket>) => {
     try {
-      await api.update(`whatsapp/crm/tickets`, ticketId, updates);
+      await api.request(`/whatsapp/crm/tickets/${ticketId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+      });
       setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, ...updates } : t));
     } catch (e) {
       showMessage('Erro ao atualizar ticket');

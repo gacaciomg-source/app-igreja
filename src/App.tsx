@@ -2308,14 +2308,19 @@ const Dashboard = ({
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
         {[
-          { icon: BookOpen, label: 'Planos', color: 'bg-emerald-500', action: onShowReadingPlans },
-          { icon: Radio, label: 'Sermões', color: 'bg-orange-500', action: () => onTabChange('sermons') },
-          { icon: Music, label: 'Ministérios', color: 'bg-teal-500', action: () => onTabChange('ministries') },
-          { icon: Calendar, label: 'Agenda', color: 'bg-blue-500', action: () => onTabChange('events') },
-          { icon: Home, label: 'PGs', color: 'bg-purple-500', action: () => onTabChange('groups') },
-          { icon: Heart, label: 'Visita', color: 'bg-rose-500', action: onRequestPastoralVisit },
-          isAdmin && { icon: LayoutDashboard, label: 'Gerenciar', color: 'bg-slate-800', action: onSwitchToAdmin },
-        ].filter(Boolean).map((action: any, i) => (
+          { id: 'readingPlans', icon: BookOpen, label: 'Planos', color: 'bg-emerald-500', action: onShowReadingPlans },
+          { id: 'sermons', icon: Radio, label: 'Sermões', color: 'bg-orange-500', action: () => onTabChange('sermons') },
+          { id: 'ministries', icon: Music, label: 'Ministérios', color: 'bg-teal-500', action: () => onTabChange('ministries') },
+          { id: 'events', icon: Calendar, label: 'Agenda', color: 'bg-blue-500', action: () => onTabChange('events') },
+          { id: 'groups', icon: Home, label: 'PGs', color: 'bg-purple-500', action: () => onTabChange('groups') },
+          { id: 'pastoral', icon: Heart, label: 'Visita', color: 'bg-rose-500', action: onRequestPastoralVisit },
+          isAdmin && { id: 'manage', icon: LayoutDashboard, label: 'Gerenciar', color: 'bg-slate-800', action: onSwitchToAdmin },
+        ].filter(Boolean).filter(action => {
+           if (!action || typeof action === 'boolean') return false;
+           if (!appearanceConfig?.enabledModules) return true;
+           if (['manage'].includes(action.id)) return true;
+           return appearanceConfig.enabledModules[action.id] !== false;
+        }).map((action: any, i) => (
           <button key={i} onClick={action.action} className="flex flex-col items-center gap-2 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm hover:bg-slate-50 transition-all">
             <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white", action.color)}>
               <action.icon className="w-5 h-5" />
@@ -4534,9 +4539,51 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
               </div>
             </div>
           </div>
+          
+          <div className="pt-4 mt-2 border-t border-amber-200/50">
+            <div className="flex flex-col mb-4">
+              <h3 className="font-bold text-amber-900">Módulos do Sistema</h3>
+              <p className="text-xs text-slate-500">Ative ou desative seções e recursos do aplicativo (esconde para todos os usuários e painéis caso desativado).</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                { id: 'groups', label: 'Pequenos Grupos (PG / Célula)' },
+                { id: 'sermons', label: 'Sermões / Mensagens' },
+                { id: 'readingPlans', label: 'Planos de Leitura' },
+                { id: 'bible', label: 'Bíblia Online' },
+                { id: 'prayer', label: 'Mural de Orações' },
+                { id: 'events', label: 'Agenda / Eventos' },
+                { id: 'ministries', label: 'Ministérios e Escalas' },
+                { id: 'serviceReports', label: 'Relatórios de Culto' },
+                { id: 'crm', label: 'Atendimento (CRM / WhatsApp)' },
+                { id: 'financial', label: 'Gestão Financeira' },
+                { id: 'tithes', label: 'Dízimos e Ofertas' },
+                { id: 'pastoral', label: 'Visitas Pastorais' },
+              ].map(mod => {
+                const isEnabled = config.enabledModules ? config.enabledModules[mod.id] !== false : true;
+                return (
+                  <label key={mod.id} className="flex items-center gap-3 p-3 bg-white border border-amber-100 rounded-xl cursor-pointer hover:bg-amber-50">
+                    <input 
+                      type="checkbox" 
+                      className="w-5 h-5 accent-amber-600 rounded"
+                      checked={isEnabled}
+                      onChange={e => setConfig({
+                        ...config,
+                        enabledModules: {
+                          ...(config.enabledModules || {}),
+                          [mod.id]: e.target.checked
+                        }
+                      })}
+                    />
+                    <span className="text-sm font-bold text-amber-900">{mod.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
 
           <Button onClick={handleSave} className="w-full bg-amber-600 hover:bg-amber-700" disabled={saving}>
-            {saving ? 'Salvando...' : 'Salvar Configurações de Login'}
+            {saving ? 'Salvando...' : 'Salvar Configurações Globais'}
           </Button>
         </Card>
       )}
@@ -9258,7 +9305,11 @@ const joinCell = async (cellId: string) => {
     { id: 'sermons', icon: Radio, label: 'Sermões' },
     { id: 'tithes', icon: Heart, label: 'Dízimos' },
     { id: 'profile', icon: User, label: 'Perfil' },
-  ];
+  ].filter(t => {
+     if (['home', 'profile'].includes(t.id)) return true;
+     if (!appearanceConfig?.enabledModules) return true;
+     return appearanceConfig.enabledModules[t.id] !== false;
+  });
 
   const getAdminPermissions = () => {
     if (userRole === 'superadmin') return null; // All access
@@ -9297,7 +9348,31 @@ const joinCell = async (cellId: string) => {
 
   const adminPermissions = getAdminPermissions();
 
+  const isModuleEnabled = (modId: string) => {
+    if (!appearanceConfig?.enabledModules) return true;
+    return appearanceConfig.enabledModules[modId] !== false;
+  };
+
   const isTabAllowed = (tabId: string) => {
+    // Admins always have access to appearance/whatsapp config in their panel if superadmin
+    if (userRole === 'superadmin' && ['appearance', 'whatsapp'].includes(tabId)) return true;
+    
+    // Check if module is turned off globally by superadmin
+    const moduleMap: Record<string, string> = {
+      'prayer': 'prayer',
+      'sermons': 'sermons',
+      'tithes': 'tithes',
+      'serviceReports': 'serviceReports',
+      'crm': 'crm',
+      'readingPlans': 'readingPlans',
+      'groups': 'groups',
+      'ministries': 'ministries',
+      'events': 'events',
+      'pastoral': 'pastoral',
+      'bible': 'bible'
+    };
+    if (moduleMap[tabId] && !isModuleEnabled(moduleMap[tabId])) return false;
+
     if (!adminPermissions) return true;
     if (['home', 'profile', 'all_screens'].includes(tabId)) return true; // Always visible basic screens
     return adminPermissions.includes(tabId);
