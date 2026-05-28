@@ -12,6 +12,7 @@ import { toPng } from 'html-to-image';
 import { fetchVerseText, BIBLE_TRANSLATIONS } from './lib/bible';
 import AdminVerses from './components/AdminVerses';
 import { ServiceReportsScreen } from './components/ServiceReportsScreen';
+import { CRMScreen } from './components/CRMScreen';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { 
@@ -1757,7 +1758,7 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
     }
   };
 
-  if (selectedUser && !isEditing && activeTab === 'integration') {
+  if (selectedUser && !isEditing) {
     return (
       <div className="space-y-6 pb-24">
         <header className="flex items-center justify-between">
@@ -1965,10 +1966,7 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
 
       <div className="space-y-4">
         {displayUsers.map(user => (
-          <Card key={user.id} className="flex items-center gap-4 p-3 hover:border-primary/30 cursor-pointer transition-all" onClick={() => {
-            if (activeTab === 'integration') setSelectedUser(user);
-            else handleStartEdit(user);
-          }}>
+          <Card key={user.id} className="flex items-center gap-4 p-3 hover:border-primary/30 cursor-pointer transition-all" onClick={() => setSelectedUser(user)}>
             <img src={user.avatar || DEFAULT_AVATAR} className="w-12 h-12 rounded-full object-cover shadow-sm" alt={user.name} />
             <div className="flex-1">
               <h4 className="font-bold text-slate-900 text-sm">{user.name}</h4>
@@ -5186,7 +5184,7 @@ sudo certbot --nginx -d seudominio.com.br`}
   );
 };
 
-const AdminAllScreens = ({ onTabChange, isTabAllowed }: { onTabChange: (tab: string) => void, isTabAllowed: (id: string) => boolean }) => {
+const AdminAllScreens = ({ onTabChange, isTabAllowed, userRole }: { onTabChange: (tab: string) => void, isTabAllowed: (id: string) => boolean, userRole?: string }) => {
   const screens = [
     { id: 'home', label: 'Dashboard Principal', icon: PieChart, color: 'bg-slate-800' },
     { id: 'financial', label: 'Gestão Financeira', icon: DollarSign, color: 'bg-amber-500' },
@@ -5201,8 +5199,12 @@ const AdminAllScreens = ({ onTabChange, isTabAllowed }: { onTabChange: (tab: str
     { id: 'sermons', label: 'Gerenciar Sermões', icon: Radio, color: 'bg-orange-600' },
     { id: 'tithes', label: 'Configuração de Dízimos', icon: DollarSign, color: 'bg-emerald-600' },
     { id: 'serviceReports', label: 'Relatórios de Culto', icon: FileText, color: 'bg-sky-500' },
+    { id: 'crm', label: 'Atendimento WhatsApp (CRM)', icon: MessageSquare, color: 'bg-blue-600' },
     { id: 'admin_roles', label: 'Perfis de Acesso Adm', icon: Shield, color: 'bg-red-600' },
-    { id: 'appearance', label: 'Personalização do App', icon: Palette, color: 'bg-pink-500' },
+    ...(userRole === 'superadmin' ? [
+        { id: 'appearance', label: 'Personalização do App', icon: Palette, color: 'bg-pink-500' },
+        { id: 'whatsapp', label: 'Configuração WhatsApp', icon: MessageSquare, color: 'bg-green-500' }
+    ] : []),
     { id: 'hosting', label: 'Servidor e Backups', icon: Server, color: 'bg-slate-700' },
   ].filter(s => isTabAllowed(s.id));
 
@@ -5996,6 +5998,7 @@ const AdminRolesScreen = ({
     { id: 'users', label: 'Gestão de Usuários' },
     { id: 'readingPlans', label: 'Planos de Leitura' },
     { id: 'serviceReports', label: 'Relatórios de Culto' },
+    { id: 'crm', label: 'Atendimento WhatsApp (CRM)' },
   ];
 
   const handleSave = async () => {
@@ -9108,7 +9111,7 @@ const joinCell = async (cellId: string) => {
       switch (currentTab) {
         case 'home': return <AdminDashboard appearanceConfig={appearanceConfig} stats={stats} users={visibleUsers} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} onRefreshVerses={refreshData} />;
         case 'bible': return <AdminVerses onBack={() => setCurrentTab('home')} showMessage={showMessage} isSuperAdmin={userRole === 'superadmin'} />;
-        case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} />;
+        case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} userRole={userRole} />;
         case 'financial': return (
           <AdminFinancial 
             transactions={transactions} 
@@ -9163,6 +9166,7 @@ const joinCell = async (cellId: string) => {
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onUpdate={updateSermon} onDelete={deleteSermon} />;
         case 'serviceReports': return <ServiceReportsScreen reports={serviceReports} users={users} isAdmin={true} onAdd={addServiceReport} onDelete={deleteServiceReport} />;
+        case 'crm': return <CRMScreen users={users} currentUser={currentUserData} showMessage={showMessage} />;
         case 'pastoral': return <AdminPastoralVisits visits={pastoralVisits} onUpdateStatus={updatePastoralVisitStatus} />;
         case 'profile': {
           const userCells = cells.filter(c => c.membersList?.includes(currentUserData?.id || ''));
@@ -9304,14 +9308,17 @@ const joinCell = async (cellId: string) => {
   const adminTabs = [
     { id: 'home', icon: PieChart, label: 'Dashboard' },
     { id: 'all_screens', icon: Grid, label: 'Telas' },
-    { id: 'appearance', icon: Palette, label: 'Personalização' },
-    ...(userRole === 'superadmin' ? [{ id: 'whatsapp', icon: MessageSquare, label: 'WhatsApp' }] : []),
+    ...(userRole === 'superadmin' ? [
+        { id: 'appearance', icon: Palette, label: 'Personalização' },
+        { id: 'whatsapp', icon: MessageSquare, label: 'WhatsApp' }
+    ] : []),
     { id: 'financial', icon: DollarSign, label: 'Financeiro' },
     { id: 'tithes', icon: Heart, label: 'Dízimos e Ofertas' },
     { id: 'pastoral', icon: Heart, label: 'Visitas' },
     { id: 'sermons', icon: Radio, label: 'Sermões' },
     { id: 'prayer', icon: PrayingHands, label: 'Orações' },
     { id: 'serviceReports', icon: FileText, label: 'Relatórios' },
+    { id: 'crm', icon: MessageSquare, label: 'Atendimento' },
     { id: 'profile', icon: Settings, label: 'Perfil' },
     { id: 'hosting', icon: Server, label: 'Servidor' },
   ].filter(t => isTabAllowed(t.id));

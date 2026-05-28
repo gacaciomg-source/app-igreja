@@ -11,7 +11,7 @@ import * as storage from "./src/lib/storage";
 import { seedVerses } from "./src/lib/seedVerses";
 import { fetchVerseText } from "./src/lib/bible";
 import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
+const { Client, LocalAuth, MessageMedia, Poll } = pkg;
 import qrcode from 'qrcode';
 import qrcodeTerminal from 'qrcode-terminal';
 import cron from 'node-cron';
@@ -293,6 +293,57 @@ async function initWhatsApp() {
     whatsappClient = null;
     // Tenta reconectar em 10 segundos se foi desconexão acidental
     setTimeout(initWhatsApp, 10000);
+  });
+
+  whatsappClient.on('message', async (msg: any) => {
+    try {
+      if (msg.from.includes('@g.us')) return; // ignore groups
+      if (msg.from === 'status@broadcast') return; // ignore status updates
+      
+      const contact = await msg.getContact();
+      const ticketId = msg.from;
+      let text = msg.body;
+      
+      // se for uma enquete, vamos extrair os dados da enquete para apresentar no CRM
+      if (msg.type === 'poll_creation') {
+        text = `[Enquete] ${msg.pollName}\n` + msg.pollOptions.map((o: any) => `- ${o.name}`).join('\n');
+      }
+      
+      let tickets = await storage.readCollection<any>('crmTickets');
+      let ticket = tickets.find((t: any) => t.id === ticketId);
+      
+      if (!ticket) {
+        ticket = {
+          id: ticketId,
+          phoneNumber: contact.number,
+          contactName: contact.name || contact.pushname || contact.number,
+          status: 'open',
+          assignedTo: null,
+          updatedAt: new Date().toISOString(),
+          unreadCount: 1,
+          lastMessage: text
+        };
+        await storage.insert('crmTickets', ticket);
+      } else {
+        ticket.status = 'open';
+        ticket.updatedAt = new Date().toISOString();
+        ticket.unreadCount = (ticket.unreadCount || 0) + 1;
+        ticket.lastMessage = text;
+        ticket.contactName = contact.name || contact.pushname || contact.number || ticket.contactName; 
+        await storage.update('crmTickets', ticket.id, ticket);
+      }
+      
+      const newMsg = {
+        id: msg.id.id || require('crypto').randomUUID(),
+        ticketId: ticketId,
+        text: text,
+        fromMe: false,
+        timestamp: new Date().toISOString()
+      };
+      await storage.insert('crmMessages', newMsg);
+    } catch (e) {
+      console.error('Error handling incoming WA message:', e);
+    }
   });
 
   try {
@@ -1755,6 +1806,84 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Erro ao enviar teste: " + (error instanceof Error ? error.message : "Erro desconhecido") });
+    }
+  });
+
+  // --- CRM API Endpoints ---
+  app.get("/api/whatsapp/crm/tickets", authenticateToken, async (req, res) => {
+    try {
+      const tickets = await storage.readCollection('crmTickets');
+      res.json(tickets);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar tickets" });
+    }
+  });
+
+  app.get("/api/whatsapp/crm/tickets/:id/messages", authenticateToken, async (req, res) => {
+    try {
+      const messages = await storage.readCollection('crmMessages');
+      const ticketMessages = messages.filter((m: any) => m.ticketId === req.params.id);
+      res.json(ticketMessages);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar mensagens" });
+    }
+  });
+
+  app.post("/api/whatsapp/crm/tickets/:id/send", authenticateToken, async (req, res) => {
+    try {
+      const ticketId = req.params.id;
+      const { text, isPoll, pollOptions } = req.body;
+      const authorId = (req as any).user?.id;
+
+      if (!whatsappClient || whatsappStatus !== 'READY') return res.status(503).json({ error: 'WhatsApp offline' });
+
+      let msgRes;
+      if (isPoll && pollOptions) {
+        const poll = new Poll(text, pollOptions, { allowMultipleAnswers: false });
+        msgRes = await whatsappClient.sendMessage(ticketId, poll);
+      } else {
+        msgRes = await whatsappClient.sendMessage(ticketId, text);
+      }
+
+      let tickets = await storage.readCollection<any>('crmTickets');
+      let ticket = tickets.find((t: any) => t.id === ticketId);
+      if (ticket) {
+        ticket.updatedAt = new Date().toISOString();
+        ticket.lastMessage = isPoll ? `[Enquete] ${text}` : text;
+        ticket.status = 'open';
+        await storage.update('crmTickets', ticket.id, ticket);
+      }
+
+      const newMsg = {
+        id: msgRes.id?.id || require('crypto').randomUUID(),
+        ticketId,
+        text: isPoll ? `[Enquete] ${text}\n` + pollOptions.map((o: string) => `- ${o}`).join('\n') : text,
+        fromMe: true,
+        authorId,
+        timestamp: new Date().toISOString()
+      };
+      await storage.insert('crmMessages', newMsg);
+
+      res.json(newMsg);
+    } catch (error) {
+      console.error('Error sending CRM message:', error);
+      res.status(500).json({ error: "Erro ao enviar mensagem" });
+    }
+  });
+
+  app.put("/api/whatsapp/crm/tickets/:id", authenticateToken, async (req, res) => {
+    try {
+      const ticketId = req.params.id;
+      const updates = req.body;
+      let tickets = await storage.readCollection<any>('crmTickets');
+      let ticket = tickets.find((t: any) => t.id === ticketId);
+      if (!ticket) return res.status(404).json({ error: "Ticket não encontrado" });
+
+      const updatedTicket = { ...ticket, ...updates, updatedAt: new Date().toISOString() };
+      await storage.update('crmTickets', ticket.id, updatedTicket);
+      res.json(updatedTicket);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao atualizar ticket" });
     }
   });
 

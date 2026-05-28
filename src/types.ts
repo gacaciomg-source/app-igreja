@@ -137,6 +137,26 @@ export interface CellGroup {
   membersList?: string[]; // Array of user UIDs who are in the cell
 }
 
+export interface CRMTicket {
+  id: string;
+  phoneNumber: string;
+  contactName: string;
+  status: 'open' | 'closed';
+  assignedTo?: string | null;
+  updatedAt: string;
+  unreadCount?: number;
+  lastMessage?: string;
+}
+
+export interface CRMMessage {
+  id: string;
+  ticketId: string;
+  text: string;
+  fromMe: boolean;
+  authorId?: string;
+  timestamp: string;
+}
+
 export interface Announcement {
   id: string;
   title: string;

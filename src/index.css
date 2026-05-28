@@ -15,8 +15,8 @@
 }
 
 .dark body {
-  background-color: var(--color-secondary, #050a05);
-  color: #f8fafc;
+  background-color: #050a05 !important;
+  color: #f8fafc !important;
 }
 
 /* Force dark backgrounds on common light utility classes */
@@ -28,9 +28,9 @@
 .dark .bg-white\/80,
 .dark .bg-white\/90,
 .dark .bg-secondary {
-  background-color: var(--color-secondary, #0d1a0d) !important;
+  background-color: #0d1a0d !important;
   color: #f8fafc !important;
-  border-color: var(--color-primary-light, #1a331a) !important;
+  border-color: #1a331a !important;
 }
 
 /* Fix shadows */
