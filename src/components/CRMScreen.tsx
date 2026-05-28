@@ -86,7 +86,7 @@ export const CRMScreen = ({
       setInputText('');
       loadData();
     } catch (e: any) {
-      showMessage(e.response?.data?.error || 'Erro ao enviar mensagem');
+      showMessage(e.message || 'Erro ao enviar mensagem');
     } finally {
       setSending(false);
     }
@@ -116,7 +116,7 @@ export const CRMScreen = ({
       setPollOptions(['', '']);
       loadData();
     } catch (e: any) {
-      showMessage(e.response?.data?.error || 'Erro ao enviar enquete');
+      showMessage(e.message || 'Erro ao enviar enquete');
     } finally {
       setSending(false);
     }

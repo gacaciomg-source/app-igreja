@@ -4540,47 +4540,49 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
             </div>
           </div>
           
-          <div className="pt-4 mt-2 border-t border-amber-200/50">
-            <div className="flex flex-col mb-4">
-              <h3 className="font-bold text-amber-900">Módulos do Sistema</h3>
-              <p className="text-xs text-slate-500">Ative ou desative seções e recursos do aplicativo (esconde para todos os usuários e painéis caso desativado).</p>
+          {isSuperAdmin && (
+            <div className="pt-4 mt-2 border-t border-amber-200/50">
+              <div className="flex flex-col mb-4">
+                <h3 className="font-bold text-amber-900">Módulos do Sistema</h3>
+                <p className="text-xs text-slate-500">Ative ou desative seções e recursos do aplicativo (esconde para todos os usuários e painéis caso desativado).</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  { id: 'groups', label: 'Pequenos Grupos (PG / Célula)' },
+                  { id: 'sermons', label: 'Sermões / Mensagens' },
+                  { id: 'readingPlans', label: 'Planos de Leitura' },
+                  { id: 'bible', label: 'Bíblia Online' },
+                  { id: 'prayer', label: 'Mural de Orações' },
+                  { id: 'events', label: 'Agenda / Eventos' },
+                  { id: 'ministries', label: 'Ministérios e Escalas' },
+                  { id: 'serviceReports', label: 'Relatórios de Culto' },
+                  { id: 'crm', label: 'Atendimento (CRM / WhatsApp)' },
+                  { id: 'financial', label: 'Gestão Financeira' },
+                  { id: 'tithes', label: 'Dízimos e Ofertas' },
+                  { id: 'pastoral', label: 'Visitas Pastorais' },
+                ].map(mod => {
+                  const isEnabled = config.enabledModules ? config.enabledModules[mod.id] !== false : true;
+                  return (
+                    <label key={mod.id} className="flex items-center gap-3 p-3 bg-white border border-amber-100 rounded-xl cursor-pointer hover:bg-amber-50">
+                      <input 
+                        type="checkbox" 
+                        className="w-5 h-5 accent-amber-600 rounded"
+                        checked={isEnabled}
+                        onChange={e => setConfig({
+                          ...config,
+                          enabledModules: {
+                            ...(config.enabledModules || {}),
+                            [mod.id]: e.target.checked
+                          }
+                        })}
+                      />
+                      <span className="text-sm font-bold text-amber-900">{mod.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[
-                { id: 'groups', label: 'Pequenos Grupos (PG / Célula)' },
-                { id: 'sermons', label: 'Sermões / Mensagens' },
-                { id: 'readingPlans', label: 'Planos de Leitura' },
-                { id: 'bible', label: 'Bíblia Online' },
-                { id: 'prayer', label: 'Mural de Orações' },
-                { id: 'events', label: 'Agenda / Eventos' },
-                { id: 'ministries', label: 'Ministérios e Escalas' },
-                { id: 'serviceReports', label: 'Relatórios de Culto' },
-                { id: 'crm', label: 'Atendimento (CRM / WhatsApp)' },
-                { id: 'financial', label: 'Gestão Financeira' },
-                { id: 'tithes', label: 'Dízimos e Ofertas' },
-                { id: 'pastoral', label: 'Visitas Pastorais' },
-              ].map(mod => {
-                const isEnabled = config.enabledModules ? config.enabledModules[mod.id] !== false : true;
-                return (
-                  <label key={mod.id} className="flex items-center gap-3 p-3 bg-white border border-amber-100 rounded-xl cursor-pointer hover:bg-amber-50">
-                    <input 
-                      type="checkbox" 
-                      className="w-5 h-5 accent-amber-600 rounded"
-                      checked={isEnabled}
-                      onChange={e => setConfig({
-                        ...config,
-                        enabledModules: {
-                          ...(config.enabledModules || {}),
-                          [mod.id]: e.target.checked
-                        }
-                      })}
-                    />
-                    <span className="text-sm font-bold text-amber-900">{mod.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+          )}
 
           <Button onClick={handleSave} className="w-full bg-amber-600 hover:bg-amber-700" disabled={saving}>
             {saving ? 'Salvando...' : 'Salvar Configurações Globais'}

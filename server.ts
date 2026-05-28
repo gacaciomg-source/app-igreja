@@ -1855,7 +1855,7 @@ async function startServer() {
       }
 
       const newMsg = {
-        id: msgRes.id?.id || require('crypto').randomUUID(),
+        id: msgRes?.id?._serialized || msgRes?.id?.id || require('crypto').randomUUID(),
         ticketId,
         text: isPoll ? `[Enquete] ${text}\n` + pollOptions.map((o: string) => `- ${o}`).join('\n') : text,
         fromMe: true,
@@ -1867,7 +1867,7 @@ async function startServer() {
       res.json(newMsg);
     } catch (error) {
       console.error('Error sending CRM message:', error);
-      res.status(500).json({ error: "Erro ao enviar mensagem" });
+      res.status(500).json({ error: "Erro ao enviar mensagem: " + (error instanceof Error ? error.message : "Desconhecido") });
     }
   });
 
