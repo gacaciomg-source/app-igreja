@@ -558,6 +558,9 @@ async function initWhatsApp() {
         };
         await insert("crmTickets", ticket);
       } else {
+        if (ticket.status === "closed") {
+          ticket.assignedTo = null;
+        }
         ticket.status = "open";
         ticket.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
         ticket.unreadCount = (ticket.unreadCount || 0) + 1;
@@ -883,7 +886,8 @@ async function startServer() {
         colorAccentDark: appearance?.colorAccentDark || null,
         defaultTheme: appearance?.defaultTheme || null,
         churchName: appearance?.churchName || null,
-        churchInstagram: appearance?.churchInstagram || null
+        churchInstagram: appearance?.churchInstagram || null,
+        enabledModules: appearance?.enabledModules || null
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao carregar configura\xE7\xF5es p\xFAblicas" });
@@ -1874,7 +1878,7 @@ _Enviado por: ${authorName}_`;
         await update("crmTickets", ticket.id, ticket);
       }
       const newMsg = {
-        id: msgRes.id?.id || require("crypto").randomUUID(),
+        id: msgRes?.id?._serialized || msgRes?.id?.id || require("crypto").randomUUID(),
         ticketId,
         text: isPoll ? `[Enquete] ${text}
 ` + pollOptions.map((o) => `- ${o}`).join("\n") : text,

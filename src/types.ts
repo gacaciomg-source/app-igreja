@@ -14,6 +14,13 @@ export interface AdminRole {
   permissions: string[];
 }
 
+export interface ConsolidationTemplate {
+  id: string;
+  name: string;
+  eventType: string; // 'all' or specific category
+  message: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -31,6 +38,7 @@ export interface User {
   memberStatus?: MemberStatus;
   integrationNotes?: string[];
   joinedAt?: string;
+  consolidationOptOut?: boolean;
   notificationSettings?: {
     wordOfDayEnabled: boolean;
     wordOfDayTime: string; // HH:mm

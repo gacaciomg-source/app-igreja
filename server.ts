@@ -295,6 +295,75 @@ async function initWhatsApp() {
     setTimeout(initWhatsApp, 10000);
   });
 
+  whatsappClient.on('vote_update', async (vote: any) => {
+    try {
+      console.log('Vote update received:', vote);
+      const voterId = vote.voter;
+      const selectedOptions = vote.selectedOptions || [];
+      
+      // se selecionou alguma opção, vamos ver qual
+      if (selectedOptions.length > 0) {
+        const optionName = selectedOptions[0].name.toLowerCase();
+        
+        // Verifica se é a enquete de consolidação (Não quero mais receber)
+        if (optionName.includes('não') || optionName.includes('nao') || optionName.includes('parar')) {
+           // set user as opted-out
+           let users = await storage.readCollection<any>('users');
+           let userUpdated = false;
+           
+           for (let u of users) {
+             const userPhone = u.phone ? u.phone.replace(/\D/g, '') : '';
+             if (userPhone && voterId.startsWith('55' + userPhone)) {
+                u.consolidationOptOut = true;
+                userUpdated = true;
+                break;
+             }
+           }
+           
+           if (userUpdated) {
+             await storage.writeCollection('users', users);
+             await whatsappClient.sendMessage(voterId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.');
+           }
+        } else if (optionName.includes('sim') || optionName.includes('continuar')) {
+           let users = await storage.readCollection<any>('users');
+           let userUpdated = false;
+           for (let u of users) {
+             const userPhone = u.phone ? u.phone.replace(/\D/g, '') : '';
+             if (userPhone && voterId.startsWith('55' + userPhone)) {
+                u.consolidationOptOut = false;
+                userUpdated = true;
+                break;
+             }
+           }
+           if (userUpdated) {
+             await storage.writeCollection('users', users);
+             await whatsappClient.sendMessage(voterId, 'Que bom! Continuaremos enviando nossos convites.');
+           }
+        }
+        
+        // Adicionar registro no CRM tickets (opcional mas bom para rastreio)
+        let tickets = await storage.readCollection<any>('crmTickets');
+        let ticket = tickets.find((t: any) => t.id === voterId);
+        if (ticket) {
+          const newMsg = {
+             id: require('crypto').randomUUID(),
+             ticketId: voterId,
+             text: `[Voto em Enquete] Respondeu: ${selectedOptions[0].name}`,
+             fromMe: false,
+             timestamp: new Date().toISOString()
+          };
+          await storage.insert('crmMessages', newMsg);
+          ticket.updatedAt = new Date().toISOString();
+          ticket.unreadCount = (ticket.unreadCount || 0) + 1;
+          ticket.lastMessage = `[Enquete] ${selectedOptions[0].name}`;
+          await storage.writeCollection('crmTickets', tickets);
+        }
+      }
+    } catch (err) {
+      console.error('Error handling vote_update:', err);
+    }
+  });
+
   whatsappClient.on('message', async (msg: any) => {
     try {
       if (msg.from.includes('@g.us')) return; // ignore groups
@@ -1810,6 +1879,128 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Erro ao enviar teste: " + (error instanceof Error ? error.message : "Erro desconhecido") });
+    }
+  });
+
+  // --- Consolidation API Endpoints ---
+  app.get("/api/whatsapp/consolidation/templates", authenticateToken, async (req, res) => {
+    try {
+      const templates = await storage.readCollection('consolidationTemplates');
+      res.json(templates);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar templates" });
+    }
+  });
+
+  app.post("/api/whatsapp/consolidation/templates", authenticateToken, async (req, res) => {
+    try {
+      const data = { id: uuidv4(), ...req.body };
+      const newTemplate = await storage.insert('consolidationTemplates', data);
+      res.json(newTemplate);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao criar template" });
+    }
+  });
+
+  app.put("/api/whatsapp/consolidation/templates/:id", authenticateToken, async (req, res) => {
+    try {
+      const id = req.params.id;
+      const updates = req.body;
+      const templates = await storage.readCollection<any>('consolidationTemplates');
+      const index = templates.findIndex(t => t.id === id);
+      if (index === -1) return res.status(404).json({ error: "Template não encontrado" });
+      
+      templates[index] = { ...templates[index], ...updates };
+      await storage.writeCollection('consolidationTemplates', templates);
+      res.json(templates[index]);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao atualizar template" });
+    }
+  });
+
+  app.delete("/api/whatsapp/consolidation/templates/:id", authenticateToken, async (req, res) => {
+    try {
+      const id = req.params.id;
+      const templates = await storage.readCollection<any>('consolidationTemplates');
+      const filtered = templates.filter(t => t.id !== id);
+      await storage.writeCollection('consolidationTemplates', filtered);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao deletar template" });
+    }
+  });
+
+  app.post("/api/whatsapp/consolidation/trigger", authenticateToken, async (req, res) => {
+    try {
+      if (!whatsappClient || whatsappStatus !== 'READY') return res.status(503).json({ error: 'WhatsApp offline' });
+      
+      const templates = await storage.readCollection<any>('consolidationTemplates');
+      if (!templates || templates.length === 0) return res.status(400).json({ error: 'Nenhum template cadastrado' });
+
+      // Build upcoming events (next 7 days)
+      const events = await storage.readCollection<any>('events');
+      const now = new Date();
+      const nextWeek = new Date();
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      
+      const upcomingEvents = events.filter(e => {
+        const evDate = new Date(e.date);
+        return evDate >= now && evDate <= nextWeek;
+      });
+      
+      if (upcomingEvents.length === 0) {
+        return res.json({ sent: 0, message: "Nenhum evento nos próximos 7 dias para convidar." });
+      }
+      
+      const users = await storage.readCollection<any>('users');
+      const targetUsers = users.filter(u => 
+        (u.memberStatus === 'visitor' || u.memberStatus === 'new_member') && 
+        !u.consolidationOptOut && 
+        u.phone
+      );
+
+      let sentCount = 0;
+
+      for (const event of upcomingEvents) {
+         // Find a template that matches the event category
+         let tmpl = templates.find(t => t.eventType === event.category);
+         if (!tmpl) tmpl = templates.find(t => t.eventType === 'all');
+         
+         if (!tmpl) continue; // No template for this event
+         
+         for (const user of targetUsers) {
+           const phoneOnly = user.phone.replace(/\D/g, '');
+           if (phoneOnly.length < 10) continue;
+           const chatId = `55${phoneOnly}@c.us`;
+           
+           try {
+             let messageText = tmpl.message;
+             messageText = messageText.replace(/\{nome\}/g, user.name);
+             messageText = messageText.replace(/\{evento\}/g, event.title);
+             const evDateObj = new Date(event.date + 'T' + event.time);
+             messageText = messageText.replace(/\{data\}/g, evDateObj.toLocaleString('pt-BR'));
+             
+             // Envia a mensagem do template
+             await whatsappClient.sendMessage(chatId, messageText);
+             
+             // Envia a enquete logo em seguida
+             const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
+             await whatsappClient.sendMessage(chatId, poll);
+             
+             sentCount++;
+             
+             // await small delay to avoid ban?
+             await new Promise(r => setTimeout(r, 2000));
+           } catch(e) {
+             console.error(`Falha ao enviar para ${user.name}:`, e);
+           }
+         }
+      }
+
+      res.json({ sent: sentCount, message: `Foram enviados ${sentCount} convites com sucesso.` });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao disparar convites", details: error instanceof Error ? error.message : "Desconhecido" });
     }
   });
 

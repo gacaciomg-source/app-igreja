@@ -85,8 +85,10 @@ import {
   AlertTriangle,
   Trash2,
   Palette,
-  Megaphone
+  Megaphone,
+  X
 } from 'lucide-react';
+
 import Papa from 'papaparse';
 import { 
   PieChart as RePieChart, 
@@ -1659,6 +1661,180 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
   );
 };
 
+const ConsolidationTemplatesModal = ({ onClose, showMessage }: { onClose: () => void, showMessage: (msg: string) => void }) => {
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+    loadTemplates();
+  }, []);
+
+  const loadTemplates = async () => {
+    try {
+      setLoading(true);
+      const data = await api.request('/whatsapp/consolidation/templates');
+      setTemplates(data || []);
+    } catch (e) {
+      console.error(e);
+      showMessage('Erro ao carregar templates');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editingTemplate?.name || !editingTemplate?.message) return showMessage('Preencha nome e mensagem');
+    try {
+      if (editingTemplate.id) {
+        await api.request(`/whatsapp/consolidation/templates/${editingTemplate.id}`, { method: 'PUT', body: JSON.stringify(editingTemplate) });
+        setTemplates(prev => prev.map(t => t.id === editingTemplate.id ? editingTemplate : t));
+      } else {
+        const newT = await api.request('/whatsapp/consolidation/templates', { method: 'POST', body: JSON.stringify(editingTemplate) });
+        setTemplates(prev => [...prev, newT]);
+      }
+      setEditingTemplate(null);
+      showMessage('Template salvo com sucesso!');
+    } catch (e) {
+      showMessage('Erro ao salvar template');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.request(`/whatsapp/consolidation/templates/${id}`, { method: 'DELETE' });
+      setTemplates(prev => prev.filter(t => t.id !== id));
+    } catch (e) {
+      showMessage('Erro ao deletar');
+    }
+  };
+
+  const handleTrigger = async () => {
+    if (!confirm('Deseja realmente iniciar os disparos de convites agora? Isso enviará uma mensagem no WhatsApp dos membros novos e visitantes de acordo com os eventos e templates cadastrados.')) return;
+    try {
+      setIsSending(true);
+      const res = await api.request('/whatsapp/consolidation/trigger', { method: 'POST' });
+      showMessage(res.message || 'Disparo concluído!');
+    } catch (e: any) {
+      showMessage(e.message || 'Erro ao realizar disparo');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[100] flex flex-col p-4 md:p-8 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl flex-1 flex flex-col overflow-hidden max-w-4xl w-full mx-auto shadow-2xl relative">
+        <div className="flex items-center gap-4 p-4 border-b border-slate-100 bg-emerald-50">
+          <button onClick={onClose} className="p-2 w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-500 hover:text-slate-900 border border-slate-200 transition-all">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-emerald-900">Configurações de Consolidação Automática</h2>
+            <p className="text-xs text-emerald-700">Templates e disparos pelo WhatsApp para novos membros e visitantes.</p>
+          </div>
+          <Button onClick={() => setEditingTemplate({ eventType: 'all', message: 'Olá {nome}! Tudo bem?\n\nGostaríamos de convidar você para o nosso {evento} que vai acontecer em {data}. Esperamos você!\n\nDeus abençoe!' })} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border-0 whitespace-nowrap">
+            + Novo Template
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 relative">
+          {editingTemplate ? (
+            <Card className="max-w-2xl mx-auto space-y-4">
+              <h3 className="font-bold text-lg">{editingTemplate.id ? 'Editar' : 'Novo'} Template</h3>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Nome p/ Controle Interno</label>
+                <input 
+                  type="text" 
+                  value={editingTemplate.name || ''} 
+                  onChange={e => setEditingTemplate({...editingTemplate, name: e.target.value})} 
+                  placeholder="Ex: Convite Geral"
+                  className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Vincular Eventos (Tag / Categoria)</label>
+                <select 
+                  value={editingTemplate.eventType || 'all'} 
+                  onChange={e => setEditingTemplate({...editingTemplate, eventType: e.target.value})} 
+                  className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                >
+                  <option value="all">Todos os Eventos (Geral)</option>
+                  <option value="Cultos">Cultos</option>
+                  <option value="Jovens">Jovens</option>
+                  <option value="Estudos">Estudos</option>
+                  <option value="Social">Social</option>
+                  <option value="Conferência">Conferência</option>
+                  <option value="Retiro">Retiro</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-1">Dica: Selecione "Todos os Eventos" para usar este template por padrão em qualquer evento, ou escolha uma categoria específica.</p>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Mensagem WhatsApp</label>
+                <textarea 
+                  value={editingTemplate.message || ''} 
+                  onChange={e => setEditingTemplate({...editingTemplate, message: e.target.value})} 
+                  rows={6}
+                  placeholder="Olá {nome}. Venha para nosso {evento} no dia {data}..."
+                  className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+                <p className="text-xs text-slate-500 mt-1">Variáveis disponíveis: {'{nome}'}, {'{evento}'}, {'{data}'}</p>
+                <p className="text-xs text-amber-600 mt-1 font-bold">Importante: Após essa mensagem, o robô enviará automaticamente uma enquete contendo opções de aceitar/recusar continuar recebendo convites automatizados.</p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="outline" onClick={() => setEditingTemplate(null)}>Cancelar</Button>
+                <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 text-white">Salvar Template</Button>
+              </div>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              <Card className="bg-blue-50 border-blue-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-blue-900">Disparo de Convites Automáticos</h4>
+                  <p className="text-sm text-blue-700">Esta ação verifica todos os eventos agendados para os próximos 7 dias e envia o template correspondente via WhatsApp aos novos membros e visitantes.</p>
+                </div>
+                <Button 
+                  onClick={handleTrigger} 
+                  disabled={isSending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap shadow-sm"
+                >
+                  {isSending ? 'Aguarde, enviando...' : 'Fazer Disparos Agora 🚀'}
+                </Button>
+              </Card>
+
+              <div>
+                <h3 className="font-bold text-slate-700 mb-4 px-1">Seus Templates Cadastrados</h3>
+                {templates.length === 0 ? (
+                  <div className="p-8 text-center bg-white rounded-3xl border border-dashed border-slate-300">
+                    <p className="text-slate-500">Nenhum template cadastrado ainda.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {templates.map((tmpl: any) => (
+                      <Card key={tmpl.id} className="relative group p-4 border-slate-200">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-bold text-slate-800">{tmpl.name}</h4>
+                          <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-bold uppercase">{tmpl.eventType === 'all' ? 'Todos os Eventos' : tmpl.eventType}</span>
+                        </div>
+                        <p className="text-xs text-slate-600 line-clamp-3 mb-4 bg-slate-50 p-2 rounded-lg">{tmpl.message}</p>
+                        <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="outline" className="h-8 text-xs py-0 px-3" onClick={() => setEditingTemplate(tmpl)}>Editar</Button>
+                          <Button variant="outline" className="h-8 text-xs py-0 px-3 text-red-500 border-red-200 hover:bg-red-50" onClick={() => handleDelete(tmpl.id)}>Excluir</Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], currentUserRole, onUpdateUser, onAddUser, onUpdateRole, onUpdateMinistryLeaders, showMessage, initialTab = 'members' }: { users: UserType[], cells: CellGroup[], ministries: Ministry[], adminRoles?: AdminRole[], currentUserRole: UserRole, onUpdateUser: (userId: string, updates: Partial<UserType>) => void, onAddUser: (user: Partial<UserType>) => void, onUpdateRole?: (userId: string, newRole: UserRole, leaderOf?: string, adminRoleId?: string) => void, onUpdateMinistryLeaders?: (userId: string, ministryIds: string[]) => void, showMessage?: (msg: string) => void, initialTab?: 'members' | 'integration' }) => {
     console.log("Rendering UserManagementScreen with role:", currentUserRole);
 
@@ -1666,6 +1842,7 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [newNote, setNewNote] = useState('');
   const [showAddVisitor, setShowAddVisitor] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<UserType & { ledMinistryIds?: string[] }>>({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -1826,6 +2003,18 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
               >
                 Marcar como Ativo
               </button>
+              <button 
+                onClick={() => {
+                  const currentOptOut = !!(selectedUser as any).consolidationOptOut;
+                  onUpdateUser(selectedUser.id, { consolidationOptOut: !currentOptOut } as any);
+                  setSelectedUser({ ...selectedUser, consolidationOptOut: !currentOptOut } as any);
+                }}
+                className={cn("py-2 px-3 rounded-xl text-xs font-bold border col-span-2", 
+                  (selectedUser as any).consolidationOptOut ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                )}
+              >
+                {(selectedUser as any).consolidationOptOut ? '🚫 Opt-out WhatsApp (Ativar)' : '✅ Recebe WhatsApp (Desativar)'}
+              </button>
             </div>
             {(currentUserRole === 'superadmin' || currentUserRole === 'admin') && (
               <div className="grid grid-cols-1 gap-2 mt-2">
@@ -1964,6 +2153,18 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
         </div>
       </header>
 
+      {activeTab === 'integration' && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-emerald-50 rounded-2xl p-4 border border-emerald-100 gap-4 mb-4">
+          <div>
+            <h3 className="font-bold text-emerald-900">Painel de Consolidação</h3>
+            <p className="text-xs text-emerald-700 mt-1 pb-2">Visitantes e Novos Membros recebendo convites automatizados via WhatsApp.</p>
+          </div>
+          <Button onClick={() => setShowTemplates(true)} className="bg-emerald-600 hover:bg-emerald-700 text-sm whitespace-nowrap text-white py-2 px-4 h-auto shadow-sm shadow-emerald-200">
+            ✉️ Templates e Disparos
+          </Button>
+        </div>
+      )}
+
       <div className="space-y-4">
         {displayUsers.map(user => (
           <Card key={user.id} className="flex items-center gap-4 p-3 hover:border-primary/30 cursor-pointer transition-all" onClick={() => setSelectedUser(user)}>
@@ -2003,6 +2204,11 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
               </span>
               {activeTab === 'members' && (
                 <span className="text-[8px] text-slate-400 font-bold uppercase">{user.role}</span>
+              )}
+              {activeTab === 'integration' && (
+                <span className={cn("text-[9px] font-bold", (user as any).consolidationOptOut ? "text-red-500" : "text-emerald-500")}>
+                  {(user as any).consolidationOptOut ? '🚫 Opt-out' : '✅ Recebe Convites'}
+                </span>
               )}
             </div>
           </Card>
@@ -2172,6 +2378,10 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
             </div>
           </Card>
         </div>
+      )}
+
+      {showTemplates && (
+        <ConsolidationTemplatesModal onClose={() => setShowTemplates(false)} showMessage={showMessage || alert} />
       )}
     </div>
   );
