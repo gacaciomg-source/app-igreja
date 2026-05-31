@@ -405,7 +405,9 @@ async function initWhatsApp() {
       
       // Process simple text opt-out / opt-in
       const cleanText = text ? text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : '';
+      console.log(`Received message: "${text}" | Cleaned: "${cleanText}" from ${ticketId}`);
       if (cleanText === '1' || cleanText === 'nao quero' || cleanText === 'parar' || cleanText === 'parar de receber' || cleanText === 'me tira' || cleanText === 'cancelar convites' || cleanText === 'opt-out' || cleanText === 'opt out' || cleanText === 'nao enviar' || cleanText === 'sair') {
+          console.log(`Matching opt-out for ${ticketId}`);
           let users = await storage.readCollection<any>('users');
           let userUpdated = false;
           
@@ -415,6 +417,7 @@ async function initWhatsApp() {
              if (!clean.startsWith('55')) clean = '55' + clean;
              
              if (ticketId.includes(clean) || (clean.length === 12 && ticketId.includes(clean.substring(0,4) + '9' + clean.substring(4))) || (clean.length === 13 && ticketId.includes(clean.substring(0,4) + clean.substring(5)))) {
+                console.log(`User matched for opt-out: ${u.name} (${u.phone})`);
                 u.consolidationOptOut = true;
                 if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
                      u.forceConsolidation = false;
@@ -430,6 +433,12 @@ async function initWhatsApp() {
                 await whatsappClient.sendMessage(ticketId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.\n\nSe mudar de ideia, basta responder *2* para voltar a receber.');
              } catch (sendErr) {
                 console.error('Erro ao enviar confirmação de opt-out:', sendErr);
+             }
+          } else {
+             try {
+                await whatsappClient.sendMessage(ticketId, 'Notei que o seu número não está cadastrado na nossa lista de membros, então não se preocupe, pois você já não iria receber as opções automáticas!');
+             } catch (sendErr) {
+                console.error('Erro ao enviar fallback:', sendErr);
              }
           }
       } else if (cleanText === '2' || cleanText === 'quero receber' || cleanText === 'voltar a receber' || cleanText === 'receber convites' || cleanText === 'sim quero') {
@@ -457,6 +466,12 @@ async function initWhatsApp() {
                 await whatsappClient.sendMessage(ticketId, 'Que bom! Você voltou a receber nossos convites automáticos da nossa igreja.');
              } catch (sendErr) {
                 console.error('Erro ao enviar confirmação de opt-in:', sendErr);
+             }
+          } else {
+             try {
+                await whatsappClient.sendMessage(ticketId, 'Seu número não foi encontrado na nossa base de dados. Peça para um administrador cadastrar você diretamente no painel!');
+             } catch (sendErr) {
+                console.error('Erro ao enviar fallback:', sendErr);
              }
           }
       }
