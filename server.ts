@@ -1980,6 +1980,9 @@ async function startServer() {
       }
 
       let sentCount = 0;
+      let eventsWithTemplate = 0;
+      let attemptedSends = 0;
+      let failedSends = 0;
 
       for (const event of upcomingEvents) {
          // Find a template that matches the event category
@@ -1987,55 +1990,88 @@ async function startServer() {
          if (!tmpl) tmpl = templates.find(t => t.eventType === 'all');
          
          if (!tmpl) continue; // No template for this event
+         eventsWithTemplate++;
          
          for (const user of targetUsers) {
-           const phoneOnly = user.phone.replace(/\D/g, '');
-           if (phoneOnly.length < 10) continue;
-           const chatId = `55${phoneOnly}@c.us`;
+           attemptedSends++;
+           
+           let clean = user.phone.replace(/\D/g, '');
+           if (!clean.startsWith('55')) clean = '55' + clean;
+           
+           // Generate primary and alternative chat IDs
+           let primaryId = `${clean}@c.us`;
+           let alternativeId: string | null = null;
+           
+           if (clean.length === 12) {
+               alternativeId = `${clean.substring(0, 4)}9${clean.substring(4)}@c.us`;
+           } else if (clean.length === 13) {
+               alternativeId = `${clean.substring(0, 4)}${clean.substring(5)}@c.us`;
+           }
            
            try {
              let messageText = tmpl.message;
              messageText = messageText.replace(/\{nome\}/g, user.name);
              messageText = messageText.replace(/\{evento\}/g, event.title);
-             const evDateObj = new Date(event.date + 'T' + event.time);
+             const evDateObj = event.date.includes('-') 
+                ? new Date(Number(event.date.split('-')[0]), Number(event.date.split('-')[1]) - 1, Number(event.date.split('-')[2])) 
+                : new Date(event.date);
+             // Assuming event.time exists and is HH:mm
+             if (event.time) {
+                 evDateObj.setHours(Number(event.time.split(':')[0]), Number(event.time.split(':')[1]));
+             }
              messageText = messageText.replace(/\{data\}/g, evDateObj.toLocaleString('pt-BR'));
              
-             // Envia a mensagem do template com foto, se houver
-             let hasSentImage = false;
-             if (event.image && event.image.startsWith('http')) {
-                 try {
-                     const media = await MessageMedia.fromUrl(event.image);
-                     await whatsappClient.sendMessage(chatId, media, { caption: messageText });
-                     hasSentImage = true;
-                 } catch (imgErr) {
-                     console.error(`Erro ao baixar imagem:`, imgErr);
+             const trySend = async (chatId: string) => {
+                 let hasSentImage = false;
+                 if (event.image && event.image.startsWith('http')) {
+                     try {
+                         const media = await MessageMedia.fromUrl(event.image);
+                         await whatsappClient.sendMessage(chatId, media, { caption: messageText });
+                         hasSentImage = true;
+                     } catch (imgErr) {
+                         console.error(`Erro ao baixar imagem:`, imgErr);
+                     }
                  }
-             }
 
-             if (!hasSentImage) {
-                 await whatsappClient.sendMessage(chatId, messageText);
-             }
-             
-             // Envia a enquete logo em seguida
+                 if (!hasSentImage) {
+                     await whatsappClient.sendMessage(chatId, messageText);
+                 }
+                 
+                 try {
+                     const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
+                     await whatsappClient.sendMessage(chatId, poll);
+                 } catch (pollErr) {
+                     await whatsappClient.sendMessage(chatId, 'Responda "Não quero" se quiser parar de receber nossos convites automáticos.');
+                 }
+             };
+
              try {
-                 const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
-                 await whatsappClient.sendMessage(chatId, poll);
-             } catch (pollErr) {
-                 console.error('Erro ao enviar enquete:', pollErr);
-                 await whatsappClient.sendMessage(chatId, 'Responda "Não quero" se quiser parar de receber nossos convites automáticos.');
+                // Try primary
+                await trySend(primaryId);
+                sentCount++;
+             } catch (e1) {
+                // If primary failed, try alternative
+                if (alternativeId) {
+                    try {
+                        await trySend(alternativeId);
+                        sentCount++;
+                    } catch (e2) {
+                        throw new Error(`Falhou em ambos. Original: ${e1}. Auto-fallback: ${e2}`);
+                    }
+                } else {
+                    throw e1;
+                }
              }
              
-             sentCount++;
-             
-             // await small delay to avoid ban?
              await new Promise(r => setTimeout(r, 2000));
            } catch(e) {
              console.error(`Falha ao enviar para ${user.name}:`, e);
+             failedSends++;
            }
          }
       }
 
-      res.json({ sent: sentCount, message: `Foram enviados ${sentCount} convites com sucesso.` });
+      res.json({ sent: sentCount, message: `Disparos concluídos. ${sentCount} convites enviados. Detalhes: ${upcomingEvents.length} eventos nos próximos 7 dias, ${eventsWithTemplate} templates compatíveis, ${targetUsers.length} membros alvo. Falhas (ex: WhatsApp inválido): ${failedSends}.` });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Erro ao disparar convites", details: error instanceof Error ? error.message : "Desconhecido" });
