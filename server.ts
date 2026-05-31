@@ -298,7 +298,17 @@ async function initWhatsApp() {
   whatsappClient.on('vote_update', async (vote: any) => {
     try {
       console.log('Vote update received:', vote);
-      const voterId = vote.voter;
+      const voterIdRaw = vote.voter || vote.sender || vote.author || (vote.parentMessage && vote.parentMessage.from);
+      if (!voterIdRaw) return;
+
+      let voterId = '';
+      if (typeof voterIdRaw === 'string') {
+          voterId = voterIdRaw;
+      } else if (typeof voterIdRaw === 'object') {
+          voterId = voterIdRaw._serialized || voterIdRaw.id || '';
+      }
+
+      if (!voterId) return;
       const selectedOptions = vote.selectedOptions || [];
       
       // se selecionou alguma opção, vamos ver qual
@@ -328,7 +338,11 @@ async function initWhatsApp() {
            
            if (userUpdated) {
              await storage.writeCollection('users', users);
-             await whatsappClient.sendMessage(voterId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.');
+             try {
+                 await whatsappClient.sendMessage(voterId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.');
+             } catch (sendErr) {
+                 console.error('Erro ao enviar mensagem de opt-out:', sendErr);
+             }
            }
         } else if (optionName.includes('sim') || optionName.includes('continuar')) {
            let users = await storage.readCollection<any>('users');
@@ -349,7 +363,11 @@ async function initWhatsApp() {
            }
            if (userUpdated) {
              await storage.writeCollection('users', users);
-             await whatsappClient.sendMessage(voterId, 'Que bom! Continuaremos enviando nossos convites.');
+             try {
+                 await whatsappClient.sendMessage(voterId, 'Que bom! Continuaremos enviando nossos convites.');
+             } catch (sendErr) {
+                 console.error('Erro ao enviar mensagem de opt-in:', sendErr);
+             }
            }
         }
         
@@ -384,6 +402,64 @@ async function initWhatsApp() {
       const contact = await msg.getContact();
       const ticketId = msg.from;
       let text = msg.body;
+      
+      // Process simple text opt-out / opt-in
+      const cleanText = text ? text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : '';
+      if (cleanText === 'nao quero' || cleanText === 'parar' || cleanText === 'parar de receber' || cleanText === 'me tira' || cleanText === 'cancelar convites' || cleanText === 'opt-out' || cleanText === 'opt out' || cleanText === 'nao enviar' || cleanText === 'sair') {
+          let users = await storage.readCollection<any>('users');
+          let userUpdated = false;
+          
+          for (let u of users) {
+             if (!u.phone) continue;
+             let clean = u.phone.replace(/\D/g, '');
+             if (!clean.startsWith('55')) clean = '55' + clean;
+             
+             if (ticketId.includes(clean) || (clean.length === 12 && ticketId.includes(clean.substring(0,4) + '9' + clean.substring(4))) || (clean.length === 13 && ticketId.includes(clean.substring(0,4) + clean.substring(5)))) {
+                u.consolidationOptOut = true;
+                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
+                     u.forceConsolidation = false;
+                }
+                userUpdated = true;
+                break;
+             }
+          }
+          
+          if (userUpdated) {
+             await storage.writeCollection('users', users);
+             try {
+                await whatsappClient.sendMessage(ticketId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.');
+             } catch (sendErr) {
+                console.error('Erro ao enviar confirmação de opt-out:', sendErr);
+             }
+          }
+      } else if (cleanText === 'quero receber' || cleanText === 'voltar a receber' || cleanText === 'receber convites' || cleanText === 'sim quero') {
+          let users = await storage.readCollection<any>('users');
+          let userUpdated = false;
+          
+          for (let u of users) {
+             if (!u.phone) continue;
+             let clean = u.phone.replace(/\D/g, '');
+             if (!clean.startsWith('55')) clean = '55' + clean;
+             
+             if (ticketId.includes(clean) || (clean.length === 12 && ticketId.includes(clean.substring(0,4) + '9' + clean.substring(4))) || (clean.length === 13 && ticketId.includes(clean.substring(0,4) + clean.substring(5)))) {
+                u.consolidationOptOut = false;
+                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
+                     u.forceConsolidation = true;
+                }
+                userUpdated = true;
+                break;
+             }
+          }
+          
+          if (userUpdated) {
+             await storage.writeCollection('users', users);
+             try {
+                await whatsappClient.sendMessage(ticketId, 'Que bom! Você voltou a receber nossos convites automáticos da nossa igreja.');
+             } catch (sendErr) {
+                console.error('Erro ao enviar confirmação de opt-in:', sendErr);
+             }
+          }
+      }
       
       // se for uma enquete, vamos extrair os dados da enquete para apresentar no CRM
       if (msg.type === 'poll_creation') {
