@@ -405,7 +405,7 @@ async function initWhatsApp() {
       
       // Process simple text opt-out / opt-in
       const cleanText = text ? text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : '';
-      if (cleanText === 'nao quero' || cleanText === 'parar' || cleanText === 'parar de receber' || cleanText === 'me tira' || cleanText === 'cancelar convites' || cleanText === 'opt-out' || cleanText === 'opt out' || cleanText === 'nao enviar' || cleanText === 'sair') {
+      if (cleanText === '1' || cleanText === 'nao quero' || cleanText === 'parar' || cleanText === 'parar de receber' || cleanText === 'me tira' || cleanText === 'cancelar convites' || cleanText === 'opt-out' || cleanText === 'opt out' || cleanText === 'nao enviar' || cleanText === 'sair') {
           let users = await storage.readCollection<any>('users');
           let userUpdated = false;
           
@@ -427,12 +427,12 @@ async function initWhatsApp() {
           if (userUpdated) {
              await storage.writeCollection('users', users);
              try {
-                await whatsappClient.sendMessage(ticketId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.');
+                await whatsappClient.sendMessage(ticketId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.\n\nSe mudar de ideia, basta responder *2* para voltar a receber.');
              } catch (sendErr) {
                 console.error('Erro ao enviar confirmação de opt-out:', sendErr);
              }
           }
-      } else if (cleanText === 'quero receber' || cleanText === 'voltar a receber' || cleanText === 'receber convites' || cleanText === 'sim quero') {
+      } else if (cleanText === '2' || cleanText === 'quero receber' || cleanText === 'voltar a receber' || cleanText === 'receber convites' || cleanText === 'sim quero') {
           let users = await storage.readCollection<any>('users');
           let userUpdated = false;
           
@@ -2163,13 +2163,8 @@ async function startServer() {
                    }
                }
 
-               // Send Poll at the end
-               try {
-                   const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
-                   await trySend(successChatId, poll, 'text');
-               } catch (pollErr) {
-                   await trySend(successChatId, 'Responda "Não quero" se quiser parar de receber nossos convites automáticos.', 'text');
-               }
+               // Send text at the end instead of Poll
+               await trySend(successChatId, '⚠️ Responda *1* a qualquer momento se quiser parar de receber nossa agenda e convites automáticos.', 'text');
 
                sentCount++;
                await new Promise(r => setTimeout(r, 2000));
@@ -2519,12 +2514,7 @@ async function startServer() {
                 }
 
                 if (sentSomething) {
-                    try {
-                        const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
-                        await trySend(successChatId, poll, 'text');
-                    } catch (pollErr) {
-                        await trySend(successChatId, 'Responda "Não quero" se quiser parar de receber nossos convites automáticos.', 'text');
-                    }
+                    await trySend(successChatId, '⚠️ Responda *1* a qualquer momento se quiser parar de receber nossa agenda e convites automáticos.', 'text');
                 }
 
                 await new Promise(r => setTimeout(r, 2000));
