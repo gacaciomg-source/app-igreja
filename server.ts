@@ -1940,12 +1940,24 @@ async function startServer() {
       // Build upcoming events (next 7 days)
       const events = await storage.readCollection<any>('events');
       const now = new Date();
-      const nextWeek = new Date();
+      now.setHours(0, 0, 0, 0); // Start of today
+
+      const nextWeek = new Date(now);
       nextWeek.setDate(nextWeek.getDate() + 7);
+      nextWeek.setHours(23, 59, 59, 999);
       
       const upcomingEvents = events.filter(e => {
-        const evDate = new Date(e.date);
-        return evDate >= now && evDate <= nextWeek;
+        if (!e.date) return false;
+        
+        let evDate;
+        if (e.date.includes('-')) {
+            const [y, m, d] = e.date.split('-');
+            evDate = new Date(Number(y), Number(m) - 1, Number(d));
+        } else {
+            evDate = new Date(e.date);
+        }
+        
+        return evDate.getTime() >= now.getTime() && evDate.getTime() <= nextWeek.getTime();
       });
       
       if (upcomingEvents.length === 0) {
