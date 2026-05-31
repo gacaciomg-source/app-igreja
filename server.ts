@@ -1953,11 +1953,19 @@ async function startServer() {
       }
       
       const users = await storage.readCollection<any>('users');
-      const targetUsers = users.filter(u => 
-        (u.memberStatus === 'visitor' || u.memberStatus === 'new_member') && 
-        !u.consolidationOptOut && 
-        u.phone
-      );
+      const targetUsers = users.filter(u => {
+        if (!u.phone) return false;
+        const isVisitorOrNew = u.memberStatus === 'visitor' || u.memberStatus === 'new_member';
+        if (isVisitorOrNew) {
+           return !u.consolidationOptOut;
+        } else {
+           return !!u.forceConsolidation;
+        }
+      });
+
+      if (targetUsers.length === 0) {
+        return res.json({ sent: 0, message: "Nenhum membro se qualifica para receber os convites. Verifique se há visitantes/novos membros com telefone e permissão ativada ou outro membro forçado a receber na edição de usuários." });
+      }
 
       let sentCount = 0;
 
@@ -1980,12 +1988,30 @@ async function startServer() {
              const evDateObj = new Date(event.date + 'T' + event.time);
              messageText = messageText.replace(/\{data\}/g, evDateObj.toLocaleString('pt-BR'));
              
-             // Envia a mensagem do template
-             await whatsappClient.sendMessage(chatId, messageText);
+             // Envia a mensagem do template com foto, se houver
+             let hasSentImage = false;
+             if (event.image && event.image.startsWith('http')) {
+                 try {
+                     const media = await MessageMedia.fromUrl(event.image);
+                     await whatsappClient.sendMessage(chatId, media, { caption: messageText });
+                     hasSentImage = true;
+                 } catch (imgErr) {
+                     console.error(`Erro ao baixar imagem:`, imgErr);
+                 }
+             }
+
+             if (!hasSentImage) {
+                 await whatsappClient.sendMessage(chatId, messageText);
+             }
              
              // Envia a enquete logo em seguida
-             const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
-             await whatsappClient.sendMessage(chatId, poll);
+             try {
+                 const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
+                 await whatsappClient.sendMessage(chatId, poll);
+             } catch (pollErr) {
+                 console.error('Erro ao enviar enquete:', pollErr);
+                 await whatsappClient.sendMessage(chatId, 'Responda "Não quero" se quiser parar de receber nossos convites automáticos.');
+             }
              
              sentCount++;
              

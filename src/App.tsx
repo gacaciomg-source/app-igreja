@@ -1780,6 +1780,7 @@ const ConsolidationTemplatesModal = ({ onClose, showMessage }: { onClose: () => 
                   className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
                 <p className="text-xs text-slate-500 mt-1">Variáveis disponíveis: {'{nome}'}, {'{evento}'}, {'{data}'}</p>
+                <p className="text-xs text-blue-600 mt-1 font-bold">Nota: Se o evento possuir uma imagem de capa cadastrada, ela será enviada automaticamente por cima deste texto.</p>
                 <p className="text-xs text-amber-600 mt-1 font-bold">Importante: Após essa mensagem, o robô enviará automaticamente uma enquete contendo opções de aceitar/recusar continuar recebendo convites automatizados.</p>
               </div>
               <div className="flex justify-end gap-2 pt-2 border-t">
@@ -1946,11 +1947,11 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
             <h2 className="text-xl font-bold text-slate-900">{selectedUser.name}</h2>
           </div>
           <button 
-            onClick={() => { setEditForm(selectedUser); setIsEditing(true); }} 
+            onClick={() => handleStartEdit(selectedUser)} 
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-sm"
           >
             <User className="w-4 h-4" />
-            Completar Cadastro
+            Editar Conta / Permissões
           </button>
         </header>
 
@@ -2005,15 +2006,30 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
               </button>
               <button 
                 onClick={() => {
-                  const currentOptOut = !!(selectedUser as any).consolidationOptOut;
-                  onUpdateUser(selectedUser.id, { consolidationOptOut: !currentOptOut } as any);
-                  setSelectedUser({ ...selectedUser, consolidationOptOut: !currentOptOut } as any);
+                  const isVisitorOrNew = selectedUser.memberStatus === 'visitor' || selectedUser.memberStatus === 'new_member';
+                  if (isVisitorOrNew) {
+                    const currentOptOut = !!(selectedUser as any).consolidationOptOut;
+                    onUpdateUser(selectedUser.id, { consolidationOptOut: !currentOptOut } as any);
+                    setSelectedUser({ ...selectedUser, consolidationOptOut: !currentOptOut } as any);
+                  } else {
+                    const currentForce = !!(selectedUser as any).forceConsolidation;
+                    onUpdateUser(selectedUser.id, { forceConsolidation: !currentForce } as any);
+                    setSelectedUser({ ...selectedUser, forceConsolidation: !currentForce } as any);
+                  }
                 }}
                 className={cn("py-2 px-3 rounded-xl text-xs font-bold border col-span-2", 
-                  (selectedUser as any).consolidationOptOut ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                  (() => {
+                    const isVisitorOrNew = selectedUser.memberStatus === 'visitor' || selectedUser.memberStatus === 'new_member';
+                    const receives = isVisitorOrNew ? !(selectedUser as any).consolidationOptOut : !!(selectedUser as any).forceConsolidation;
+                    return receives ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100";
+                  })()
                 )}
               >
-                {(selectedUser as any).consolidationOptOut ? '🚫 Opt-out WhatsApp (Ativar)' : '✅ Recebe WhatsApp (Desativar)'}
+                {(() => {
+                  const isVisitorOrNew = selectedUser.memberStatus === 'visitor' || selectedUser.memberStatus === 'new_member';
+                  const receives = isVisitorOrNew ? !(selectedUser as any).consolidationOptOut : !!(selectedUser as any).forceConsolidation;
+                  return receives ? '✅ Recebendo Convites Automáticos' : '🚫 Não recebe convites automáticos';
+                })()}
               </button>
             </div>
             {(currentUserRole === 'superadmin' || currentUserRole === 'admin') && (
@@ -2205,11 +2221,15 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
               {activeTab === 'members' && (
                 <span className="text-[8px] text-slate-400 font-bold uppercase">{user.role}</span>
               )}
-              {activeTab === 'integration' && (
-                <span className={cn("text-[9px] font-bold", (user as any).consolidationOptOut ? "text-red-500" : "text-emerald-500")}>
-                  {(user as any).consolidationOptOut ? '🚫 Opt-out' : '✅ Recebe Convites'}
-                </span>
-              )}
+              {activeTab === 'integration' && (() => {
+                const isVisitorOrNew = user.memberStatus === 'visitor' || user.memberStatus === 'new_member';
+                const receives = isVisitorOrNew ? !(user as any).consolidationOptOut : !!(user as any).forceConsolidation;
+                return (
+                  <span className={cn("text-[9px] font-bold", receives ? "text-emerald-500" : "text-red-500")}>
+                    {receives ? '✅ Recebendo Convites' : '🚫 Não recebe convites'}
+                  </span>
+                );
+              })()}
             </div>
           </Card>
         ))}
@@ -2269,11 +2289,10 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase">Perfil (Cargo)</label>
                   <select 
-                    value={editForm.role} 
+                    value={editForm.role || 'member'} 
                     onChange={e => {
                       const newRole = e.target.value as UserRole;
                       setEditForm({...editForm, role: newRole});
-                      onUpdateRole?.(selectedUser!.id, newRole, editForm.leaderOf);
                     }}
                     disabled={currentUserRole !== 'superadmin' && editForm.role === 'superadmin'}
                     className="w-full p-3 bg-slate-50 rounded-xl"
@@ -2287,7 +2306,7 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase">Status Eclesiástico</label>
                   <select 
-                    value={editForm.memberStatus} 
+                    value={editForm.memberStatus || 'visitor'} 
                     onChange={e => setEditForm({...editForm, memberStatus: e.target.value as MemberStatus})}
                     className="w-full p-3 bg-slate-50 rounded-xl"
                   >
@@ -2307,7 +2326,6 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
                     onChange={e => {
                       const cellId = e.target.value;
                       setEditForm({...editForm, leaderOf: cellId});
-                      onUpdateRole?.(selectedUser!.id, 'leader', cellId);
                     }}
                     className="w-full p-3 bg-slate-50 rounded-xl"
                   >
@@ -2324,7 +2342,6 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
                     onChange={e => {
                       const adminRoleId = e.target.value;
                       setEditForm({...editForm, adminRoleId});
-                      onUpdateRole?.(selectedUser!.id, 'admin', undefined, adminRoleId);
                     }}
                     className="w-full p-3 bg-slate-50 rounded-xl"
                   >
