@@ -312,9 +312,15 @@ async function initWhatsApp() {
            let userUpdated = false;
            
            for (let u of users) {
-             const userPhone = u.phone ? u.phone.replace(/\D/g, '') : '';
-             if (userPhone && voterId.startsWith('55' + userPhone)) {
+             if (!u.phone) continue;
+             let clean = u.phone.replace(/\D/g, '');
+             if (!clean.startsWith('55')) clean = '55' + clean;
+             
+             if (voterId.includes(clean) || (clean.length === 12 && voterId.includes(clean.substring(0,4) + '9' + clean.substring(4))) || (clean.length === 13 && voterId.includes(clean.substring(0,4) + clean.substring(5)))) {
                 u.consolidationOptOut = true;
+                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
+                     u.forceConsolidation = false;
+                }
                 userUpdated = true;
                 break;
              }
@@ -328,9 +334,15 @@ async function initWhatsApp() {
            let users = await storage.readCollection<any>('users');
            let userUpdated = false;
            for (let u of users) {
-             const userPhone = u.phone ? u.phone.replace(/\D/g, '') : '';
-             if (userPhone && voterId.startsWith('55' + userPhone)) {
+             if (!u.phone) continue;
+             let clean = u.phone.replace(/\D/g, '');
+             if (!clean.startsWith('55')) clean = '55' + clean;
+             
+             if (voterId.includes(clean) || (clean.length === 12 && voterId.includes(clean.substring(0,4) + '9' + clean.substring(4))) || (clean.length === 13 && voterId.includes(clean.substring(0,4) + clean.substring(5)))) {
                 u.consolidationOptOut = false;
+                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
+                     u.forceConsolidation = true;
+                }
                 userUpdated = true;
                 break;
              }
@@ -2300,6 +2312,152 @@ async function startServer() {
         }
     } catch (e) {
         console.error('Failed to send daily verse notification:', e);
+    }
+  }, {
+    timezone: "America/Sao_Paulo"
+  });
+
+  // Automated trigger for Agenda and Special Events (runs every day at noon)
+  cron.schedule('0 12 * * *', async () => {
+    console.log('Running automated agenda and special events check...');
+    try {
+        if (!whatsappClient || whatsappStatus !== 'READY') return;
+        
+        const events = await storage.readCollection<any>('events');
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        const nextWeek = new Date(now);
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        nextWeek.setHours(23, 59, 59, 999);
+        
+        const upcomingEvents = events.filter(e => {
+            if (!e.date) return false;
+            let evDate = e.date.includes('-') ? new Date(Number(e.date.split('-')[0]), Number(e.date.split('-')[1]) - 1, Number(e.date.split('-')[2])) : new Date(e.date);
+            return evDate.getTime() >= now.getTime() && evDate.getTime() <= nextWeek.getTime();
+        });
+        
+        const in2Days = new Date(now);
+        in2Days.setDate(in2Days.getDate() + 2);
+        const specialEventsIn2Days = upcomingEvents.filter(e => {
+            if (e.frequency === 'weekly') return false; 
+            const evDateObj = e.date.includes('-') ? new Date(Number(e.date.split('-')[0]), Number(e.date.split('-')[1]) - 1, Number(e.date.split('-')[2])) : new Date(e.date);
+            return evDateObj.getDate() === in2Days.getDate() && evDateObj.getMonth() === in2Days.getMonth() && evDateObj.getFullYear() === in2Days.getFullYear();
+        });
+
+        // 1 is Monday
+        const isMonday = new Date().getDay() === 1;
+        
+        if (!isMonday && specialEventsIn2Days.length === 0) return;
+
+        const templates = await storage.readCollection<any>('consolidationTemplates');
+        const users = await storage.readCollection<any>('users');
+        const targetUsers = users.filter(u => {
+            if (!u.phone) return false;
+            const isVisitorOrNew = u.memberStatus === 'visitor' || u.memberStatus === 'new_member';
+            return isVisitorOrNew ? !u.consolidationOptOut : !!u.forceConsolidation;
+        });
+
+        let agendaText = "📅 *Agenda da Semana*\n\n";
+        for (const event of upcomingEvents) {
+            const evDateObj = event.date.includes('-') ? new Date(Number(event.date.split('-')[0]), Number(event.date.split('-')[1]) - 1, Number(event.date.split('-')[2])) : new Date(event.date);
+            const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+            const diaNome = diasSemana[evDateObj.getDay()];
+            const isSpecial = event.frequency === 'special' || event.frequency === 'one_time';
+            const icon = isSpecial ? '🌟' : '📍';
+            agendaText += `${icon} *${event.title}*\n🗓️ ${diaNome}, ${evDateObj.toLocaleDateString('pt-BR')} às ${event.time}\n`;
+            if (event.location) agendaText += `🏢 Local: ${event.location}\n`;
+            agendaText += `\n`;
+        }
+
+        for (const user of targetUsers) {
+            let clean = user.phone.replace(/\D/g, '');
+            if (!clean.startsWith('55')) clean = '55' + clean;
+            
+            let primaryId = `${clean}@c.us`;
+            let alternativeId: string | null = clean.length === 12 ? `${clean.substring(0, 4)}9${clean.substring(4)}@c.us` : (clean.length === 13 ? `${clean.substring(0, 4)}${clean.substring(5)}@c.us` : null);
+
+            const trySend = async (chatId: string, content: any, type: 'text'|'media' = 'text', caption?: string) => {
+                if (type === 'media') {
+                    await whatsappClient.sendMessage(chatId, content, { caption });
+                } else {
+                    await whatsappClient.sendMessage(chatId, content);
+                }
+            };
+
+            try {
+                let successChatId = primaryId;
+                let sentSomething = false;
+
+                if (isMonday) {
+                    try {
+                        let helloMessage = `Olá *${user.name}*, tudo bem? Confira o que vai rolar na nossa igreja nos próximos 7 dias:\n\n` + agendaText;
+                        await trySend(primaryId, helloMessage, 'text');
+                        sentSomething = true;
+                    } catch (e1) {
+                        if (alternativeId) {
+                            successChatId = alternativeId;
+                            let helloMessage = `Olá *${user.name}*, tudo bem? Confira o que vai rolar na nossa igreja nos próximos 7 dias:\n\n` + agendaText;
+                            await trySend(alternativeId, helloMessage, 'text');
+                            sentSomething = true;
+                        } else {
+                            throw e1;
+                        }
+                    }
+                }
+
+                for (const spEvent of specialEventsIn2Days) {
+                    let tmpl = templates.find(t => t.eventType === spEvent.category) || templates.find(t => t.eventType === 'all');
+                    if (!tmpl) continue;
+
+                    let messageText = tmpl.message;
+                    messageText = messageText.replace(/\{nome\}/g, user.name);
+                    messageText = messageText.replace(/\{evento\}/g, spEvent.title);
+                    const evDateObj = spEvent.date.includes('-') ? new Date(Number(spEvent.date.split('-')[0]), Number(spEvent.date.split('-')[1]) - 1, Number(spEvent.date.split('-')[2])) : new Date(spEvent.date);
+                    if (spEvent.time) evDateObj.setHours(Number(spEvent.time.split(':')[0]), Number(spEvent.time.split(':')[1]));
+                    messageText = messageText.replace(/\{data\}/g, evDateObj.toLocaleString('pt-BR'));
+                    
+                    let hasSentImage = false;
+                    if (spEvent.image && spEvent.image.startsWith('http')) {
+                        try {
+                            const media = await MessageMedia.fromUrl(spEvent.image);
+                            await trySend(successChatId, media, 'media', messageText);
+                            hasSentImage = true;
+                            sentSomething = true;
+                        } catch (imgErr) {
+                            console.error(`Erro ao baixar imagem:`, imgErr);
+                        }
+                    }
+                    if (!hasSentImage) {
+                        try {
+                             await trySend(successChatId, messageText, 'text');
+                             sentSomething = true;
+                        } catch(e) {
+                             if (!isMonday && alternativeId && successChatId === primaryId) {
+                                 successChatId = alternativeId;
+                                 await trySend(successChatId, messageText, 'text');
+                                 sentSomething = true;
+                             }
+                        }
+                    }
+                }
+
+                if (sentSomething) {
+                    try {
+                        const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
+                        await trySend(successChatId, poll, 'text');
+                    } catch (pollErr) {
+                        await trySend(successChatId, 'Responda "Não quero" se quiser parar de receber nossos convites automáticos.', 'text');
+                    }
+                }
+
+                await new Promise(r => setTimeout(r, 2000));
+            } catch(e) {
+                console.error(`Falha ao enviar evento diario para ${user.name}:`, e);
+            }
+        }
+    } catch(err) {
+        console.error('Failed to run automated agenda:', err);
     }
   }, {
     timezone: "America/Sao_Paulo"
