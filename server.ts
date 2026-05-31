@@ -1980,25 +1980,39 @@ async function startServer() {
       }
 
       let sentCount = 0;
-      let eventsWithTemplate = 0;
-      let attemptedSends = 0;
       let failedSends = 0;
-
+      
+      // Build Agenda Text
+      let agendaText = "📅 *Agenda da Semana*\n\n";
       for (const event of upcomingEvents) {
-         // Find a template that matches the event category
-         let tmpl = templates.find(t => t.eventType === event.category);
-         if (!tmpl) tmpl = templates.find(t => t.eventType === 'all');
-         
-         if (!tmpl) continue; // No template for this event
-         eventsWithTemplate++;
-         
-         for (const user of targetUsers) {
-           attemptedSends++;
-           
+          const evDateObj = event.date.includes('-') 
+              ? new Date(Number(event.date.split('-')[0]), Number(event.date.split('-')[1]) - 1, Number(event.date.split('-')[2])) 
+              : new Date(event.date);
+          const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+          const diaNome = diasSemana[evDateObj.getDay()];
+          const isSpecial = event.frequency === 'special' || event.frequency === 'one_time';
+          const icon = isSpecial ? '🌟' : '📍';
+          agendaText += `${icon} *${event.title}*\n🗓️ ${diaNome}, ${evDateObj.toLocaleDateString('pt-BR')} às ${event.time}\n`;
+          if (event.location) agendaText += `🏢 Local: ${event.location}\n`;
+          agendaText += `\n`;
+      }
+      
+      // Find special events happening exactly 2 days from now
+      const in2Days = new Date(now);
+      in2Days.setDate(in2Days.getDate() + 2);
+      const specialEventsIn2Days = upcomingEvents.filter(e => {
+          if (e.frequency === 'weekly') return false; // Only special/one_time
+          const evDateObj = e.date.includes('-') 
+              ? new Date(Number(e.date.split('-')[0]), Number(e.date.split('-')[1]) - 1, Number(e.date.split('-')[2])) 
+              : new Date(e.date);
+          // Check if event is on the day 2 days from now
+          return evDateObj.getDate() === in2Days.getDate() && evDateObj.getMonth() === in2Days.getMonth() && evDateObj.getFullYear() === in2Days.getFullYear();
+      });
+
+      for (const user of targetUsers) {
            let clean = user.phone.replace(/\D/g, '');
            if (!clean.startsWith('55')) clean = '55' + clean;
            
-           // Generate primary and alternative chat IDs
            let primaryId = `${clean}@c.us`;
            let alternativeId: string | null = null;
            
@@ -2007,71 +2021,77 @@ async function startServer() {
            } else if (clean.length === 13) {
                alternativeId = `${clean.substring(0, 4)}${clean.substring(5)}@c.us`;
            }
-           
+
+           const trySend = async (chatId: string, content: any, type: 'text'|'media' = 'text', caption?: string) => {
+               if (type === 'media') {
+                   await whatsappClient.sendMessage(chatId, content, { caption });
+               } else {
+                   await whatsappClient.sendMessage(chatId, content);
+               }
+           };
+
            try {
-             let messageText = tmpl.message;
-             messageText = messageText.replace(/\{nome\}/g, user.name);
-             messageText = messageText.replace(/\{evento\}/g, event.title);
-             const evDateObj = event.date.includes('-') 
-                ? new Date(Number(event.date.split('-')[0]), Number(event.date.split('-')[1]) - 1, Number(event.date.split('-')[2])) 
-                : new Date(event.date);
-             // Assuming event.time exists and is HH:mm
-             if (event.time) {
-                 evDateObj.setHours(Number(event.time.split(':')[0]), Number(event.time.split(':')[1]));
-             }
-             messageText = messageText.replace(/\{data\}/g, evDateObj.toLocaleString('pt-BR'));
-             
-             const trySend = async (chatId: string) => {
-                 let hasSentImage = false;
-                 if (event.image && event.image.startsWith('http')) {
-                     try {
-                         const media = await MessageMedia.fromUrl(event.image);
-                         await whatsappClient.sendMessage(chatId, media, { caption: messageText });
-                         hasSentImage = true;
-                     } catch (imgErr) {
-                         console.error(`Erro ao baixar imagem:`, imgErr);
-                     }
-                 }
+               let successChatId = primaryId;
+               try {
+                   // Send Agenda
+                   let helloMessage = `Olá *${user.name}*, tudo bem? Confira o que vai rolar na nossa igreja nos próximos 7 dias:\n\n` + agendaText;
+                   await trySend(primaryId, helloMessage, 'text');
+               } catch (e1) {
+                   if (alternativeId) {
+                       successChatId = alternativeId;
+                       let helloMessage = `Olá *${user.name}*, tudo bem? Confira o que vai rolar na nossa igreja nos próximos 7 dias:\n\n` + agendaText;
+                       await trySend(alternativeId, helloMessage, 'text');
+                   } else {
+                       throw e1;
+                   }
+               }
+               
+               // If there are special events in 2 days, send them right after the agenda
+               for (const spEvent of specialEventsIn2Days) {
+                   let tmpl = templates.find(t => t.eventType === spEvent.category) || templates.find(t => t.eventType === 'all');
+                   if (!tmpl) continue;
 
-                 if (!hasSentImage) {
-                     await whatsappClient.sendMessage(chatId, messageText);
-                 }
-                 
-                 try {
-                     const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
-                     await whatsappClient.sendMessage(chatId, poll);
-                 } catch (pollErr) {
-                     await whatsappClient.sendMessage(chatId, 'Responda "Não quero" se quiser parar de receber nossos convites automáticos.');
-                 }
-             };
+                   let messageText = tmpl.message;
+                   messageText = messageText.replace(/\{nome\}/g, user.name);
+                   messageText = messageText.replace(/\{evento\}/g, spEvent.title);
+                   const evDateObj = spEvent.date.includes('-') 
+                        ? new Date(Number(spEvent.date.split('-')[0]), Number(spEvent.date.split('-')[1]) - 1, Number(spEvent.date.split('-')[2])) 
+                        : new Date(spEvent.date);
+                   if (spEvent.time) evDateObj.setHours(Number(spEvent.time.split(':')[0]), Number(spEvent.time.split(':')[1]));
+                   messageText = messageText.replace(/\{data\}/g, evDateObj.toLocaleString('pt-BR'));
+                   
+                   let hasSentImage = false;
+                   if (spEvent.image && spEvent.image.startsWith('http')) {
+                       try {
+                           const media = await MessageMedia.fromUrl(spEvent.image);
+                           await trySend(successChatId, media, 'media', messageText);
+                           hasSentImage = true;
+                       } catch (imgErr) {
+                           console.error(`Erro ao baixar imagem:`, imgErr);
+                       }
+                   }
+                   if (!hasSentImage) {
+                       await trySend(successChatId, messageText, 'text');
+                   }
+               }
 
-             try {
-                // Try primary
-                await trySend(primaryId);
-                sentCount++;
-             } catch (e1) {
-                // If primary failed, try alternative
-                if (alternativeId) {
-                    try {
-                        await trySend(alternativeId);
-                        sentCount++;
-                    } catch (e2) {
-                        throw new Error(`Falhou em ambos. Original: ${e1}. Auto-fallback: ${e2}`);
-                    }
-                } else {
-                    throw e1;
-                }
-             }
-             
-             await new Promise(r => setTimeout(r, 2000));
+               // Send Poll at the end
+               try {
+                   const poll = new Poll('Você deseja continuar recebendo nossos convites?', ['Sim, desejo', 'Não, parar de receber'], { allowMultipleAnswers: false });
+                   await trySend(successChatId, poll, 'text');
+               } catch (pollErr) {
+                   await trySend(successChatId, 'Responda "Não quero" se quiser parar de receber nossos convites automáticos.', 'text');
+               }
+
+               sentCount++;
+               await new Promise(r => setTimeout(r, 2000));
            } catch(e) {
-             console.error(`Falha ao enviar para ${user.name}:`, e);
-             failedSends++;
+               console.error(`Falha ao enviar para ${user.name}:`, e);
+               failedSends++;
            }
-         }
       }
 
-      res.json({ sent: sentCount, message: `Disparos concluídos. ${sentCount} convites enviados. Detalhes: ${upcomingEvents.length} eventos nos próximos 7 dias, ${eventsWithTemplate} templates compatíveis, ${targetUsers.length} membros alvo. Falhas (ex: WhatsApp inválido): ${failedSends}.` });
+      res.json({ sent: sentCount, message: `Disparos concluídos. ${sentCount} membros comunicados. Detalhes: Agenda de ${upcomingEvents.length} eventos enviada; ${specialEventsIn2Days.length} eventos especiais pontuais notificados. Falhas: ${failedSends}.` });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Erro ao disparar convites", details: error instanceof Error ? error.message : "Desconhecido" });

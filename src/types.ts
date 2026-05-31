@@ -95,6 +95,7 @@ export interface Event {
   requiresRegistration?: boolean;
   registrationLimit?: number;
   fee?: number;
+  frequency?: 'weekly' | 'one_time' | 'special';
 }
 
 export interface EventRegistration {

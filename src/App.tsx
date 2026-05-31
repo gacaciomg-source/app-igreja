@@ -10043,7 +10043,8 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
     description: '',
     requiresRegistration: false,
     registrationLimit: undefined,
-    fee: 0
+    fee: 0,
+    frequency: 'weekly'
   });
   const [uploading, setUploading] = useState(false);
   
@@ -10110,15 +10111,28 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
           </div>
         </div>
       </div>
-      <input placeholder="Local" className="w-full p-3 rounded-xl border" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
-      <select className="w-full p-3 rounded-xl border bg-slate-50" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
-        <option>Cultos</option>
-        <option>Jovens</option>
-        <option>Estudos</option>
-        <option>Social</option>
-        <option>Conferência</option>
-        <option>Retiro</option>
-      </select>
+      <input placeholder="Local" className="w-full p-3 rounded-xl border focus:bg-white transition-all outline-none focus:ring-2 focus:ring-primary/20 bg-slate-50" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Categoria (Tag)</label>
+          <select className="w-full p-3 rounded-xl border bg-slate-50" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
+            <option>Cultos</option>
+            <option>Jovens</option>
+            <option>Estudos</option>
+            <option>Social</option>
+            <option>Conferência</option>
+            <option>Retiro</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tipo / Repetição</label>
+          <select className="w-full p-3 rounded-xl border bg-slate-50" value={form.frequency} onChange={e => setForm({...form, frequency: e.target.value as any})}>
+            <option value="weekly">Toda Semana</option>
+            <option value="special">Diferente / Especial</option>
+            <option value="one_time">Pontual</option>
+          </select>
+        </div>
+      </div>
 
       <textarea 
         placeholder="Descrição do Evento (opcional)" 
