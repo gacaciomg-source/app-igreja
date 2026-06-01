@@ -406,6 +406,29 @@ async function initWhatsApp() {
       // Process simple text opt-out / opt-in
       const cleanText = text ? text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : '';
       console.log(`Received message: "${text}" | Cleaned: "${cleanText}" from ${ticketId}`);
+      
+      const matchPhone = (dbPhone: string, ticketIdStr: string): boolean => {
+          const ticketPhone = ticketIdStr.split('@')[0].replace(/\D/g, '');
+          const cleanDb = dbPhone.replace(/\D/g, '');
+          
+          const getPerms = (p: string) => {
+              let clean = p;
+              if (clean.startsWith('55') && clean.length >= 12) clean = clean.substring(2);
+              const perms = [clean];
+              if (clean.length === 11) {
+                  perms.push(clean.substring(0,2) + clean.substring(3));
+              } else if (clean.length === 10) {
+                  perms.push(clean.substring(0,2) + '9' + clean.substring(2));
+              }
+              return perms;
+          };
+          
+          const dbPerms = getPerms(cleanDb);
+          const tkPerms = getPerms(ticketPhone);
+          
+          return dbPerms.some(dbP => tkPerms.includes(dbP));
+      };
+
       if (cleanText === '1' || cleanText === 'nao quero' || cleanText === 'parar' || cleanText === 'parar de receber' || cleanText === 'me tira' || cleanText === 'cancelar convites' || cleanText === 'opt-out' || cleanText === 'opt out' || cleanText === 'nao enviar' || cleanText === 'sair') {
           console.log(`Matching opt-out for ${ticketId}`);
           let users = await storage.readCollection<any>('users');
@@ -413,17 +436,13 @@ async function initWhatsApp() {
           
           for (let u of users) {
              if (!u.phone) continue;
-             let clean = u.phone.replace(/\D/g, '');
-             if (!clean.startsWith('55')) clean = '55' + clean;
-             
-             if (ticketId.includes(clean) || (clean.length === 12 && ticketId.includes(clean.substring(0,4) + '9' + clean.substring(4))) || (clean.length === 13 && ticketId.includes(clean.substring(0,4) + clean.substring(5)))) {
+             if (matchPhone(u.phone, ticketId)) {
                 console.log(`User matched for opt-out: ${u.name} (${u.phone})`);
                 u.consolidationOptOut = true;
                 if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
                      u.forceConsolidation = false;
                 }
                 userUpdated = true;
-                break;
              }
           }
           
@@ -436,7 +455,7 @@ async function initWhatsApp() {
              }
           } else {
              try {
-                await whatsappClient.sendMessage(ticketId, 'Notei que o seu número não está cadastrado na nossa lista de membros, então não se preocupe, pois você já não iria receber as opções automáticas!');
+                await whatsappClient.sendMessage(ticketId, 'Este número não foi encontrado na nossa base de dados. Peça para um administrador verificar o formato do seu número cadastrado. Agradecemos o contato!');
              } catch (sendErr) {
                 console.error('Erro ao enviar fallback:', sendErr);
              }
@@ -447,23 +466,19 @@ async function initWhatsApp() {
           
           for (let u of users) {
              if (!u.phone) continue;
-             let clean = u.phone.replace(/\D/g, '');
-             if (!clean.startsWith('55')) clean = '55' + clean;
-             
-             if (ticketId.includes(clean) || (clean.length === 12 && ticketId.includes(clean.substring(0,4) + '9' + clean.substring(4))) || (clean.length === 13 && ticketId.includes(clean.substring(0,4) + clean.substring(5)))) {
+             if (matchPhone(u.phone, ticketId)) {
                 u.consolidationOptOut = false;
                 if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
                      u.forceConsolidation = true;
                 }
                 userUpdated = true;
-                break;
              }
           }
           
           if (userUpdated) {
              await storage.writeCollection('users', users);
              try {
-                await whatsappClient.sendMessage(ticketId, 'Que bom! Você voltou a receber nossos convites automáticos da nossa igreja.');
+                await whatsappClient.sendMessage(ticketId, 'Que bom! Você voltou a receber nossos convites automáticos.');
              } catch (sendErr) {
                 console.error('Erro ao enviar confirmação de opt-in:', sendErr);
              }
