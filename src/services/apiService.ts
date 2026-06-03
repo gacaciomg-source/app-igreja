@@ -65,7 +65,7 @@ class ApiService {
                   throw new Error('Falha de conexão (HTTP detectado). Ative "usesCleartextTraffic" no AndroidManifest ou use HTTPS.');
              }
              if (BASE_URL.includes('ais-dev')) {
-                  throw new Error('O servidor AI Studio não aceita conexões do celular. Hospede o app e altere a apiUrl.');
+                  throw new Error('Ambiente de desenvolvimento restrito. Configure um servidor de produção.');
              }
          }
          throw new Error('Sem conexão com o servidor. Verifique sua internet ou o IP do servidor.');

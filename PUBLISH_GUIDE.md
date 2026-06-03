@@ -6,7 +6,7 @@ Este aplicativo foi preparado usando **Capacitor**, o que permite que ele seja p
 
 ### 1. Exportar o projeto
 Para levar o código para o seu computador e gerar o instalador (IPA para Apple, APK para Android):
-- Vá no menu de configurações do AI Studio e clique em **Export to ZIP**.
+- Baixe o código fonte (exporte para ZIP).
 
 ### 2. Configurar o ambiente localmente
 No seu computador, você precisará ter instalado:
@@ -64,7 +64,7 @@ O servidor foi configurado para aceitar conexões a partir de aplicativos móvei
 - No console do servidor, verifique se as requisições estão chegando.
 Atualmente o app usa um servidor Express básico. Se você planeja ter milhares de usuários simultâneos:
 1. Recomendamos ativar o **Firebase**.
-2. Peça ao assistente do AI Studio: "Configure o Firebase para sincronização em tempo real".
+2. Configure o Firebase para sincronização em tempo real (opcional).
 3. Isso garantirá que quando você enviar um aviso em um celular, ele apareça instantaneamente em todos os outros sem precisar atualizar a tela.
 
 ---

@@ -150,7 +150,7 @@ Outra solução é usar plataformas como o `Railway.app` com um volume permanent
 ## Dica Importante sobre a "Memória Local"
 O seu sistema atual usa "Bancos de Dados baseados em arquivos".
 Toda vez que você fecha o servidor ou faz deploy no sistema gratuíto do Render, os servidores gratuitos sofrem "restart" diário/semanal, o que pode apagar o `data.json`.
-Se for levar a sério com pessoas pagando os dízimos, no futuro solicite ao AI Studio a mudança para um banco externo como **PostgreSQL** ou **MongoDB**, que é independente e muito seguro (e também possui opções totalmente gratuitas na Supabase, Render ou Mongo Atlas). 
+Se for levar a sério com pessoas pagando os dízimos, no futuro solicite a mudança para um banco externo como **PostgreSQL** ou **MongoDB**, que é independente e muito seguro (e também possui opções totalmente gratuitas na Supabase, Render ou Mongo Atlas). 
 
 ---
 
