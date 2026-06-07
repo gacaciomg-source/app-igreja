@@ -319,6 +319,84 @@ export const Card = ({ children, className, onClick }: { children: React.ReactNo
   </div>
 );
 
+export const DateInput = ({
+  value,
+  onChange,
+  className,
+  required,
+  placeholder,
+  textColorClass = 'text-slate-900',
+  iconColorClass = 'text-slate-400',
+  label
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  className?: string;
+  required?: boolean;
+  placeholder?: string;
+  textColorClass?: string;
+  iconColorClass?: string;
+  label?: string;
+}) => {
+  const [displayValue, setDisplayValue] = useState('');
+
+  // Sync display value with actual value
+  useEffect(() => {
+    if (!value) {
+      setDisplayValue('');
+    } else if (value.includes('-')) {
+      const parts = value.split('-');
+      if (parts.length === 3) {
+        setDisplayValue(`${parts[2]}/${parts[1]}/${parts[0]}`);
+      } else {
+        setDisplayValue(value);
+      }
+    } else {
+      setDisplayValue(value);
+    }
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let raw = e.target.value.replace(/\D/g, '');
+    if (raw.length > 8) raw = raw.substring(0, 8);
+    
+    let formatted = raw;
+    if (raw.length > 4) {
+      formatted = `${raw.substring(0, 2)}/${raw.substring(2, 4)}/${raw.substring(4)}`;
+    } else if (raw.length > 2) {
+      formatted = `${raw.substring(0, 2)}/${raw.substring(2)}`;
+    }
+    
+    setDisplayValue(formatted);
+    
+    if (raw.length === 8) {
+      const d = raw.substring(0, 2);
+      const m = raw.substring(2, 4);
+      const y = raw.substring(4);
+      onChange(`${y}-${m}-${d}`);
+    } else {
+      onChange(formatted);
+    }
+  };
+
+  return (
+    <div className="w-full">
+      {label && <label className="text-[10px] font-bold text-slate-400 uppercase text-left block mb-1">{label}</label>}
+      <div className="relative">
+        <Calendar className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${iconColorClass} pointer-events-none`} />
+        <input 
+          type="text" 
+          placeholder={placeholder || 'DD/MM/AAAA'} 
+          required={required}
+          value={displayValue}
+          onChange={handleChange}
+          className={`pl-10 ${textColorClass} ${className || ''}`} 
+        />
+      </div>
+    </div>
+  );
+};
+
 export const Button = ({ 
   children, 
   variant = 'primary', 
@@ -487,16 +565,13 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Data de Nascimento (Obrigatório)</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input 
-                    type="date" 
-                    required
-                    value={birthDate}
-                    onChange={e => setBirthDate(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                </div>
+                <DateInput
+                  value={birthDate}
+                  onChange={setBirthDate}
+                  required
+                  iconColorClass="text-slate-400 w-5 h-5"
+                  className="w-full pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                />
               </div>
 
               <div className="space-y-2">
@@ -2256,8 +2331,12 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
                 <input type="text" placeholder="Nome" value={visitorForm.name} onChange={e => setVisitorForm({...visitorForm, name: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Data de Nascimento (Opcional)</label>
-                <input type="date" value={visitorForm.birthDate} onChange={e => setVisitorForm({...visitorForm, birthDate: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+                <DateInput
+                  label="Data de Nascimento (Opcional)"
+                  value={visitorForm.birthDate || ''}
+                  onChange={val => setVisitorForm({...visitorForm, birthDate: val})}
+                  className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-primary/20"
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">WhatsApp</label>
@@ -2380,8 +2459,12 @@ const UserManagementScreen = ({ users, cells, ministries, adminRoles = [], curre
                 </div>
               )}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Data de Nascimento</label>
-                <input type="date" value={editForm.birthDate || ''} onChange={e => setEditForm({...editForm, birthDate: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl" />
+                <DateInput
+                  label="Data de Nascimento"
+                  value={editForm.birthDate || ''}
+                  onChange={val => setEditForm({...editForm, birthDate: val})}
+                  className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-primary/20"
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Telefone</label>
@@ -7006,12 +7089,11 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
                 />
               </div>
               <div className="w-full space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase text-left block">Data de Nascimento</label>
-                <input 
-                  type="date" 
-                  value={form.birthDate} 
-                  onChange={(e) => setForm({...form, birthDate: e.target.value})}
-                  className="w-full text-center text-sm font-medium text-slate-900 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                <DateInput
+                  label="Data de Nascimento"
+                  value={form.birthDate}
+                  onChange={(val) => setForm({...form, birthDate: val})}
+                  className="w-full text-sm font-medium bg-slate-50 border border-slate-200 rounded-xl pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
               <div className="w-full space-y-1">
@@ -7519,16 +7601,17 @@ const PastoralVisitForm = ({ user, onSubmit, onCancel }: { user: UserType | null
   );
 };
 
+export const getYouTubeId = (url: string) => {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+};
+
 const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
   const [selectedSermon, setSelectedSermon] = useState<Sermon | null>(null);
 
   const sortedSermons = [...sermons].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  const getYouTubeId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
-  };
 
   const handleSermonClick = (sermon: Sermon) => {
     setSelectedSermon(sermon);
@@ -7714,6 +7797,15 @@ const AdminSermonsScreen = ({ sermons, onAdd, onUpdate, onDelete }: { sermons: S
     }
   };
 
+  const handleVideoUrlChange = (url: string) => {
+    const ytid = getYouTubeId(url);
+    if (ytid) {
+      setFormData({ ...formData, videoUrl: url, thumbnail: `https://img.youtube.com/vi/${ytid}/hqdefault.jpg` });
+    } else {
+      setFormData({ ...formData, videoUrl: url });
+    }
+  };
+
   const handleEdit = (sermon: Sermon) => {
     setFormData({
       title: sermon.title,
@@ -7795,8 +7887,8 @@ const AdminSermonsScreen = ({ sermons, onAdd, onUpdate, onDelete }: { sermons: S
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">URL do Vídeo</label>
-                <input className="w-full p-3 bg-slate-50 rounded-xl border-none text-sm" value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} />
+                <label className="text-[10px] font-bold text-slate-400 uppercase">URL do Vídeo (YouTube)</label>
+                <input className="w-full p-3 bg-slate-50 rounded-xl border-none text-sm" placeholder="Cole o link do YouTube aqui..." value={formData.videoUrl} onChange={e => handleVideoUrlChange(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">URL do Áudio</label>
