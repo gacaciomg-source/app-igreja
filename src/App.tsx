@@ -759,6 +759,10 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
 
   const currentLogoSrc = selectedLogo === 'logo1' ? logoUrl : (logo2Url || logoUrl) || logoUrl;
   const proxyLogoSrc = currentLogoSrc.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(currentLogoSrc)}` : currentLogoSrc;
+  
+  const bgUrl = (selectedBg as any).url;
+  const proxiedBgUrl = bgUrl && bgUrl.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(bgUrl)}` : bgUrl;
+
   const [currentText, setCurrentText] = useState(verse.text);
   const [selectedTranslation, setSelectedTranslation] = useState('almeida');
   const [isFetchingText, setIsFetchingText] = useState(false);
@@ -904,10 +908,10 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
             }}
           >
             {/* Renderiza o background */}
-            {(selectedBg as any).url && (
+            {proxiedBgUrl && (
               <>
                 <img 
-                  src={(selectedBg as any).url} 
+                  src={proxiedBgUrl} 
                   crossOrigin="anonymous" 
                   alt="background" 
                   className="absolute inset-0 w-full h-full object-cover z-0" 
@@ -923,10 +927,10 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
             )}
 
             {!logoError && (
-              <div className="absolute top-12 left-1/2 -translate-x-1/2 w-32 h-32 flex items-center justify-center p-3 z-10 overflow-hidden">
+              <div className="absolute top-6 left-1/2 -translate-x-1/2 w-16 h-16 flex items-center justify-center p-2 z-10">
                 <img 
                   src={proxyLogoSrc} 
-                  className="w-full h-full object-contain" 
+                  className="w-full h-full object-contain drop-shadow-md" 
                   alt="Logo" 
                   crossOrigin="anonymous"
                   onError={() => setLogoError(true)}
@@ -934,18 +938,18 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
               </div>
             )}
             
-            <div className="space-y-6 z-10 pt-16">
+            <div className="space-y-4 z-10 pt-20">
               <p className={cn(
                 "text-white font-medium italic leading-relaxed drop-shadow-lg",
-                currentText.length > 300 ? "text-xs" : 
-                currentText.length > 200 ? "text-sm" : 
-                currentText.length > 120 ? "text-base" : 
-                currentText.length > 60 ? "text-lg" : "text-xl"
+                currentText.length > 300 ? "text-[10px]" : 
+                currentText.length > 200 ? "text-xs" : 
+                currentText.length > 120 ? "text-sm" : 
+                currentText.length > 60 ? "text-base" : "text-lg"
               )}>
                 "{currentText}"
               </p>
               <div className="h-0.5 w-12 bg-white/40 mx-auto rounded-full"></div>
-              <p className="text-white font-bold text-lg drop-shadow-md">
+              <p className="text-white font-bold text-base drop-shadow-md">
                 {verse.ref}
               </p>
             </div>
@@ -959,15 +963,11 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
             )}
 
 
-            <div className="absolute bottom-8 left-0 right-0 text-center flex flex-col items-center">
-              <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">{config?.churchName || APP_CONFIG.name}</p>
-              <p className="text-white/40 text-[9px] font-medium tracking-[0.1em] mt-0.5">{(config?.churchInstagram ? `@${config.churchInstagram.replace('@', '')}` : APP_CONFIG.social.instagram.replace('https://instagram.com/', '@'))}</p>
-              <p className="text-white/30 text-[8px] font-bold uppercase tracking-[0.15em] mt-1.5">{BIBLE_TRANSLATIONS.find(t => t.id === selectedTranslation)?.bollsStr || selectedTranslation.toUpperCase()}</p>
+            <div className="absolute bottom-6 left-0 right-0 text-center flex flex-col items-center">
+              <p className="text-white/80 text-[10px] font-bold uppercase tracking-[0.2em] drop-shadow-md">{config?.churchName || APP_CONFIG.name}</p>
+              <p className="text-white/60 text-[9px] font-medium tracking-[0.1em] mt-0.5 drop-shadow-md">{(config?.churchInstagram ? `@${config.churchInstagram.replace('@', '')}` : APP_CONFIG.social.instagram.replace('https://instagram.com/', '@'))}</p>
+              <p className="text-white/50 text-[8px] font-bold uppercase tracking-[0.15em] mt-1.5 drop-shadow-md">{BIBLE_TRANSLATIONS.find(t => t.id === selectedTranslation)?.bollsStr || selectedTranslation.toUpperCase()}</p>
             </div>
-
-            {/* Decorative Elements */}
-            <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
           </div>
           </div>
         )}
