@@ -142,6 +142,8 @@ export interface CellGroup {
   day: string;
   time: string;
   location: string;
+  lat?: number;
+  lng?: number;
   members: number;
   membersList?: string[]; // Array of user UIDs who are in the cell
 }

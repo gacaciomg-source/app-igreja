@@ -86,7 +86,9 @@ import {
   Trash2,
   Palette,
   Megaphone,
-  X
+  X,
+  Map,
+  MapPin
 } from 'lucide-react';
 
 import Papa from 'papaparse';
@@ -303,9 +305,9 @@ const mockPrayers: PrayerRequest[] = [
 ];
 
 const mockCells: CellGroup[] = [
-  { id: '1', name: 'Célula Renascer', leader: 'Marcos Paulo', day: 'Terça-feira', time: '20:00', location: 'Bairro Centro', members: 12 },
-  { id: '2', name: 'Célula Esperança', leader: 'Carla Dias', day: 'Quinta-feira', time: '19:30', location: 'Bairro Jardim', members: 8 },
-  { id: '3', name: 'Célula Vida', leader: 'Ricardo Lima', day: 'Sexta-feira', time: '20:00', location: 'Bairro Novo', members: 15 },
+  { id: '1', name: 'Célula Renascer', leader: 'Marcos Paulo', day: 'Terça-feira', time: '20:00', location: 'Bairro Centro', lat: -23.5505, lng: -46.6333, members: 12 },
+  { id: '2', name: 'Célula Esperança', leader: 'Carla Dias', day: 'Quinta-feira', time: '19:30', location: 'Bairro Jardim', lat: -23.5600, lng: -46.6600, members: 8 },
+  { id: '3', name: 'Célula Vida', leader: 'Ricardo Lima', day: 'Sexta-feira', time: '20:00', location: 'Bairro Novo', lat: -23.5400, lng: -46.6200, members: 15 },
 ];
 
 // --- Components ---
@@ -7287,8 +7289,48 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
   );
 };
 
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix leaflet default icon
+import iconMarker from 'leaflet/dist/images/marker-icon.png';
+import iconRetina from 'leaflet/dist/images/marker-icon-2x.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: iconRetina,
+  iconUrl: iconMarker,
+  shadowUrl: iconShadow,
+});
+
+const MapUpdater = ({ center }: { center: [number, number] }) => {
+  const map = useMap();
+  React.useEffect(() => {
+    map.setView(center, map.getZoom());
+  }, [center, map]);
+  return null;
+};
+
 const GroupsScreen = ({ cells, users, isAdmin, currentUser, onAdd, onDelete, onEdit, onJoin, onLeave, onAttendance, attendanceHistory, onShowRecordDetail, showMessage }: { cells: CellGroup[], users: UserType[], isAdmin?: boolean, currentUser?: UserType | null, onAdd?: () => void, onDelete?: (id: string) => void, onEdit?: (c: CellGroup) => void, onJoin?: (id: string) => void, onLeave?: (id: string) => void, onAttendance?: (cell: CellGroup) => void, attendanceHistory?: Attendance[], onShowRecordDetail?: (record: Attendance) => void, showMessage?: (msg: string) => void }) => {
   const [showHistory, setShowHistory] = useState<string | null>(null);
+  const [showMap, setShowMap] = useState<boolean>(false);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([-19.6303, -43.8959]); // Lagoa Santa, MG como fallback
+
+  useEffect(() => {
+    if (showMap) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setMapCenter([position.coords.latitude, position.coords.longitude]);
+          },
+          (error) => {
+            console.error("Erro ao obter localização", error);
+          }
+        );
+      }
+    }
+  }, [showMap]);
 
   const isLeaderOf = (cellId: string) => (currentUser?.role === 'leader' || currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && currentUser?.leaderOf === cellId;
   const canSeeAttendance = (cellId: string) => isAdmin || isLeaderOf(cellId);
@@ -7298,6 +7340,9 @@ const GroupsScreen = ({ cells, users, isAdmin, currentUser, onAdd, onDelete, onE
       <header className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-slate-900">PGs</h2>
         <div className="flex gap-2">
+          <button onClick={() => setShowMap(!showMap)} className={cn("p-2 rounded-xl shadow-sm border transition-colors", showMap ? "bg-primary text-white border-primary" : "bg-white text-slate-600 border-slate-100")}>
+            <Map className="w-5 h-5" />
+          </button>
           <button onClick={() => showMessage?.('Funcionalidade em desenvolvimento')} className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
             <Search className="w-5 h-5 text-slate-600" />
           </button>
@@ -7308,6 +7353,41 @@ const GroupsScreen = ({ cells, users, isAdmin, currentUser, onAdd, onDelete, onE
           )}
         </div>
       </header>
+
+      {showMap && (
+        <Card className="p-2 h-[400px] rounded-2xl overflow-hidden relative z-0">
+          <MapContainer center={mapCenter} zoom={13} scrollWheelZoom={false} className="h-full w-full rounded-xl z-0">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <MapUpdater center={mapCenter} />
+            {cells.map(cell => {
+              if (!cell.lat || !cell.lng) return null;
+              return (
+                <Marker key={cell.id} position={[cell.lat, cell.lng]}>
+                  <Popup>
+                    <div className="text-center font-sans space-y-1">
+                      <p className="font-bold text-slate-900">{cell.name}</p>
+                      <p className="text-xs text-slate-500">{cell.location}</p>
+                      <button 
+                         onClick={() => {
+                           if (!isAdmin && !cell.membersList?.includes(currentUser?.id || '')) {
+                             onJoin?.(cell.id);
+                           }
+                         }}
+                         className="mt-2 text-[10px] w-full py-1.5 bg-primary text-white rounded-md font-bold uppercase tracking-wide"
+                      >
+                         Ver Detalhes
+                      </button>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+          </MapContainer>
+        </Card>
+      )}
 
       <div className="space-y-4">
         {cells.map(cell => (
@@ -10332,7 +10412,29 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
 };
 
 const CellForm = ({ onSubmit, initialData }: { onSubmit: (c: any) => void, initialData?: CellGroup }) => {
-  const [form, setForm] = useState(initialData || { name: '', leader: '', day: 'Terça-feira', time: '20:00', location: '', members: 0 });
+  const [form, setForm] = useState<any>(initialData || { name: '', leader: '', day: 'Terça-feira', time: '20:00', location: '', members: 0, lat: 0, lng: 0 });
+  const [searching, setSearching] = useState(false);
+
+  const handleSearchLocation = async () => {
+    if (!form.location) return;
+    setSearching(true);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.location)}`);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        setForm({ ...form, lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+        alert('Localização encontrada com sucesso no mapa!');
+      } else {
+        alert('Localização não encontrada. Tente ser mais específico, colocando Rua, Número, Bairro, Cidade.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao buscar localização pelo mapa.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <input placeholder="Nome do PG" className="w-full p-3 rounded-xl border" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
@@ -10363,7 +10465,17 @@ const CellForm = ({ onSubmit, initialData }: { onSubmit: (c: any) => void, initi
           </div>
         </div>
       </div>
-      <input placeholder="Bairro/Local" className="w-full p-3 rounded-xl border" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
+      <div className="space-y-1">
+        <div className="flex gap-2">
+          <input placeholder="Endereço (Rua, Número, Bairro, Cidade)" className="flex-1 p-3 rounded-xl border" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
+          <Button onClick={handleSearchLocation} disabled={searching} className="shrink-0 px-4">
+            {searching ? 'Buscando...' : <MapPin className="w-5 h-5" />}
+          </Button>
+        </div>
+        <p className="text-[10px] text-slate-400 font-medium ml-1">
+          Busque o endereço para atualizar o mapa. Coordenadas atuais: {form.lat ? `${form.lat.toFixed(4)}, ${form.lng?.toFixed(4)}` : 'Não definidas'}
+        </p>
+      </div>
       <Button className="w-full py-4" onClick={() => onSubmit(form)}>{initialData ? 'Salvar Alterações' : 'Criar PG'}</Button>
     </div>
   );
