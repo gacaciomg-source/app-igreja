@@ -763,6 +763,39 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
   const bgUrl = (selectedBg as any).url;
   const proxiedBgUrl = bgUrl && bgUrl.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(bgUrl)}` : bgUrl;
 
+  const [base64Bg, setBase64Bg] = useState<string | null>(null);
+  const [base64Logo, setBase64Logo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!proxiedBgUrl) {
+      setBase64Bg(null);
+      return;
+    }
+    fetch(proxiedBgUrl)
+      .then(res => res.blob())
+      .then(blob => {
+        const reader = new FileReader();
+        reader.onloadend = () => setBase64Bg(reader.result as string);
+        reader.readAsDataURL(blob);
+      })
+      .catch(console.error);
+  }, [proxiedBgUrl]);
+
+  useEffect(() => {
+    if (!proxyLogoSrc) {
+      setBase64Logo(null);
+      return;
+    }
+    fetch(proxyLogoSrc)
+      .then(res => res.blob())
+      .then(blob => {
+        const reader = new FileReader();
+        reader.onloadend = () => setBase64Logo(reader.result as string);
+        reader.readAsDataURL(blob);
+      })
+      .catch(console.error);
+  }, [proxyLogoSrc]);
+
   const [currentText, setCurrentText] = useState(verse.text);
   const [selectedTranslation, setSelectedTranslation] = useState('almeida');
   const [isFetchingText, setIsFetchingText] = useState(false);
@@ -911,7 +944,7 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
             {proxiedBgUrl && (
               <>
                 <img 
-                  src={proxiedBgUrl} 
+                  src={base64Bg || proxiedBgUrl} 
                   crossOrigin="anonymous" 
                   alt="background" 
                   className="absolute inset-0 w-full h-full object-cover z-0" 
@@ -927,10 +960,10 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
             )}
 
             {!logoError && (
-              <div className="absolute top-6 left-1/2 -translate-x-1/2 w-16 h-16 flex items-center justify-center p-2 z-10">
+              <div className="absolute top-6 left-1/2 -translate-x-1/2 w-14 h-14 flex items-center justify-center p-1 z-10">
                 <img 
-                  src={proxyLogoSrc} 
-                  className="w-full h-full object-contain drop-shadow-md" 
+                  src={base64Logo || proxyLogoSrc} 
+                  className="w-full h-full object-contain drop-shadow-md opacity-90" 
                   alt="Logo" 
                   crossOrigin="anonymous"
                   onError={() => setLogoError(true)}
@@ -938,18 +971,18 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
               </div>
             )}
             
-            <div className="space-y-4 z-10 pt-20">
+            <div className="flex-1 flex flex-col justify-center items-center space-y-4 z-10 mt-12 mb-10 w-full px-2" style={{ maxHeight: '100%' }}>
               <p className={cn(
                 "text-white font-medium italic leading-relaxed drop-shadow-lg",
-                currentText.length > 300 ? "text-[10px]" : 
-                currentText.length > 200 ? "text-xs" : 
-                currentText.length > 120 ? "text-sm" : 
-                currentText.length > 60 ? "text-base" : "text-lg"
+                currentText.length > 400 ? "text-[11px]" : 
+                currentText.length > 250 ? "text-[13px]" : 
+                currentText.length > 150 ? "text-sm" : 
+                currentText.length > 80 ? "text-base" : "text-lg"
               )}>
                 "{currentText}"
               </p>
-              <div className="h-0.5 w-12 bg-white/40 mx-auto rounded-full"></div>
-              <p className="text-white font-bold text-base drop-shadow-md">
+              <div className="h-0.5 w-12 bg-white/40 mx-auto rounded-full shrink-0"></div>
+              <p className="text-white font-bold drop-shadow-md shrink-0" style={{ fontSize: '15px' }}>
                 {verse.ref}
               </p>
             </div>
