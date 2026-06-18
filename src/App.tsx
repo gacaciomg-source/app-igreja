@@ -7304,6 +7304,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: iconShadow,
 });
 
+const homeIcon = L.divIcon({
+  html: `<div style="background-color: #0ea5e9; border-radius: 50%; padding: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 2px solid white;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+      <polyline points="9 22 9 12 15 12 15 22"></polyline>
+    </svg>
+  </div>`,
+  className: '',
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+  popupAnchor: [0, -16]
+});
+
 const MapUpdater = ({ center }: { center: [number, number] }) => {
   const map = useMap();
   React.useEffect(() => {
@@ -7365,21 +7378,32 @@ const GroupsScreen = ({ cells, users, isAdmin, currentUser, onAdd, onDelete, onE
             {cells.map(cell => {
               if (!cell.lat || !cell.lng) return null;
               return (
-                <Marker key={cell.id} position={[cell.lat, cell.lng]}>
+                <Marker key={cell.id} position={[cell.lat, cell.lng]} icon={homeIcon}>
                   <Popup>
-                    <div className="text-center font-sans space-y-1">
-                      <p className="font-bold text-slate-900">{cell.name}</p>
-                      <p className="text-xs text-slate-500">{cell.location}</p>
-                      <button 
-                         onClick={() => {
-                           if (!isAdmin && !cell.membersList?.includes(currentUser?.id || '')) {
-                             onJoin?.(cell.id);
-                           }
-                         }}
-                         className="mt-2 text-[10px] w-full py-1.5 bg-primary text-white rounded-md font-bold uppercase tracking-wide"
-                      >
-                         Ver Detalhes
-                      </button>
+                    <div className="text-center font-sans mt-1 min-w-[150px]">
+                      <div className="space-y-0.5 mb-3">
+                        <p className="font-bold text-slate-900 leading-tight">{cell.name}</p>
+                        <p className="text-[11px] text-slate-500">{cell.location}</p>
+                      </div>
+                      <div className="space-y-1.5 flex flex-col items-center w-full">
+                        <button 
+                           onClick={() => {
+                             window.open(`https://www.google.com/maps/dir/?api=1&destination=${cell.lat},${cell.lng}`, '_blank');
+                           }}
+                           className="text-[10px] w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors rounded-md font-bold uppercase tracking-wide"
+                        >
+                           Como Chegar
+                        </button>
+                        
+                        {!isAdmin && !cell.membersList?.includes(currentUser?.id || '') && (
+                          <button 
+                             onClick={() => onJoin?.(cell.id)}
+                             className="text-[10px] w-full py-2 bg-primary text-white hover:bg-primary/90 transition-colors rounded-md font-bold uppercase tracking-wide"
+                          >
+                             Participar
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </Popup>
                 </Marker>
