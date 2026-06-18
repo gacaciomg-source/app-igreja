@@ -1965,6 +1965,11 @@ async function startServer() {
         await whatsappClient.logout();
         whatsappStatus = 'DISCONNECTED';
         lastQr = null;
+        
+        // Clear CRM data on logout as requested
+        await storage.writeCollection('crmTickets', []);
+        await storage.writeCollection('crmMessages', []);
+
         res.json({ success: true });
       } catch (err) {
         res.status(500).json({ error: 'Erro ao deslogar' });
