@@ -829,7 +829,7 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
     try {
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      const dataUrl = await toPng(verseCardRef.current, { 
+      const config = { 
         quality: 1, 
         pixelRatio: 2, 
         cacheBust: true,
@@ -838,7 +838,19 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
         style: {
           borderRadius: '0',
         }
-      });
+      };
+
+      let dataUrl = '';
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+      
+      if (isIOS) {
+        // Multi-pass render for iOS to overcome black screen issues
+        await toPng(verseCardRef.current, config).catch(() => {});
+        await toPng(verseCardRef.current, config).catch(() => {});
+        dataUrl = await toPng(verseCardRef.current, config);
+      } else {
+        dataUrl = await toPng(verseCardRef.current, config);
+      }
       
       setGeneratedImage(dataUrl);
       
@@ -1102,7 +1114,8 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
   onUpdate: (id: string, data: Partial<Ministry>) => void,
   onDelete?: (id: string) => void,
   isAdmin: boolean,
-  showMessage?: (msg: string) => void 
+  showMessage?: (msg: string) => void,
+  onChangeTab?: (tab: string) => void
 }) => {
   const [selectedMinistry, setSelectedMinistry] = useState<Ministry | null>(null);
   const [showAddSchedule, setShowAddSchedule] = useState(false);
@@ -1152,6 +1165,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
   };
 
   const [selectedMemberForRole, setSelectedMemberForRole] = useState<UserType | null>(null);
+  const [showToolsConfig, setShowToolsConfig] = useState(false);
 
   const handleUpdateMemberRole = (userId: string, roleId: string) => {
     if (!selectedMinistry) return;
@@ -1167,8 +1181,40 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
 
   if (selectedMinistry) {
     const ministrySchedules = schedules.filter(s => s.ministryId === selectedMinistry.id);
-    const ministryMembers = users.filter(u => selectedMinistry.memberIds.includes(u.id));
+    const ministryMembers = users.filter(u => selectedMinistry.memberIds.includes(u.id) || selectedMinistry.leaderIds.includes(u.id));
     const pendingUsers = users.filter(u => selectedMinistry.pendingRequestIds.includes(u.id));
+
+    let tools: { id: string, label: string, icon: any, onClick: () => void }[] = [];
+    if (currentUser) {
+      const ministryPermissions = new Set<string>();
+      if (currentUser.role === 'superadmin' || currentUser.role === 'admin') {
+        ministryPermissions.add('*');
+      } else {
+        if (selectedMinistry.leaderIds.includes(currentUser.id)) {
+          selectedMinistry.allowedRoleIds?.forEach(rId => {
+            adminRoles.find(r => r.id === rId)?.permissions.forEach(p => ministryPermissions.add(p));
+          });
+        } else if (selectedMinistry.memberRoles?.[currentUser.id]) {
+          const rId = selectedMinistry.memberRoles[currentUser.id];
+          adminRoles.find(r => r.id === rId)?.permissions.forEach(p => ministryPermissions.add(p));
+        }
+        if (selectedMinistry.ministryTools?.events?.includes(currentUser.id)) ministryPermissions.add('manage_events');
+        if (selectedMinistry.ministryTools?.serviceReports?.includes(currentUser.id)) ministryPermissions.add('manage_reports');
+        if (selectedMinistry.ministryTools?.prayer?.includes(currentUser.id)) ministryPermissions.add('manage_prayers');
+        if (selectedMinistry.ministryTools?.announcements?.includes(currentUser.id)) ministryPermissions.add('manage_announcements');
+      }
+
+      console.log('Ministry Permissions:', [...ministryPermissions], 'User Role:', currentUser.role);
+
+      const hasPerm = (p: string) => ministryPermissions.has('*') || ministryPermissions.has(p);
+
+      if (hasPerm('manage_events')) tools.push({ id: 'events', label: 'Eventos', icon: Calendar, onClick: () => onChangeTab?.('events') });
+      if (hasPerm('manage_reports')) tools.push({ id: 'serviceReports', label: 'Relatórios do Culto', icon: FileText, onClick: () => onChangeTab?.('serviceReports') });
+      if (hasPerm('manage_prayers')) tools.push({ id: 'prayer', label: 'Mural de Oração', icon: Heart, onClick: () => onChangeTab?.('prayer') });
+      if (hasPerm('manage_announcements')) tools.push({ id: 'announcements', label: 'Avisos Gerais', icon: Megaphone, onClick: () => onChangeTab?.('announcements') });
+      
+      console.log('Generated Tools:', tools.length);
+    }
 
     return (
       <div className="space-y-6 pb-24">
@@ -1339,6 +1385,100 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
             <p className="text-center text-slate-400 py-6 text-sm bg-slate-50 rounded-2xl border border-dashed border-slate-200">Nenhum aviso no momento.</p>
           )}
         </div>
+
+        {(tools.length > 0 || isLeader(selectedMinistry)) && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-900">Atalhos do Ministério</h3>
+              {isLeader(selectedMinistry) && (
+                <button onClick={() => setShowToolsConfig(true)} className="text-[11px] font-bold text-primary flex items-center gap-1 hover:bg-primary/5 px-2 py-1 rounded-md transition-colors">
+                  <Settings className="w-3 h-3" /> Configurar
+                </button>
+              )}
+            </div>
+            {tools.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {tools.map(tool => (
+                  <button
+                    key={tool.id}
+                    onClick={tool.onClick}
+                    className="flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-primary/30 transition-all active:scale-95"
+                  >
+                    <tool.icon className="w-6 h-6 text-primary" />
+                    <span className="text-xs font-bold text-slate-700 text-center leading-tight">{tool.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-slate-400 py-4 text-sm bg-slate-50 rounded-2xl border border-dashed border-slate-200">Nenhum atalho configurado.</p>
+            )}
+          </div>
+        )}
+
+        {showToolsConfig && (
+          <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
+            <Card className="w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
+              <header className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Configurar Atalhos</h2>
+                  <p className="text-xs text-slate-500">Escolha quem pode usar cada ferramenta</p>
+                </div>
+                <button onClick={() => setShowToolsConfig(false)} className="p-2 bg-slate-100 rounded-full"><LogOut className="w-5 h-5 rotate-180" /></button>
+              </header>
+
+              <div className="space-y-6">
+                {[
+                  { id: 'events', label: 'Eventos', icon: Calendar },
+                  { id: 'serviceReports', label: 'Relatórios do Culto', icon: FileText },
+                  { id: 'prayer', label: 'Mural de Oração', icon: Heart },
+                  { id: 'announcements', label: 'Avisos Gerais', icon: Megaphone }
+                ].map(tool => (
+                  <div key={tool.id} className="space-y-3">
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                      <tool.icon className="w-4 h-4 text-primary" />
+                      <h4 className="font-bold text-slate-900 text-sm">{tool.label}</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {ministryMembers.map(member => {
+                        const hasAccess = selectedMinistry.ministryTools?.[tool.id as keyof typeof selectedMinistry.ministryTools]?.includes(member.id);
+                        return (
+                          <div key={member.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50">
+                            <div className="flex items-center gap-2">
+                              <img src={member.avatar || DEFAULT_AVATAR} className="w-6 h-6 rounded-full" />
+                              <span className="text-sm text-slate-700">{member.name}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const toolsConfig = selectedMinistry.ministryTools || {};
+                                const currentMembers = toolsConfig[tool.id as keyof typeof toolsConfig] || [];
+                                const newMembers = hasAccess 
+                                  ? currentMembers.filter(id => id !== member.id)
+                                  : [...currentMembers, member.id];
+                                
+                                onUpdate(selectedMinistry.id, { 
+                                  ministryTools: { ...toolsConfig, [tool.id]: newMembers } 
+                                });
+                              }}
+                              className={cn(
+                                "w-10 h-5 rounded-full relative transition-colors",
+                                hasAccess ? "bg-primary" : "bg-slate-200"
+                              )}
+                            >
+                              <div className={cn(
+                                "w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all",
+                                hasAccess ? "left-5" : "left-1"
+                              )} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
 
         <div className="space-y-4">
           <h3 className="font-bold text-slate-900">Equipe ({ministryMembers.length})</h3>
@@ -9707,7 +9847,7 @@ const joinCell = async (cellId: string) => {
         case 'integration':
           setCurrentTab('users');
           return null;
-        case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} onDelete={deleteMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
+        case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} onDelete={deleteMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} onChangeTab={setCurrentTab} />;
         case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={true} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onUpdate={updateSermon} onDelete={deleteSermon} />;
@@ -9758,7 +9898,7 @@ const joinCell = async (cellId: string) => {
       case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} fontSize={fontSize} />;
       case 'sermons': return <SermonsScreen sermons={sermons} />;
       case 'tithes': return <TithesScreen config={titheConfig} onConfirmDonation={(val, label) => addTransaction({ label, value: val, type: 'in' })} showMessage={showMessage} currentUserData={currentUserData} />;
-      case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} onDelete={deleteMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} />;
+      case 'ministries': return <MinistriesScreen ministries={ministries} users={users} currentUser={currentUserData} adminRoles={adminRoles} onJoinRequest={requestJoinMinistry} onManageRequest={manageMinistryRequest} onAddSchedule={addMinistrySchedule} schedules={ministrySchedules} onAdd={addMinistry} onUpdate={updateMinistry} onDelete={deleteMinistry} isAdmin={userRole === 'admin' || userRole === 'superadmin'} showMessage={showMessage} onChangeTab={setCurrentTab} />;
       case 'groups': return <GroupsScreen cells={cells} users={users} currentUser={currentUserData} onJoin={joinCell} onLeave={leaveCell} onAttendance={(c) => { setSelectedAttendanceCell(c); setShowAttendance(true); }} attendanceHistory={attendanceHistory} onShowRecordDetail={setSelectedRecord} showMessage={showMessage} />;
       case 'media': return <MediaScreen showMessage={showMessage} />;
       case 'pastoral': return <UserPastoralVisitsScreen visits={pastoralVisits.filter(v => v.uid === currentUserData?.id)} onAddRequest={() => setShowAddPastoralVisit(true)} />;
@@ -9839,6 +9979,12 @@ const joinCell = async (cellId: string) => {
           const role = adminRoles.find(r => r.id === roleId);
           role?.permissions.forEach(p => permissions.add(p));
         }
+
+        // 3. Specific Tool Assignments (from the new feature)
+        if (ministry.ministryTools?.events?.includes(currentUserData.id)) permissions.add('manage_events');
+        if (ministry.ministryTools?.serviceReports?.includes(currentUserData.id)) permissions.add('manage_reports');
+        if (ministry.ministryTools?.prayer?.includes(currentUserData.id)) permissions.add('manage_prayers');
+        if (ministry.ministryTools?.announcements?.includes(currentUserData.id)) permissions.add('manage_announcements');
       });
     }
 

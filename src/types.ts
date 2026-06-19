@@ -246,6 +246,12 @@ export interface Ministry {
   allowedRoleIds?: string[];
   memberRoles?: Record<string, string>;
   notes?: MinistryNote[];
+  ministryTools?: {
+    events?: string[]; // IDs of members authorized
+    serviceReports?: string[];
+    prayer?: string[];
+    announcements?: string[];
+  };
 }
 
 export interface MinistrySchedule {
