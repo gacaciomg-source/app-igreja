@@ -1842,7 +1842,7 @@ async function startServer() {
              if (updates.length === 1 && updates[0] === 'pendingRequestIds') {
                // OK - permitimos apenas este campo para solicitação de entrada
              } else if (isLeader) {
-               const allowed = ['memberIds', 'pendingRequestIds', 'notes'];
+               const allowed = ['memberIds', 'pendingRequestIds', 'notes', 'memberRoles', 'ministryTools'];
                const isDisallowed = updates.some(k => !allowed.includes(k));
                if (isDisallowed) {
                  return res.status(403).json({ error: "Você não tem permissão para editar estes campos." });
