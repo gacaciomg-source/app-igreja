@@ -9891,9 +9891,10 @@ const joinCell = async (cellId: string) => {
 
     switch (currentTab) {
       case 'home': return <Dashboard {...dashboardProps} />;
-      case 'events': return <EventsScreen events={events} registrations={registrations} isAdmin={isAdmin} currentUser={currentUserData} onDelete={deleteEvent} onAdd={() => setShowAddEvent(true)} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} onRegister={handleEventRegistration} onUpdateRegistration={handleUpdateRegistrationStatus} onShowPrayers={() => setCurrentTab('prayer')} showMessage={showMessage} cacheVersion={cacheVersion} titheConfig={titheConfig} onEventClick={setSelectedEventAction} />;
-      case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
-      case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAdmin} onAdd={() => setShowAddAnnouncement(true)} onDelete={deleteAnnouncement} showMessage={showMessage} cacheVersion={cacheVersion} />;
+      case 'events': return <EventsScreen events={events} registrations={registrations} isAdmin={isEventsAdmin} currentUser={currentUserData} onDelete={deleteEvent} onAdd={() => setShowAddEvent(true)} onEdit={(e) => { setEditingEvent(e); setShowAddEvent(true); }} onRegister={handleEventRegistration} onUpdateRegistration={handleUpdateRegistrationStatus} onShowPrayers={() => setCurrentTab('prayer')} showMessage={showMessage} cacheVersion={cacheVersion} titheConfig={titheConfig} onEventClick={setSelectedEventAction} />;
+      case 'prayer': return <PrayerWall prayers={prayers} cells={cells} onAdd={() => setShowAddPrayer(true)} onDelete={deletePrayer} onTogglePrayed={togglePrayed} onAddComment={addComment} currentUserId={currentUserData?.id} currentUser={currentUserData} isAdmin={isPrayerAdmin} isSuperAdmin={userRole === 'superadmin'} showMessage={showMessage} />;
+      case 'announcements': return <AnnouncementsScreen announcements={announcements} isAdmin={isAnuncioAdmin} onAdd={() => setShowAddAnnouncement(true)} onDelete={deleteAnnouncement} showMessage={showMessage} cacheVersion={cacheVersion} />;
+      case 'serviceReports': return <ServiceReportsScreen reports={serviceReports} users={users} isAdmin={isReportsAdmin} onAdd={addServiceReport} onDelete={deleteServiceReport} />;
       case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} progress={userReadingProgress} onToggleChapter={toggleChapter} isAdmin={false} showMessage={showMessage} />;
       case 'bible': return <BibleScreen onTabChange={setCurrentTab} showMessage={showMessage} readingPlans={readingPlans} progress={userReadingProgress} highlights={verseHighlights} onToggleHighlight={toggleVerseHighlight} onShareVerse={setSelectedShareVerse} fontSize={fontSize} />;
       case 'sermons': return <SermonsScreen sermons={sermons} />;
@@ -10044,6 +10045,10 @@ const joinCell = async (cellId: string) => {
   ].filter(t => isTabAllowed(t.id));
 
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+  const isEventsAdmin = isAdmin || (adminPermissions && adminPermissions.includes('manage_events'));
+  const isAnuncioAdmin = isAdmin || (adminPermissions && adminPermissions.includes('manage_announcements'));
+  const isPrayerAdmin = isAdmin || (adminPermissions && adminPermissions.includes('manage_prayers'));
+  const isReportsAdmin = isAdmin || (adminPermissions && adminPermissions.includes('manage_reports'));
   const isAdminPanel = location.pathname.startsWith('/admin');
   const tabs = hasAdminPanelAccess && isAdminPanel ? adminTabs : memberTabs;
 
