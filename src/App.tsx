@@ -9470,20 +9470,35 @@ export default function App() {
 
   const togglePrayed = async (prayerId: string) => {
     if (!currentUserData) return;
+    
+    // Optmistic update
     const prayer = prayers.find(p => p.id === prayerId);
-    if (!prayer) return;
-
-    const prayedBy = prayer.prayedBy || [];
-    const userId = currentUserData.id;
-    const isPraying = prayedBy.includes(userId);
-    const newPrayedBy = isPraying ? prayedBy.filter(id => id !== userId) : [...prayedBy, userId];
+    if (prayer) {
+       const prayedBy = prayer.prayedBy || [];
+       const userId = currentUserData.id;
+       const isPraying = prayedBy.includes(userId);
+       
+       setPrayers(prev => prev.map(p => {
+         if (p.id === prayerId) {
+            const newPrayedBy = isPraying ? prayedBy.filter(id => id !== userId) : [...prayedBy, userId];
+            return {
+              ...p,
+              prayedBy: newPrayedBy,
+              likes: isPraying ? Math.max(0, (p.likes || 0) - 1) : (p.likes || 0) + 1
+            };
+         }
+         return p;
+       }));
+    }
 
     try {
-      await api.update('prayers', prayerId, {
-        prayedBy: newPrayedBy,
-        likes: isPraying ? Math.max(0, (prayer.likes || 0) - 1) : (prayer.likes || 0) + 1
-      });
+      const updatedPrayer = await api.request(`/collections/prayers/${prayerId}/toggle`, { method: 'POST' });
+      
+      // Update with the server response to ensure we have everyone's likes
+      setPrayers(prev => prev.map(p => p.id === prayerId ? { ...p, ...updatedPrayer } : p));
     } catch (err) {
+      // Revert on error
+      refreshData();
       handleApiError(err, 'togglePrayed');
     }
   };

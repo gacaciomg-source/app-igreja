@@ -1741,6 +1741,33 @@ async function startServer() {
     }
   });
 
+  app.post("/api/collections/prayers/:id/toggle", authenticateToken, async (req: any, res) => {
+    try {
+      const requester = req.user;
+      const prayerId = req.params.id;
+      const prayer = await storage.findById<any>('prayers', prayerId);
+      
+      if (!prayer) {
+        return res.status(404).json({ error: "Pedido de oração não encontrado" });
+      }
+
+      const prayedBy = prayer.prayedBy || [];
+      const isPraying = prayedBy.includes(requester.id);
+      const newPrayedBy = isPraying ? prayedBy.filter((id: string) => id !== requester.id) : [...prayedBy, requester.id];
+      const newLikes = isPraying ? Math.max(0, (prayer.likes || 0) - 1) : (prayer.likes || 0) + 1;
+
+      const updated = await storage.update('prayers', prayerId, {
+        prayedBy: newPrayedBy,
+        likes: newLikes
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao atualizar oração" });
+    }
+  });
+
   app.post("/api/collections/:name", authenticateToken, async (req: any, res) => {
     try {
       const requester = req.user;
@@ -1859,7 +1886,16 @@ async function startServer() {
            if (requester.role !== 'admin' && requester.role !== 'superadmin') {
              const item = await storage.findById<any>(req.params.name, req.params.id);
              if (item && item.uid && item.uid !== requester.id) {
-               return res.status(403).json({ error: "Você não tem permissão para editar este item." });
+               if (req.params.name === 'prayers') {
+                 const updates = Object.keys(req.body);
+                 const allowed = ['prayedBy', 'likes', 'comments', 'commentsList'];
+                 const isDisallowed = updates.some(k => !allowed.includes(k));
+                 if (isDisallowed) {
+                   return res.status(403).json({ error: "Você não tem permissão para editar estes campos." });
+                 }
+               } else {
+                 return res.status(403).json({ error: "Você não tem permissão para editar este item." });
+               }
              }
            }
          }
