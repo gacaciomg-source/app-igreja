@@ -288,6 +288,9 @@ export interface WhatsAppConfig {
   phoneNumberId: string;
   isEnabled: boolean;
   adminPhones?: string[];
+  destinationPhone?: string;
+  birthdayTemplate?: string;
+  enableDirectBirthday?: boolean;
 }
 
 export interface FinancialRule {

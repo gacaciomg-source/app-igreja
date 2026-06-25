@@ -464,6 +464,27 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
   const [message, setMessage] = useState('');
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showPublicPrayerModal, setShowPublicPrayerModal] = useState(false);
+
+  const handlePublicPrayer = async (content: string, privacy: 'public' | 'private') => {
+    setLoading(true);
+    try {
+      await api.createPublicPrayer({
+        user: 'Anônimo',
+        content,
+        privacy,
+        cellIds: [],
+        likes: 0,
+        comments: 0
+      });
+      setMessage('Pedido de oração enviado com sucesso!');
+      setShowPublicPrayerModal(false);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao enviar pedido de oração.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -703,9 +724,19 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
 
         <div className="text-center space-y-4">
           {mode === 'login' ? (
-            <p className="text-slate-500">
-              Não tem uma conta? <button onClick={() => setMode('signup')} className="text-primary font-bold">Cadastre-se</button>
-            </p>
+            <div className="space-y-4">
+              <p className="text-slate-500">
+                Não tem uma conta? <button onClick={() => setMode('signup')} className="text-primary font-bold">Cadastre-se</button>
+              </p>
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-slate-200"></div>
+                <span className="flex-shrink-0 mx-4 text-slate-400 text-sm">Ou</span>
+                <div className="flex-grow border-t border-slate-200"></div>
+              </div>
+              <Button variant="outline" className="w-full text-slate-600 border-slate-200" onClick={() => setShowPublicPrayerModal(true)}>
+                Fazer um Pedido de Oração
+              </Button>
+            </div>
           ) : (
             <button 
               onClick={() => setMode('login')} 
@@ -717,6 +748,12 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
           )}
         </div>
       </motion.div>
+
+      {showPublicPrayerModal && (
+        <Modal title="Pedido de Oração (Público)" onClose={() => setShowPublicPrayerModal(false)}>
+          <PrayerForm onSubmit={handlePublicPrayer} />
+        </Modal>
+      )}
     </div>
   );
 };
@@ -6886,10 +6923,58 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
                 </div>
             ))}
           </div>
-          <p className="text-[10px] text-slate-500 italic px-1">Números que receberão avisos sobre novos pedidos de oração e visitas.</p>
+          <p className="text-[10px] text-slate-500 italic px-1">Números que receberão comandos de administração (opcional).</p>
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase">Telefone Principal de Notificações</label>
+          <input 
+            type="text"
+            value={formData.destinationPhone || ''}
+            onChange={(e) => {
+               const newFormData = {...formData, destinationPhone: e.target.value};
+               setFormData(newFormData);
+               onUpdate(newFormData);
+            }}
+            placeholder="Ex: 5511999999999"
+            className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+          />
+          <p className="text-[10px] text-slate-500 italic px-1">Número que receberá avisos sobre novos pedidos de oração e visitas.</p>
+        </div>
+
+        <div className="grid gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-100 mt-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="checkbox"
+              checked={formData.enableDirectBirthday || false}
+              onChange={(e) => {
+                 const newFormData = {...formData, enableDirectBirthday: e.target.checked};
+                 setFormData(newFormData);
+                 onUpdate(newFormData);
+              }}
+              className="rounded text-emerald-500 focus:ring-emerald-500"
+            />
+            <span className="text-sm font-bold text-slate-900">Enviar mensagens automáticas de aniversário para o membro</span>
+          </label>
+          {formData.enableDirectBirthday && (
+            <div className="mt-2 space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">Template da Mensagem de Aniversário</label>
+              <textarea 
+                value={formData.birthdayTemplate || ''}
+                onChange={(e) => {
+                   const newFormData = {...formData, birthdayTemplate: e.target.value};
+                   setFormData(newFormData);
+                   onUpdate(newFormData);
+                }}
+                placeholder="Ex: Parabéns {{nome}}! A Igreja Renovar te deseja um feliz aniversário! 🙏🎉"
+                className="w-full p-4 bg-white rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all min-h-[100px]"
+              />
+              <p className="text-[10px] text-slate-500 italic px-1">Use <code>{`{{nome}}`}</code> para inserir o nome do membro e <code>{`{{idade}}`}</code> para a idade.</p>
+            </div>
+          )}
         </div>
         
-        <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+        <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm mt-4">
           <div className="space-y-0.5">
             <span className="text-sm font-bold text-slate-700">Status Geral</span>
             <p className="text-[10px] text-slate-400 uppercase font-bold">Ativar serviço de avisos</p>

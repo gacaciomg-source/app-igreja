@@ -649,10 +649,60 @@ initWhatsApp();
 cron.schedule('0 0 * * *', async () => {
     console.log('Running daily birthday check...');
     try {
-        const message = await getTodayBirthdaysMessage();
-        if (message) {
-            await sendWhatsAppNotifications(message);
-            console.log('Daily birthday notification sent.');
+        const users = await storage.readCollection<any>("users");
+        const configs = await storage.readCollection<any>("config");
+        const wpConfig = configs.find((c: any) => c.id === 'whatsapp') || {};
+
+        const today = new Date();
+        const currentMonth = today.getMonth() + 1;
+        const currentDay = today.getDate();
+        const currentYear = today.getFullYear();
+
+        const todayBirthdays = users.filter(u => {
+            if (!u.birthDate) return false;
+            const parts = u.birthDate.split('-');
+            if (parts.length !== 3) return false;
+            const month = parseInt(parts[1], 10);
+            const day = parseInt(parts[2], 10);
+            return month === currentMonth && day === currentDay;
+        });
+
+        if (todayBirthdays.length > 0) {
+            // 1. Send group/admin notification
+            let msg = "🎂 *Aniversariantes de Hoje:*\n\n";
+            todayBirthdays.forEach(u => {
+                const parts = u.birthDate.split('-');
+                const year = parseInt(parts[0], 10);
+                const age = currentYear - year;
+                msg += `- ${u.name} (${age} anos)\n`;
+            });
+            await sendWhatsAppNotifications(msg);
+            console.log('Daily birthday notification sent to admins.');
+
+            // 2. Send direct notifications if enabled
+            if (wpConfig.enableDirectBirthday && wpConfig.birthdayTemplate) {
+                for (const u of todayBirthdays) {
+                    if (u.phone) {
+                        const parts = u.birthDate.split('-');
+                        const year = parseInt(parts[0], 10);
+                        const age = currentYear - year;
+                        
+                        let directMsg = wpConfig.birthdayTemplate
+                            .replace(/{{nome}}/gi, u.name)
+                            .replace(/{{idade}}/gi, age.toString());
+
+                        try {
+                            const formattedPhone = await formatPhoneForWhatsApp(u.phone);
+                            if (formattedPhone) {
+                                await whatsappClient?.sendMessage(formattedPhone, directMsg);
+                                console.log(`Direct birthday message sent to ${u.name}`);
+                            }
+                        } catch (err) {
+                            console.error(`Failed to send direct birthday message to ${u.name}:`, err);
+                        }
+                    }
+                }
+            }
         } else {
             console.log('No birthdays today.');
         }
@@ -1708,6 +1758,32 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Erro ao adicionar anotação" });
+    }
+  });
+
+  app.post("/api/public/prayers", async (req, res) => {
+    try {
+      const newItem = {
+        ...req.body,
+        id: Math.random().toString(36).substr(2, 9),
+        uid: 'public',
+        date: new Date().toLocaleDateString('pt-BR'),
+        likes: 0,
+        comments: 0,
+        createdAt: new Date().toISOString()
+      };
+      
+      await storage.insert('prayers', newItem);
+      console.log(`Successfully inserted into prayers (public):`, newItem.id);
+      
+      const privacy = newItem.privacy === 'private' ? 'Privado' : 'Público';
+      const msg = `🙏 *Novo Pedido de Oração (Público)*\n\n*Nome:* ${newItem.user || 'Anônimo'}\n*Privacidade:* ${privacy}\n*Mensagem:* ${newItem.content}`;
+      sendWhatsAppNotifications(msg).catch(e => console.error("WhatsApp notification failed:", e));
+      
+      res.json(newItem);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao adicionar oração pública" });
     }
   });
 

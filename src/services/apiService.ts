@@ -160,6 +160,13 @@ class ApiService {
     return this.request(`/collections/${collection}/${id}`);
   }
 
+  async createPublicPrayer(data: any) {
+    return this.request('/public/prayers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async create(collection: string, data: any) {
     return this.request(`/collections/${collection}`, {
       method: 'POST',
