@@ -298,3 +298,14 @@ export interface FinancialRule {
   keyword: string; // The label or part of it
   category: string;
 }
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  condition: string;
+  location: string;
+  notes?: string;
+  createdAt?: string;
+}

@@ -1847,7 +1847,7 @@ async function startServer() {
   app.post("/api/collections/:name", authenticateToken, async (req: any, res) => {
     try {
       const requester = req.user;
-      const restrictedCollections = ['users', 'ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles'];
+      const restrictedCollections = ['users', 'ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles', 'inventory'];
       
       if (restrictedCollections.includes(req.params.name) && requester.role !== 'admin' && requester.role !== 'superadmin') {
         return res.status(403).json({ error: "Você não tem permissão para adicionar nesta coleção." });
@@ -1933,7 +1933,7 @@ async function startServer() {
         }
       } else {
          const requester = (req as any).user;
-         const restrictedCollections = ['ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles'];
+         const restrictedCollections = ['ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles', 'inventory'];
          
          if (restrictedCollections.includes(req.params.name) && requester.role !== 'admin' && requester.role !== 'superadmin') {
            // Permitir que membros solicitem entrada (patch no campo pendingRequestIds)
@@ -1988,7 +1988,7 @@ async function startServer() {
   app.delete("/api/collections/:name/:id", authenticateToken, async (req: any, res) => {
     try {
       const requester = req.user;
-      const restrictedCollections = ['users', 'ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles'];
+      const restrictedCollections = ['users', 'ministries', 'announcements', 'readingPlans', 'sermons', 'transactions', 'funds', 'financialRules', 'cells', 'config', 'adminRoles', 'inventory'];
       
       if (restrictedCollections.includes(req.params.name) && requester.role !== 'admin' && requester.role !== 'superadmin') {
         return res.status(403).json({ error: "Você não tem permissão para excluir itens desta coleção." });

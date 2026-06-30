@@ -88,7 +88,8 @@ import {
   Megaphone,
   X,
   Map,
-  MapPin
+  MapPin,
+  Package
 } from 'lucide-react';
 
 import Papa from 'papaparse';
@@ -4186,6 +4187,138 @@ const UserPastoralVisitsScreen = ({ visits, onAddRequest }: { visits: PastoralVi
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+const InventoryScreen = ({ inventory, onAdd, onUpdate, onDelete, showMessage }: { inventory: InventoryItem[], onAdd: (data: Partial<InventoryItem>) => Promise<void>, onUpdate: (id: string, data: Partial<InventoryItem>) => Promise<void>, onDelete: (id: string) => Promise<void>, showMessage: (msg: string) => void }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [formData, setFormData] = useState<Partial<InventoryItem>>({ name: '', category: '', quantity: 1, condition: 'Novo', location: '', notes: '' });
+
+  const filtered = inventory.filter(i => 
+    i.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    i.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    i.location.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.category || !formData.location) {
+      showMessage('Preencha os campos obrigatórios.');
+      return;
+    }
+    try {
+      if (editingItem) {
+        await onUpdate(editingItem.id, formData);
+        showMessage('Item atualizado com sucesso!');
+      } else {
+        await onAdd(formData);
+        showMessage('Item adicionado com sucesso!');
+      }
+      setShowForm(false);
+      setEditingItem(null);
+      setFormData({ name: '', category: '', quantity: 1, condition: 'Novo', location: '', notes: '' });
+    } catch (err) {
+      showMessage('Erro ao salvar item.');
+    }
+  };
+
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Inventário</h2>
+          <p className="text-slate-500 text-sm">Gerencie os bens da igreja</p>
+        </div>
+        <Button onClick={() => { setEditingItem(null); setFormData({ name: '', category: '', quantity: 1, condition: 'Novo', location: '', notes: '' }); setShowForm(true); }}>
+          <Plus className="w-4 h-4 mr-2" /> Novo Item
+        </Button>
+      </header>
+
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
+        <Search className="w-5 h-5 text-slate-400" />
+        <input 
+          type="text" 
+          placeholder="Buscar por nome, categoria ou localização..." 
+          className="flex-1 bg-transparent outline-none text-sm"
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {filtered.map(item => (
+          <Card key={item.id} className="p-4 flex flex-col gap-3 group relative">
+            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+              <button onClick={() => { setEditingItem(item); setFormData(item); setShowForm(true); }} className="p-2 bg-white/80 backdrop-blur rounded-full hover:bg-slate-100 shadow-sm"><Edit3 className="w-4 h-4 text-slate-600" /></button>
+              <button onClick={() => { if (window.confirm('Excluir item?')) onDelete(item.id); }} className="p-2 bg-white/80 backdrop-blur rounded-full hover:bg-red-50 shadow-sm"><Trash2 className="w-4 h-4 text-red-500" /></button>
+            </div>
+            
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">{item.category}</span>
+              <h3 className="font-bold text-slate-900 leading-tight">{item.name}</h3>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 text-sm mt-auto">
+              <div className="bg-slate-50 p-2 rounded-xl">
+                <span className="block text-[10px] text-slate-400 font-bold uppercase">Qtd</span>
+                <span className="font-bold text-slate-700">{item.quantity}</span>
+              </div>
+              <div className="bg-slate-50 p-2 rounded-xl">
+                <span className="block text-[10px] text-slate-400 font-bold uppercase">Estado</span>
+                <span className="font-bold text-slate-700">{item.condition}</span>
+              </div>
+              <div className="bg-slate-50 p-2 rounded-xl col-span-2 flex items-center gap-2">
+                <MapPin className="w-3 h-3 text-slate-400" />
+                <span className="text-slate-600 text-xs truncate">{item.location}</span>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {showForm && (
+        <Modal title={editingItem ? "Editar Item" : "Novo Item"} onClose={() => setShowForm(false)}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-slate-400 uppercase">Nome *</label>
+              <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mt-1" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Categoria *</label>
+                <input type="text" required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mt-1" placeholder="Ex: Eletrônicos" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Quantidade *</label>
+                <input type="number" min="1" required value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mt-1" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Condição *</label>
+                <select required value={formData.condition} onChange={e => setFormData({...formData, condition: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mt-1">
+                  <option value="Novo">Novo</option>
+                  <option value="Bom">Bom</option>
+                  <option value="Regular">Regular</option>
+                  <option value="Ruim">Ruim</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase">Localização *</label>
+                <input type="text" required value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mt-1" placeholder="Ex: Sala 3" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-400 uppercase">Observações</label>
+              <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mt-1" rows={3}></textarea>
+            </div>
+            <Button type="submit" className="w-full py-4">{editingItem ? 'Salvar' : 'Adicionar'}</Button>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -8499,6 +8632,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [funds, setFunds] = useState<FinancialFund[]>([]);
   const [financialRules, setFinancialRules] = useState<FinancialRule[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [readingPlans, setReadingPlans] = useState<ReadingPlan[]>([]);
@@ -8573,7 +8707,7 @@ export default function App() {
     setCacheVersion(new Date().getTime());
     try {
       const [
-        e, p, c, u, a, r, s, h, at, pv, m, ms, config, roles, verseToday, vStats, reg, sReports
+        e, p, c, u, a, r, s, h, at, pv, m, ms, config, roles, verseToday, vStats, reg, sReports, invData
       ] = await Promise.all([
         api.list('events'),
         api.list('prayers'),
@@ -8592,7 +8726,8 @@ export default function App() {
         api.request('/verses/today').catch(() => null),
         api.request('/verses/stats').catch(() => null),
         api.list('eventRegistrations').catch(() => []),
-        api.list('serviceReports').catch(() => [])
+        api.list('serviceReports').catch(() => []),
+        api.list('inventory').catch(() => [])
       ]);
 
       setDailyVerse(verseToday);
@@ -8609,6 +8744,7 @@ export default function App() {
       setPastoralVisits(pv || []);
       setServiceReports(sReports || []);
       setMinistries(m || []);
+      setInventory(invData || []);
       setMinistrySchedules(ms || []);
       setAdminRoles(roles || []);
       setRegistrations(reg || []);
@@ -9214,6 +9350,33 @@ export default function App() {
       showMessage('Relatório excluído!');
     } catch (err) {
       handleApiError(err, 'deleteServiceReport');
+    }
+  };
+
+  const addInventoryItem = async (data: Partial<InventoryItem>) => {
+    try {
+      await api.create('inventory', { ...data, createdAt: new Date().toISOString() });
+    } catch (err) {
+      handleApiError(err, 'addInventoryItem');
+      throw err;
+    }
+  };
+
+  const updateInventoryItem = async (id: string, data: Partial<InventoryItem>) => {
+    try {
+      await api.update('inventory', id, data);
+    } catch (err) {
+      handleApiError(err, 'updateInventoryItem');
+      throw err;
+    }
+  };
+
+  const deleteInventoryItem = async (id: string) => {
+    try {
+      await api.delete('inventory', id);
+    } catch (err) {
+      handleApiError(err, 'deleteInventoryItem');
+      throw err;
     }
   };
 
@@ -9952,6 +10115,7 @@ const joinCell = async (cellId: string) => {
         case 'readingPlans': return <ReadingPlansScreen plans={readingPlans} allProgress={allUserProgress} users={users} isAdmin={true} onAdd={() => setShowAddReadingPlan(true)} onDelete={deleteReadingPlan} showMessage={showMessage} />;
         case 'sermons': return <AdminSermonsScreen sermons={sermons} onAdd={addSermon} onUpdate={updateSermon} onDelete={deleteSermon} />;
         case 'serviceReports': return <ServiceReportsScreen reports={serviceReports} users={users} isAdmin={true} onAdd={addServiceReport} onDelete={deleteServiceReport} />;
+        case 'inventory': return <InventoryScreen inventory={inventory} onAdd={async (data) => { await addInventoryItem(data); await refreshData(); }} onUpdate={async (id, data) => { await updateInventoryItem(id, data); await refreshData(); }} onDelete={async (id) => { await deleteInventoryItem(id); await refreshData(); }} showMessage={showMessage} />;
         case 'crm': return <CRMScreen users={users} currentUser={currentUserData} showMessage={showMessage} />;
         case 'pastoral': return <AdminPastoralVisits visits={pastoralVisits} onUpdateStatus={updatePastoralVisitStatus} />;
         case 'profile': {
@@ -10139,6 +10303,7 @@ const joinCell = async (cellId: string) => {
     { id: 'sermons', icon: Radio, label: 'Sermões' },
     { id: 'prayer', icon: PrayingHands, label: 'Orações' },
     { id: 'serviceReports', icon: FileText, label: 'Relatórios' },
+    { id: 'inventory', icon: Package, label: 'Inventário' },
     { id: 'crm', icon: MessageSquare, label: 'Atendimento' },
     { id: 'profile', icon: Settings, label: 'Perfil' },
     { id: 'hosting', icon: Server, label: 'Servidor' },
