@@ -89,7 +89,8 @@ import {
   X,
   Map,
   MapPin,
-  Package
+  Package,
+  Edit3
 } from 'lucide-react';
 
 import Papa from 'papaparse';
