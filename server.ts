@@ -1953,6 +1953,22 @@ async function startServer() {
              } else {
                return res.status(403).json({ error: "Você não tem permissão para editar itens desta coleção." });
              }
+           } else if (req.params.name === 'cells' && (req.method === 'PATCH' || req.method === 'PUT')) {
+             const updates = Object.keys(req.body);
+             const cell = await storage.findById<any>("cells", req.params.id);
+             const isLeader = cell && cell.leaderId === requester.id;
+
+             if (updates.length <= 2 && updates.every(k => ['membersList', 'members', 'pendingRequestIds'].includes(k))) {
+               // OK - members can request to join or join directly
+             } else if (isLeader) {
+               const allowed = ['membersList', 'pendingRequestIds', 'nextMeeting', 'address', 'time'];
+               const isDisallowed = updates.some(k => !allowed.includes(k));
+               if (isDisallowed) {
+                 return res.status(403).json({ error: "Você não tem permissão para editar estes campos." });
+               }
+             } else {
+               return res.status(403).json({ error: "Você não tem permissão para editar itens desta coleção." });
+             }
            } else {
              return res.status(403).json({ error: "Você não tem permissão para editar itens desta coleção." });
            }
@@ -1968,6 +1984,13 @@ async function startServer() {
                  const isDisallowed = updates.some(k => !allowed.includes(k));
                  if (isDisallowed) {
                    return res.status(403).json({ error: "Você não tem permissão para editar estes campos." });
+                 }
+               } else if (req.params.name === 'pastoralVisits' && requester.role === 'leader') {
+                 const updates = Object.keys(req.body);
+                 const allowed = ['status'];
+                 const isDisallowed = updates.some(k => !allowed.includes(k));
+                 if (isDisallowed) {
+                   return res.status(403).json({ error: "Líderes só podem atualizar o status da visita." });
                  }
                } else {
                  return res.status(403).json({ error: "Você não tem permissão para editar este item." });

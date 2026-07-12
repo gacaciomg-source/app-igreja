@@ -46,7 +46,7 @@ class ApiService {
         let errObj: any = new Error(errorMessage);
         if (error.details) errObj.details = error.details;
         
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
           this.logout();
           if (typeof window !== 'undefined' && 
               window.location.pathname !== '/' && 
