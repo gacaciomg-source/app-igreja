@@ -1,8 +1,18 @@
+// PRIMEIRA linha de propósito: carrega o arquivo .env antes de qualquer outro
+// módulo. A verificação de JWT_SECRET mais abaixo roda no carregamento deste
+// arquivo, então se o .env vier depois ela leria variáveis vazias.
+//
+// O pacote dotenv estava instalado mas nunca era importado — na prática o .env
+// era ignorado por completo e todas as variáveis precisavam vir do ambiente.
+import "dotenv/config";
+
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import crypto from "crypto";
+import dns from "dns";
+import net from "net";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -29,17 +39,92 @@ const storageConfig = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
+    // A extensão vem do tipo declarado, não do nome enviado pelo cliente.
+    // Aceitar `originalname` permitia salvar .html ou .svg na pasta /uploads,
+    // que é servida como estática — ou seja, XSS hospedado no próprio domínio.
+    const ext = UPLOAD_EXTENSION_BY_MIME[file.mimetype] || '.bin';
     cb(null, file.fieldname + '-' + uniqueSuffix + ext);
   }
 });
 
-const upload = multer({ 
+/**
+ * Tipos aceitos em upload, com a extensão correspondente.
+ *
+ * Importante: SVG fica de fora de propósito. Um SVG pode conter <script>, e
+ * como a pasta /uploads é servida diretamente, isso viraria XSS no domínio.
+ */
+const UPLOAD_EXTENSION_BY_MIME: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/pjpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/heic': '.heic',
+  'image/heif': '.heif',
+  'application/pdf': '.pdf',
+  'audio/mpeg': '.mp3',
+  'audio/mp4': '.m4a',
+  'audio/aac': '.aac',
+  'audio/ogg': '.ogg',
+  'video/mp4': '.mp4',
+  // Necessários para a importação de backup
+  'application/zip': '.zip',
+  'application/x-zip-compressed': '.zip',
+  'application/octet-stream': '.bin',
+};
+
+const upload = multer({
   storage: storageConfig,
-  limits: { fileSize: 200 * 1024 * 1024 } // Aumentado para 200MB para suportar imagens de altíssima resolução
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB, para imagens de alta resolução e backups
+  fileFilter: (req, file, cb) => {
+    if (UPLOAD_EXTENSION_BY_MIME[file.mimetype]) {
+      return cb(null, true);
+    }
+    console.warn(`[Upload] Tipo recusado: ${file.mimetype} (${file.originalname})`);
+    cb(new Error(`Tipo de arquivo não permitido: ${file.mimetype}`));
+  }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+/**
+ * Chave de assinatura dos tokens de login.
+ *
+ * Com um valor padrão previsível, qualquer pessoa consegue forjar um token de
+ * superadmin e assumir o sistema. Por isso, em produção, o servidor se recusa
+ * a subir sem uma chave própria e suficientemente longa.
+ *
+ * Para gerar uma: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+ */
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (secret && secret.length >= 32 && secret !== "your-secret-key") {
+    return secret;
+  }
+
+  if (isProduction) {
+    console.error(
+      "\n[FATAL] JWT_SECRET ausente, curta (mínimo 32 caracteres) ou usando o valor de exemplo.\n" +
+      "        Defina JWT_SECRET no .env antes de subir em produção.\n" +
+      "        Gere uma com: node -e \"console.log(require('crypto').randomBytes(48).toString('hex'))\"\n"
+    );
+    process.exit(1);
+  }
+
+  console.warn(
+    "\n" + "!".repeat(70) + "\n" +
+    "[AVISO GRAVE] O servidor está em MODO DESENVOLVIMENTO (NODE_ENV != production).\n" +
+    "\n" +
+    "  Nesse modo:\n" +
+    "   - os tokens de login usam uma chave PÚBLICA e previsível;\n" +
+    "   - o servidor de desenvolvimento do Vite fica exposto junto com a API.\n" +
+    "\n" +
+    "  Se este servidor está acessível pela internet, defina NODE_ENV=production\n" +
+    "  e JWT_SECRET agora. Use `npm start`, que já define NODE_ENV.\n" +
+    "!".repeat(70) + "\n"
+  );
+  return "desenvolvimento-local-apenas-nao-use-em-producao";
+})();
 
 // --- WhatsApp Global State ---
 let whatsappClient: any | null = null;
@@ -692,7 +777,7 @@ cron.schedule('0 0 * * *', async () => {
                             .replace(/{{idade}}/gi, age.toString());
 
                         try {
-                            const formattedPhone = await formatPhoneForWhatsApp(u.phone);
+                            const formattedPhone = await getWhatsAppChatId(u.phone);
                             if (formattedPhone) {
                                 await whatsappClient?.sendMessage(formattedPhone, directMsg);
                                 console.log(`Direct birthday message sent to ${u.name}`);
@@ -808,9 +893,18 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
 
+  // Atrás de nginx, Cloudflare ou similar, defina TRUST_PROXY=true no .env
+  // para que `req.ip` traga o IP real do usuário e não o do proxy.
+  if (process.env.TRUST_PROXY === 'true') {
+    app.set('trust proxy', true);
+  }
+
   app.use(cors());
-  app.use(express.json({ limit: '200mb' }));
-  app.use(express.urlencoded({ limit: '200mb', extended: true }));
+  // Era 200mb, o que permitia derrubar o servidor por consumo de memória com
+  // uma única requisição. Arquivos grandes sobem por /api/upload (multer), que
+  // grava em disco em vez de carregar tudo na memória.
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   const uploadsDir = path.join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadsDir)) {
@@ -825,18 +919,37 @@ async function startServer() {
       const hasSuperAdmin = users.find(u => u.role === "superadmin" || u.email === "admin");
       
       if (!hasSuperAdmin) {
-        console.log("Criando Super Admin padrão...");
-        const hashedPassword = await bcrypt.hash("admin", 10);
+        console.log("Criando Super Admin inicial...");
+
+        // Antes a senha era "admin", fixa no código. Como o app é público,
+        // isso equivalia a deixar o sistema aberto. Agora: usa a senha do .env
+        // ou sorteia uma e obriga a troca no primeiro acesso.
+        const envPassword = process.env.SUPERADMIN_PASSWORD;
+        const generated = !envPassword;
+        const plainPassword = envPassword || crypto.randomBytes(9).toString("base64url");
+
+        const hashedPassword = await bcrypt.hash(plainPassword, 10);
         const superAdmin = {
           id: uuidv4(),
           name: "Super Administrador",
-          email: "admin",
+          email: process.env.SUPERADMIN_EMAIL || "admin",
           password: hashedPassword,
           role: "superadmin",
+          mustChangePassword: true,
           createdAt: new Date().toISOString()
         };
         await storage.insert("users", superAdmin);
-        console.log("Super Admin criado com sucesso (login: admin / senha: admin)");
+
+        console.log("=".repeat(64));
+        console.log(`Super Admin criado. Login: ${superAdmin.email}`);
+        if (generated) {
+          console.log(`Senha sorteada: ${plainPassword}`);
+          console.log("Anote agora — ela não será exibida de novo.");
+        } else {
+          console.log("Senha: a definida em SUPERADMIN_PASSWORD no .env");
+        }
+        console.log("A troca de senha será exigida no primeiro acesso.");
+        console.log("=".repeat(64));
       }
     } catch (e) {
       console.error("Erro ao garantir Super Admin:", e);
@@ -929,6 +1042,48 @@ async function startServer() {
     });
   };
 
+  // --- Limite de tentativas nos endpoints de autenticação ---
+  //
+  // Sem isso é possível testar senhas indefinidamente, e principalmente
+  // adivinhar o código de 6 dígitos da recuperação por WhatsApp.
+  //
+  // A contagem é por IP + e-mail informado: assim, se toda a igreja estiver
+  // atrás do mesmo IP (wifi do templo, ou um proxy sem TRUST_PROXY), o bloqueio
+  // de uma conta não derruba o login das outras pessoas.
+  const authAttempts = new Map<string, { count: number; firstAt: number }>();
+  const AUTH_WINDOW_MS = 15 * 60 * 1000;
+  const AUTH_MAX_ATTEMPTS = 15;
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of authAttempts) {
+      if (now - entry.firstAt > AUTH_WINDOW_MS) authAttempts.delete(key);
+    }
+  }, AUTH_WINDOW_MS).unref();
+
+  const rateLimitAuth = (req: any, res: any, next: any) => {
+    const ip = req.ip || req.socket?.remoteAddress || 'desconhecido';
+    const email = String(req.body?.email || '').toLowerCase();
+    const key = `${req.path}:${ip}:${email}`;
+    const now = Date.now();
+    const entry = authAttempts.get(key);
+
+    if (!entry || now - entry.firstAt > AUTH_WINDOW_MS) {
+      authAttempts.set(key, { count: 1, firstAt: now });
+      return next();
+    }
+
+    entry.count++;
+    if (entry.count > AUTH_MAX_ATTEMPTS) {
+      const minutos = Math.max(1, Math.ceil((AUTH_WINDOW_MS - (now - entry.firstAt)) / 60000));
+      console.warn(`[Auth] Limite de tentativas atingido: ${key}`);
+      return res.status(429).json({
+        error: `Muitas tentativas. Aguarde ${minutos} minuto(s) e tente novamente.`
+      });
+    }
+    next();
+  };
+
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
@@ -958,24 +1113,112 @@ async function startServer() {
     }
   });
 
+  /**
+   * Endereços que o proxy nunca deve acessar: rede local, loopback e a faixa
+   * 169.254.x.x, usada pelos serviços de metadados das nuvens (onde ficam as
+   * credenciais da máquina).
+   */
+  const isPrivateAddress = (ip: string): boolean => {
+    if (net.isIPv4(ip)) {
+      const [a, b] = ip.split('.').map(Number);
+      if (a === 0 || a === 10 || a === 127) return true;
+      if (a === 169 && b === 254) return true;              // link-local / metadados
+      if (a === 172 && b >= 16 && b <= 31) return true;
+      if (a === 192 && b === 168) return true;
+      if (a === 100 && b >= 64 && b <= 127) return true;    // CGNAT
+      return false;
+    }
+    const v6 = ip.toLowerCase().replace(/^\[|\]$/g, '');
+    return v6 === '::1' || v6 === '::' ||
+      v6.startsWith('fc') || v6.startsWith('fd') ||         // rede privada IPv6
+      v6.startsWith('fe80') ||                              // link-local
+      v6.startsWith('::ffff:127.') || v6.startsWith('::ffff:10.');
+  };
+
+  /** Valida protocolo e destino de uma URL antes do proxy buscá-la. */
+  const assertSafeProxyTarget = async (raw: string): Promise<URL> => {
+    let target: URL;
+    try {
+      target = new URL(raw);
+    } catch {
+      throw new Error('URL inválida');
+    }
+
+    if (target.protocol !== 'https:' && target.protocol !== 'http:') {
+      throw new Error('Protocolo não permitido');
+    }
+
+    // Se o host já for um IP, valida direto; senão resolve o DNS primeiro
+    const resolved = net.isIP(target.hostname)
+      ? target.hostname
+      : (await dns.promises.lookup(target.hostname)).address;
+
+    if (isPrivateAddress(resolved)) {
+      throw new Error('Destino não permitido');
+    }
+
+    return target;
+  };
+
+  /**
+   * Proxy de imagens, usado pelas telas que precisam desenhar logos externos
+   * sem cair em bloqueio de CORS (inclusive na tela de login, por isso não
+   * exige autenticação).
+   *
+   * Antes ele buscava qualquer endereço que recebesse, o que permitia usar o
+   * servidor para varrer a rede interna da hospedagem (SSRF). Agora o destino
+   * é validado, os redirecionamentos são revalidados um por um, e a resposta
+   * precisa ser de fato uma imagem.
+   */
   app.get("/api/proxy-image", async (req, res) => {
+    const MAX_REDIRECTS = 3;
+    const MAX_BYTES = 10 * 1024 * 1024;
+
     try {
       const imageUrl = req.query.url as string;
       if (!imageUrl) return res.status(400).send('URL is required');
-      
-      const response = await fetch(imageUrl);
-      if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
-      
+
+      let current = await assertSafeProxyTarget(imageUrl);
+      let response: Response | null = null;
+
+      for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+        response = await fetch(current.toString(), {
+          redirect: 'manual', // seguir automaticamente burlaria a validação
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (response.status < 300 || response.status >= 400) break;
+
+        const location = response.headers.get('location');
+        if (!location) break;
+
+        // Revalida cada salto: um redirect poderia apontar para a rede interna
+        current = await assertSafeProxyTarget(new URL(location, current).toString());
+        response = null;
+      }
+
+      if (!response || !response.ok) {
+        return res.status(502).send('Não foi possível carregar a imagem');
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.startsWith('image/')) {
+        return res.status(400).send('O endereço informado não retornou uma imagem');
+      }
+
       const buffer = await response.arrayBuffer();
-      const contentType = response.headers.get('content-type') || 'image/png';
-      
+      if (buffer.byteLength > MAX_BYTES) {
+        return res.status(413).send('Imagem muito grande');
+      }
+
       res.setHeader('Content-Type', contentType);
       res.setHeader('Cache-Control', 'public, max-age=86400');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.send(Buffer.from(buffer));
     } catch (err: any) {
-      console.error('Image proxy error:', err);
-      res.status(500).send(`Error proxying image: ${err?.message || err}`);
+      // Sem devolver a mensagem interna ao cliente, para não vazar detalhes
+      console.error('Image proxy error:', err?.message || err);
+      res.status(400).send('Não foi possível carregar a imagem');
     }
   });
 
@@ -1030,21 +1273,108 @@ async function startServer() {
   });
 
   // Delete all data for a user
+  // Listas que guardam ids de usuários. Ao excluir uma conta, o id é retirado
+  // dessas listas — o registro em si (ministério, célula, chamada) é mantido.
+  const USER_ID_ARRAY_FIELDS = [
+    'memberIds', 'leaderIds', 'pendingRequestIds', 'membersList', 'members',
+    'presentMembers', 'absentMembers', 'prayedBy', 'likes',
+  ];
+
+  /**
+   * Remove o usuário e todos os dados pessoais dele.
+   *
+   * A versão anterior excluía qualquer registro cujo `memberIds` contivesse o
+   * usuário — ou seja, apagar um membro apagava também os ministérios e as
+   * células dos quais ele participava. Agora só o id sai das listas.
+   */
+  async function purgeUserData(userId: string): Promise<string[]> {
+    const dataDir = path.join(process.cwd(), 'data');
+    const files = await fs.promises.readdir(dataDir).catch(() => [] as string[]);
+    const collections = files.filter(f => f.endsWith('.json')).map(f => f.slice(0, -5));
+    const touched: string[] = [];
+
+    for (const coll of collections) {
+      const data = await storage.readCollection<any>(coll);
+      let changed = false;
+
+      // 1. Remove os registros que pertencem ao usuário
+      const kept = data.filter((item: any) => {
+        const isOwn =
+          item?.id === userId ||
+          item?.uid === userId ||
+          item?.userId === userId ||
+          item?.memberId === userId ||
+          item?.authorId === userId;
+        if (isOwn) changed = true;
+        return !isOwn;
+      });
+
+      // 2. Retira o id das listas de participantes dos registros restantes
+      for (const item of kept) {
+        for (const field of USER_ID_ARRAY_FIELDS) {
+          if (Array.isArray(item?.[field]) && item[field].includes(userId)) {
+            item[field] = item[field].filter((id: string) => id !== userId);
+            changed = true;
+          }
+        }
+      }
+
+      if (changed) {
+        await storage.writeCollection(coll, kept);
+        touched.push(coll);
+      }
+    }
+
+    return touched;
+  }
+
+  /**
+   * Exclusão da PRÓPRIA conta pelo usuário.
+   *
+   * Exigência da Política de Exclusão de Dados da Google Play: o app precisa
+   * oferecer esse caminho dentro dele, além de um endereço web equivalente.
+   */
+  app.post("/api/auth/delete-account", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { password } = req.body || {};
+
+      const users = await storage.readCollection<any>("users");
+      const user = users.find((u: any) => u.id === userId);
+      if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+
+      if (user.role === 'superadmin') {
+        return res.status(400).json({
+          error: "A conta de Super Administrador não pode ser excluída pelo aplicativo."
+        });
+      }
+
+      // Confirmação por senha: impede que uma sessão roubada apague a conta
+      if (!password || !user.password || !(await bcrypt.compare(password, user.password))) {
+        return res.status(400).json({ error: "Senha incorreta. A conta não foi excluída." });
+      }
+
+      const touched = await purgeUserData(userId);
+      console.log(`[LGPD] Conta ${userId} excluída pelo próprio usuário. Coleções afetadas: ${touched.join(', ') || 'nenhuma'}`);
+
+      res.json({
+        success: true,
+        message: "Sua conta e seus dados pessoais foram excluídos permanentemente."
+      });
+    } catch (e) {
+      console.error("Erro ao excluir a própria conta:", e);
+      res.status(500).json({ error: "Erro ao excluir a conta" });
+    }
+  });
+
   app.delete("/api/users/:userId/delete", authenticateToken, async (req: any, res) => {
     if (req.user.role !== 'superadmin') return res.status(403).json({ error: "Acesso não autorizado" });
     const { userId } = req.params;
     try {
-        const dataDir = path.join(process.cwd(), 'data');
-        const files = await fs.promises.readdir(dataDir);
-        const collections = files.filter(f => f.endsWith('.json')).map(f => f.slice(0, -5));
-        
-        for(const coll of collections) {
-            const data = await storage.readCollection<any>(coll);
-            const filteredData = data.filter((item: any) => !(item.userId === userId || item.memberIds?.includes(userId) || item.id === userId));
-            await storage.writeCollection(coll, filteredData);
-        }
-        res.json({ message: "Dados do usuário excluídos com sucesso" });
+        const touched = await purgeUserData(userId);
+        res.json({ message: "Dados do usuário excluídos com sucesso", collections: touched });
     } catch (e) {
+        console.error("Erro ao excluir dados do usuário:", e);
         res.status(500).json({ error: "Erro ao excluir dados" });
     }
   });
@@ -1065,7 +1395,7 @@ async function startServer() {
   });
 
   // --- Auth API ---
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", rateLimitAuth, async (req, res) => {
     try {
       const { name, email, password, birthDate, address, phone } = req.body;
       const normalizedEmail = email.toLowerCase();
@@ -1143,7 +1473,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", rateLimitAuth, async (req, res) => {
     try {
       const { email, password } = req.body;
       const normalizedEmail = email.toLowerCase();
@@ -1163,7 +1493,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/auth/reset-password", async (req, res) => {
+  app.post("/api/auth/reset-password", rateLimitAuth, async (req, res) => {
     try {
       const { email } = req.body;
       const normalizedEmail = email.toLowerCase();
@@ -1540,7 +1870,11 @@ async function startServer() {
         // ------------------------------------
         
         try { fs.unlinkSync(finalZipPath); } catch(e) {}
-        
+
+        // O zip foi extraído direto no disco, sem passar por writeCollection.
+        // Sem descartar o cache, o servidor continuaria servindo os dados antigos.
+        storage.invalidateCache();
+
         console.log(`Backup (dados e imagens) importado com sucesso! ${extractedCount} arquivos extraidos.`);
         return res.json({ ok: true, complete: true });
       }
@@ -1615,7 +1949,11 @@ async function startServer() {
       // ------------------------------------
       
       try { fs.unlinkSync(file.path); } catch (e) {}
-      
+
+      // Mesmo motivo do endpoint em partes: a extração escreveu os arquivos
+      // por fora do writeCollection, então o cache em memória está velho.
+      storage.invalidateCache();
+
       console.log(`Backup (dados e imagens) importado com sucesso! ${extractedCount} arquivos extraidos.`);
       res.json({ ok: true });
     } catch (error: any) {
@@ -1685,20 +2023,174 @@ async function startServer() {
     }
   });
 
-  app.get("/api/collections/:name", authenticateToken, async (req, res) => {
-    try {
-      let data = await storage.readCollection(req.params.name);
-      
-      // Data leak prevention for users collection
-      if (req.params.name === 'users') {
-        data = data.map((user: any) => {
-          const { password, ...safeUser } = user;
-          return safeUser;
+  // =========================================================================
+  // POLÍTICA DE LEITURA DAS COLEÇÕES
+  //
+  // Antes, qualquer membro logado conseguia ler qualquer coleção por inteiro:
+  // telefones e endereços de toda a igreja, lançamentos financeiros, visitas
+  // pastorais, pedidos de oração privados e o token do Telegram guardado em
+  // `config`. Só a senha era removida.
+  //
+  // Aqui a regra é definida coleção por coleção. Coleção sem regra = negada,
+  // então ao criar uma nova você precisa adicioná-la aqui.
+  // =========================================================================
+
+  const isAdminRole = (u: any) => u?.role === 'admin' || u?.role === 'superadmin';
+  const isLeaderRole = (u: any) => u?.role === 'leader';
+
+  type ReadScope =
+    | 'all'            // qualquer membro logado
+    | 'own'            // só os próprios registros (admin vê tudo)
+    | 'adminOrLeader'  // admin e líder veem tudo; membro vê os próprios
+    | 'admin';         // só administradores
+
+  const READ_POLICY: Record<string, ReadScope> = {
+    // Conteúdo aberto a toda a igreja
+    events: 'all',
+    announcements: 'all',
+    sermons: 'all',
+    readingPlans: 'all',
+    ministries: 'all',
+    ministrySchedules: 'all',
+    cells: 'all',
+    verses: 'all',
+    verseHistory: 'all',
+    users: 'all',              // campos sensíveis removidos abaixo
+    config: 'all',             // credenciais removidas abaixo
+    prayers: 'all',            // pedidos privados de terceiros removidos abaixo
+    eventRegistrations: 'all', // contatos de terceiros removidos abaixo
+
+    // Apenas os próprios registros
+    verseHighlights: 'own',
+    userProgress: 'own',
+    titheTransactions: 'own',
+
+    // Líderes acompanham; membro vê só o que diz respeito a ele
+    pastoralVisits: 'adminOrLeader',
+    serviceReports: 'adminOrLeader',
+    attendance: 'adminOrLeader',
+
+    // Administrativo e financeiro
+    adminRoles: 'admin',
+    transactions: 'admin',
+    funds: 'admin',
+    financialRules: 'admin',
+    inventory: 'admin',
+  };
+
+  /**
+   * Verdadeiro se o registro pertence ao usuário. Cobre os vários formatos
+   * usados no projeto (`uid`, `userId`) e também listas de participantes —
+   * a chamada de célula (`attendance`), por exemplo, não tem dono único:
+   * o membro aparece dentro de `presentMembers` / `absentMembers`.
+   */
+  const ownsRecord = (item: any, userId: string): boolean =>
+    item?.uid === userId ||
+    item?.userId === userId ||
+    item?.memberId === userId ||
+    item?.id === userId ||
+    (Array.isArray(item?.presentMembers) && item.presentMembers.includes(userId)) ||
+    (Array.isArray(item?.absentMembers) && item.absentMembers.includes(userId)) ||
+    (Array.isArray(item?.memberIds) && item.memberIds.includes(userId));
+
+  // Campos de `users` visíveis só para administradores e para o próprio dono.
+  // `birthDate` fica fora da lista de propósito: a tela "Aniversariantes"
+  // depende dele para funcionar.
+  const USER_PRIVATE_FIELDS = [
+    'email', 'phone', 'address', 'cpf', 'rg',
+    'integrationNotes', 'notificationSettings', 'pushSubscriptions',
+    'mustChangePassword', 'memberStatus',
+  ];
+
+  // Documentos de `config` que guardam credenciais de integração
+  const CONFIG_ADMIN_ONLY_IDS = ['cloudBackup', 'whatsapp'];
+  const SECRET_KEY_PATTERN = /token|secret|senha|password|apikey|api_key|privatekey|private_key|webhook/i;
+
+  function filterCollectionForUser(name: string, data: any[], user: any): any[] {
+    const admin = isAdminRole(user);
+    const leader = isLeaderRole(user);
+
+    if (name === 'users') {
+      return data.map((u: any) => {
+        const safe = { ...u };
+        delete safe.password; // nunca sai, nem para administrador
+        if (admin || u.id === user.id) return safe;
+        for (const field of USER_PRIVATE_FIELDS) delete safe[field];
+        return safe;
+      });
+    }
+
+    if (name === 'config') {
+      if (admin) return data;
+      return data
+        .filter((c: any) => !CONFIG_ADMIN_ONLY_IDS.includes(c?.id))
+        .map((c: any) => {
+          const safe: any = {};
+          for (const [key, value] of Object.entries(c || {})) {
+            if (!SECRET_KEY_PATTERN.test(key)) safe[key] = value;
+          }
+          return safe;
         });
+    }
+
+    if (name === 'prayers') {
+      if (admin) return data;
+      return data.filter((p: any) => p?.privacy !== 'private' || ownsRecord(p, user.id));
+    }
+
+    if (name === 'eventRegistrations') {
+      if (admin) return data;
+      return data.map((r: any) => {
+        if (ownsRecord(r, user.id)) return r;
+        const safe = { ...r };
+        delete safe.userPhone;
+        delete safe.userEmail;
+        return safe;
+      });
+    }
+
+    if (name === 'attendance' && !admin && !leader) {
+      // O membro vê que esteve presente, mas não as anotações do líder
+      return data.map((a: any) => {
+        const safe = { ...a };
+        delete safe.notes;
+        return safe;
+      });
+    }
+
+    return data;
+  }
+
+  app.get("/api/collections/:name", authenticateToken, async (req: any, res) => {
+    const name = req.params.name;
+    const user = req.user;
+    const scope = READ_POLICY[name];
+
+    if (!scope) {
+      console.warn(`[Auth] Leitura negada: "${name}" não tem regra em READ_POLICY`);
+      return res.status(403).json({ error: "Coleção não disponível." });
+    }
+
+    const admin = isAdminRole(user);
+
+    if (scope === 'admin' && !admin) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+
+    try {
+      let data = await storage.readCollection<any>(name);
+
+      const restrictToOwn =
+        (scope === 'own' && !admin) ||
+        (scope === 'adminOrLeader' && !admin && !isLeaderRole(user));
+
+      if (restrictToOwn) {
+        data = data.filter((item: any) => ownsRecord(item, user.id));
       }
 
-      res.json(data);
+      res.json(filterCollectionForUser(name, data, user));
     } catch (error) {
+      console.error(`Erro ao ler coleção ${name}:`, error);
       res.status(500).json({ error: "Erro ao buscar dados" });
     }
   });
@@ -2508,6 +3000,11 @@ async function startServer() {
 
   // --- Vite / Static files ---
   if (process.env.NODE_ENV !== "production") {
+    // Import dinâmico de propósito: o Vite é dependência de desenvolvimento.
+    // Com `import` no topo do arquivo, o bundle de produção executaria
+    // require("vite") na inicialização e o servidor quebraria numa instalação
+    // feita com `npm ci --omit=dev`.
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
