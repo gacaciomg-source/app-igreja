@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "Igreja Renovar",
+  "short_name": "Igreja Renovar",
+  "description": "Aplicativo de gestão e comunhão para membros da igreja",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#064e3b",
+  "theme_color": "#064e3b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://renovar.warpserver.com.br/icon1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://renovar.warpserver.com.br/icon1024.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://renovar.warpserver.com.br/icon1024.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
