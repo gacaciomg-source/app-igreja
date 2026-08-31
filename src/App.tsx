@@ -15,6 +15,7 @@ import { ServiceReportsScreen } from './components/ServiceReportsScreen';
 import { CRMScreen } from './components/CRMScreen';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { NATIVE_BACK_EVENT } from './lib/native';
 import { 
   Home, 
   Calendar, 
@@ -88,7 +89,6 @@ import {
   Megaphone,
   X,
   Map,
-  MapPin,
   Package,
   Edit3
 } from 'lucide-react';
@@ -284,33 +284,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     return this.props.children;
   }
 }
-
-// --- Mock Data ---
-const currentUser: UserType = {
-  id: '1',
-  name: 'Gustavo Acácio',
-  email: 'gustavo@example.com',
-  role: 'member',
-  avatar: DEFAULT_AVATAR
-};
-
-const mockEvents: Event[] = [
-  { id: '1', title: 'Culto de Celebração', date: 'Dom, 22 Mar', time: '19:00', location: 'Templo Principal', image: 'https://picsum.photos/seed/church1/400/200', category: 'Culto' },
-  { id: '2', title: 'Conferência de Jovens', date: 'Sáb, 28 Mar', time: '14:00', location: 'Auditório', image: 'https://picsum.photos/seed/youth/400/200', category: 'Conferência' },
-  { id: '3', title: 'Estudo Bíblico', date: 'Qua, 25 Mar', time: '20:00', location: 'Sala 04', image: 'https://picsum.photos/seed/bible/400/200', category: 'Estudo' },
-];
-
-const mockPrayers: PrayerRequest[] = [
-  { id: '1', user: 'Maria Silva', content: 'Peço oração pela saúde da minha mãe que está no hospital.', date: 'Há 2 horas', likes: 12, comments: 3 },
-  { id: '2', user: 'João Santos', content: 'Agradeço por uma porta de emprego que se abriu esta semana!', date: 'Há 5 horas', likes: 25, comments: 8 },
-  { id: '3', user: 'Ana Oliveira', content: 'Oração pela minha família e pela paz em nosso lar.', date: 'Há 1 dia', likes: 18, comments: 5 },
-];
-
-const mockCells: CellGroup[] = [
-  { id: '1', name: 'Célula Renascer', leader: 'Marcos Paulo', day: 'Terça-feira', time: '20:00', location: 'Bairro Centro', lat: -23.5505, lng: -46.6333, members: 12 },
-  { id: '2', name: 'Célula Esperança', leader: 'Carla Dias', day: 'Quinta-feira', time: '19:30', location: 'Bairro Jardim', lat: -23.5600, lng: -46.6600, members: 8 },
-  { id: '3', name: 'Célula Vida', leader: 'Ricardo Lima', day: 'Sexta-feira', time: '20:00', location: 'Bairro Novo', lat: -23.5400, lng: -46.6200, members: 15 },
-];
 
 // --- Components ---
 
@@ -1140,7 +1113,7 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
   );
 };
 
-const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJoinRequest, onManageRequest, onAddSchedule, schedules, onAdd, onUpdate, onDelete, isAdmin, showMessage }: { 
+const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJoinRequest, onManageRequest, onAddSchedule, schedules, onAdd, onUpdate, onDelete, isAdmin, showMessage, onChangeTab }: {
   ministries: Ministry[], 
   users: UserType[], 
   currentUser: UserType | null, 
@@ -7238,6 +7211,9 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
   const [showMyVisits, setShowMyVisits] = useState(false);
   const [showMySchedules, setShowMySchedules] = useState(false);
   const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const fontSizeOptions = [
     { id: 'small', label: 'Pequena', size: 'text-sm' },
@@ -7273,6 +7249,32 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
       showMessage('Senha alterada com sucesso!');
     } catch (err: any) {
       showMessage(err.message || 'Erro ao alterar senha.');
+    }
+  };
+
+  /**
+   * Exclusão definitiva da própria conta.
+   *
+   * Exigência da Política de Exclusão de Dados da Google Play: o caminho tem
+   * que existir dentro do app e realmente apagar os dados. Antes, esse botão
+   * só exibia uma mensagem de "solicitação enviada" e não fazia nada.
+   */
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      showMessage('Digite sua senha para confirmar.');
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api.deleteAccount(deletePassword);
+      setShowDeleteAccount(false);
+      setDeletePassword('');
+      showMessage('Sua conta e seus dados foram excluídos.');
+      onLogout();
+    } catch (err: any) {
+      showMessage(err.message || 'Não foi possível excluir a conta.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -7596,12 +7598,72 @@ const ProfileScreen = ({ onLogout, user, onUpdateProfile, stats, prayers, pastor
                  Ao utilizar nosso app, seus dados são mantidos em sigilo e usados estritamente 
                  para atividades eclesiásticas. Caso deseje não fazer mais parte do nosso banco de dados, solicite a exclusão.
                </p>
-               <Button variant="outline" className="w-full text-red-500 border-red-200 hover:bg-red-50" onClick={() => { setShowPrivacy(false); showMessage('Sua solicitação de exclusão foi enviada aos administradores.'); }}>
-                 Solicitar Exclusão da Conta
+               <Button variant="outline" className="w-full text-red-500 border-red-200 hover:bg-red-50" onClick={() => { setShowPrivacy(false); setShowDeleteAccount(true); }}>
+                 Excluir Minha Conta
                </Button>
+               <a
+                 href={`${BASE_URL}/privacidade.html`}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="block text-center text-xs text-slate-400 hover:text-primary mt-3 underline"
+               >
+                 Ler a Política de Privacidade completa
+               </a>
             </div>
           </div>
         </Modal>
+      )}
+
+      {showDeleteAccount && (
+        <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4">
+          <Card className="w-full max-w-md space-y-4 rounded-3xl p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 bg-red-50 rounded-xl flex items-center justify-center shrink-0">
+                <AlertCircle className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">Excluir minha conta</h3>
+            </div>
+
+            <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-sm text-slate-700 space-y-2">
+              <p className="font-bold text-red-600">Esta ação é permanente e não pode ser desfeita.</p>
+              <p>Serão apagados: seu cadastro, sua foto, seus pedidos de oração, solicitações
+              de visita, presenças, destaques da Bíblia e inscrições em eventos.</p>
+              <p className="text-xs text-slate-500">Registros contábeis de contribuições são
+              mantidos de forma anonimizada, sem vínculo com você, por exigência da
+              legislação fiscal.</p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">Confirme com sua senha</label>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={e => setDeletePassword(e.target.value)}
+                className="w-full p-3 bg-slate-50 rounded-xl"
+                placeholder="Sua senha atual"
+                autoComplete="current-password"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={deleting}
+                onClick={() => { setShowDeleteAccount(false); setDeletePassword(''); }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-red-500 hover:bg-red-600 border-red-500"
+                disabled={deleting || !deletePassword}
+                onClick={handleDeleteAccount}
+              >
+                {deleting ? 'Excluindo...' : 'Excluir para sempre'}
+              </Button>
+            </div>
+          </Card>
+        </div>
       )}
 
       {showChangePassword && (
@@ -8623,6 +8685,27 @@ export default function App() {
     } catch { return null; }
   });
   const [currentTab, setCurrentTab] = useState('home');
+
+  // Botão físico "voltar" do Android.
+  //
+  // A navegação principal do app é por estado (`currentTab`), não por rota, então
+  // o histórico do navegador não sabe que o usuário trocou de aba. Sem isso,
+  // apertar voltar em qualquer aba fecharia o aplicativo direto.
+  //
+  // Aqui: fora da Home, volta para a Home. Na Home, deixamos o evento seguir e
+  // o src/lib/native.ts trata (sai da rota /admin ou pede confirmação de saída).
+  useEffect(() => {
+    // `globalThis.Event` de propósito: neste arquivo o nome `Event` é a
+    // interface de eventos da igreja (types.ts), não o Event do navegador.
+    const handleNativeBack = (event: globalThis.Event) => {
+      if (currentTab !== 'home') {
+        event.preventDefault();
+        setCurrentTab('home');
+      }
+    };
+    window.addEventListener(NATIVE_BACK_EVENT, handleNativeBack);
+    return () => window.removeEventListener(NATIVE_BACK_EVENT, handleNativeBack);
+  }, [currentTab]);
   const [profileAutoEdit, setProfileAutoEdit] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -10351,7 +10434,7 @@ const joinCell = async (cellId: string) => {
   return (
     <ErrorBoundary>
       <div className={cn(
-        "min-h-screen bg-secondary mx-auto relative shadow-2xl overflow-hidden transition-all",
+        "app-shell min-h-screen bg-secondary mx-auto relative shadow-2xl overflow-hidden transition-all",
         fontSize === 'small' && "app-font-small",
         fontSize === 'large' && "app-font-large",
         fontSize === 'xl' && "app-font-xl",
@@ -10586,7 +10669,7 @@ const joinCell = async (cellId: string) => {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
-              className="fixed bottom-24 left-4 right-4 z-[200] bg-red-500 text-white p-4 rounded-xl shadow-lg flex items-center gap-3"
+              className="fixed above-nav left-4 right-4 z-[200] bg-red-500 text-white p-4 rounded-xl shadow-lg flex items-center gap-3"
             >
               <div className="p-2 bg-white/20 rounded-lg">
                 <Plus className="w-5 h-5 rotate-45" />
@@ -10599,7 +10682,7 @@ const joinCell = async (cellId: string) => {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
-              className="fixed bottom-24 left-4 right-4 z-[200] bg-primary text-white p-4 rounded-xl shadow-lg shadow-primary/20 flex items-center gap-3"
+              className="fixed above-nav left-4 right-4 z-[200] bg-primary text-white p-4 rounded-xl shadow-lg shadow-primary/20 flex items-center gap-3"
             >
               <div className="p-2 bg-white/20 rounded-lg">
                 <CheckCircle2 className="w-5 h-5" />

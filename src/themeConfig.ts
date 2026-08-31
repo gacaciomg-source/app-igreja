@@ -16,11 +16,22 @@ export const APP_CONFIG = {
     icon: "https://renovar.warpserver.com.br/icon1024.png", // Ícone circular
   },
   
-  // Cores Principais (Use códigos Hexadecimal)
+  // ⚠️ ATENÇÃO: este bloco `theme` NÃO É USADO por nenhuma tela.
+  //
+  // Alterar as cores aqui não muda nada no aplicativo. As cores vêm de dois
+  // lugares, nesta ordem de prioridade:
+  //
+  //   1. Painel administrativo → Aparência (salvo em `config`/appearance).
+  //      Sobrescreve tudo em tempo de execução, sem precisar recompilar.
+  //   2. `src/index.css`, no bloco `@theme` — são os valores padrão usados
+  //      quando o painel não define nada. Hoje: --color-primary: #006e1c.
+  //
+  // Mantido aqui apenas para não quebrar importações existentes.
+  // Para mudar a cor do app, use o painel ou o src/index.css.
   theme: {
-    primary: "#f59e0b", // Amber 500 (Principal)
-    secondary: "#1e293b", // Slate 800 (Textos/Navegação)
-    accent: "#f43f5e", // Rose 500 (Destaques)
+    primary: "#006e1c",
+    secondary: "#1e293b",
+    accent: "#ff4d4d",
   },
 
   // ----------------------------------------------------

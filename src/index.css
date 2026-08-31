@@ -14,6 +14,51 @@
   }
 }
 
+/* ==========================================================================
+   ÁREAS SEGURAS (notch / Dynamic Island do iPhone e barra de gestos)
+   Depende de `viewport-fit=cover` no meta viewport do index.html.
+   No navegador desktop os valores viram 0px e nada muda.
+   ========================================================================== */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Altura da barra de navegação inferior, já com a área segura.
+     Use `pb-nav` no conteúdo das telas para nada ficar escondido atrás. */
+  --nav-height: calc(4.5rem + var(--safe-bottom));
+}
+
+/* Empurra o conteúdo do app para baixo do notch */
+.app-shell {
+  padding-top: var(--safe-top);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* A barra inferior cresce para cobrir a barra de gestos, mantendo os
+   ícones acima dela. Sobrescreve o padding-bottom do `py-3`. */
+.bottom-nav {
+  padding-bottom: calc(0.75rem + var(--safe-bottom));
+}
+
+/* Espaço no fim das telas para o conteúdo não ficar sob a barra inferior */
+.pb-nav {
+  padding-bottom: calc(var(--nav-height) + 1rem);
+}
+
+/* Elementos fixos na base (avisos, botões flutuantes) sobem junto */
+.above-nav {
+  bottom: calc(var(--nav-height) + 1rem);
+}
+
+/* As telas já usam `pb-24` para reservar espaço acima da barra inferior.
+   Somamos a área segura aqui para não precisar alterar as 26 telas. */
+.pb-24 {
+  padding-bottom: calc(6rem + var(--safe-bottom));
+}
+
 .dark body {
   background-color: #050a05 !important;
   color: #f8fafc !important;

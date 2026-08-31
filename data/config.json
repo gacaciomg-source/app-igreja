@@ -1,0 +1,17 @@
+[
+  {
+    "id": "tithes",
+    "message": "Tudo o que tenho vem de Ti, e o que das Tuas mãos recebemos, Ti damos.",
+    "pixKey": "igrejarenovar@pix.com",
+    "churchName": "Igreja Renovar"
+  },
+  {
+    "id": "vapid",
+    "publicKey": "BALme4IShNoGD48nE0_N38-hpOhzZlScgU5Z8D9vy2NhcGpIqV-0osKCYgR9jV2UINLkpV7X0P1MHvzefwwJpYs",
+    "privateKey": "RmTDQsTdjYC9rml2ofViPB3G9d1QO-Fv2GypBz3zb1g"
+  },
+  {
+    "id": "verses_seeded",
+    "seeded": true
+  }
+]

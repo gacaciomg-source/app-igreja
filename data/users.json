@@ -1,0 +1,11 @@
+[
+  {
+    "id": "97d3bb2b-9d66-4cdc-9ce3-9451690aa7cf",
+    "name": "Super Administrador",
+    "email": "admin",
+    "password": "$2b$10$SNM.uMj95E/9ssl7JD/7jOpjiLQirt2sJhkDQH1GZHHila7z3e/ZW",
+    "role": "superadmin",
+    "mustChangePassword": true,
+    "createdAt": "2026-08-12T14:08:18.268Z"
+  }
+]

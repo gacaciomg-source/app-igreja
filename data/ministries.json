@@ -1,0 +1,35 @@
+[
+  {
+    "id": "46f1c950-006d-4395-89f3-95be39754ca9",
+    "name": "Louvor e Adoração",
+    "description": "Ministério responsável pela música e direção do louvor nos cultos.",
+    "category": "Celebração",
+    "leaderIds": [],
+    "memberIds": [],
+    "pendingRequestIds": [],
+    "imageUrl": "https://images.unsplash.com/photo-1516280440614-37939bbacd81?q=80&w=1000",
+    "createdAt": "2026-08-12T14:08:18.282Z"
+  },
+  {
+    "id": "f630a42f-1e74-4aa4-b240-5ca397f8035e",
+    "name": "Mídia e Tecnologia",
+    "description": "Responsável pela transmissão ao vivo, projeção, redes sociais e site.",
+    "category": "Suporte",
+    "leaderIds": [],
+    "memberIds": [],
+    "pendingRequestIds": [],
+    "imageUrl": "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000",
+    "createdAt": "2026-08-12T14:08:18.282Z"
+  },
+  {
+    "id": "9d304e5d-8462-442b-8080-944eab8f539c",
+    "name": "Intercessão",
+    "description": "Grupo dedicado à oração e cobertura espiritual da igreja e membros.",
+    "category": "Espiritual",
+    "leaderIds": [],
+    "memberIds": [],
+    "pendingRequestIds": [],
+    "imageUrl": "https://images.unsplash.com/photo-1499209974431-9014009774a7?q=80&w=1000",
+    "createdAt": "2026-08-12T14:08:18.282Z"
+  }
+]

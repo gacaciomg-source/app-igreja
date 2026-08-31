@@ -17,6 +17,15 @@ export const getAbsoluteUrl = (url?: string) => {
 
 const API_URL = `${BASE_URL}/api`;
 
+/**
+ * Piso do intervalo de atualização automática, em milissegundos.
+ *
+ * Para um aplicativo de igreja, 20 segundos é imperceptível na prática (um
+ * pedido de oração novo aparece em até 20s) e reduz a carga em cerca de 4x
+ * em relação aos 5 segundos usados antes.
+ */
+const MIN_POLL_INTERVAL = 20000;
+
 export const getApiUrl = (path: string) => `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
 
 interface AuthResponse {
@@ -60,15 +69,18 @@ class ApiService {
       return response.json();
     } catch (err) {
       if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+         let message = 'Sem conexão com o servidor. Verifique sua internet ou o IP do servidor.';
          if (IS_CAPACITOR) {
              if (BASE_URL.startsWith('http://')) {
-                  throw new Error('Falha de conexão (HTTP detectado). Ative "usesCleartextTraffic" no AndroidManifest ou use HTTPS.');
-             }
-             if (BASE_URL.includes('ais-dev')) {
-                  throw new Error('Ambiente de desenvolvimento restrito. Configure um servidor de produção.');
+                  message = 'Falha de conexão (HTTP detectado). Ative "usesCleartextTraffic" no AndroidManifest ou use HTTPS.';
+             } else if (BASE_URL.includes('ais-dev')) {
+                  message = 'Ambiente de desenvolvimento restrito. Configure um servidor de produção.';
              }
          }
-         throw new Error('Sem conexão com o servidor. Verifique sua internet ou o IP do servidor.');
+         // Marcado para que `list()` saiba que pode usar o cache local
+         const netErr: any = new Error(message);
+         netErr.isNetworkError = true;
+         throw netErr;
       }
       if (err instanceof Error) throw err;
       throw new Error('Falha na comunicação com o servidor');
@@ -147,13 +159,106 @@ class ApiService {
     });
   }
 
+  /**
+   * Exclui definitivamente a conta do usuário logado.
+   * Exigência da Política de Exclusão de Dados da Google Play.
+   */
+  async deleteAccount(password: string) {
+    const res = await this.request('/auth/delete-account', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+    this.logout();
+    return res;
+  }
+
   logout() {
     this.setToken(null);
+    // Dados de membros em cache não devem sobreviver ao logout
+    this.clearCache();
+  }
+
+  // --- Cache offline ---
+  //
+  // Guarda a última resposta bem-sucedida de cada coleção. Quando o celular
+  // está sem internet, `list()` devolve esses dados em vez de falhar, e a
+  // interface continua utilizável (só desatualizada).
+
+  private cacheKey(collection: string) {
+    return `cache_col_${collection}`;
+  }
+
+  private writeCache(collection: string, data: any[]) {
+    try {
+      localStorage.setItem(
+        this.cacheKey(collection),
+        JSON.stringify({ at: Date.now(), data })
+      );
+    } catch {
+      // Cota do localStorage estourada — seguimos sem cache desta coleção
+    }
+  }
+
+  private readCache(collection: string): { at: number; data: any[] } | null {
+    try {
+      const raw = localStorage.getItem(this.cacheKey(collection));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.data)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Quando a coleção foi sincronizada por último (null se nunca).
+   *  Serve para exibir "dados de X atrás" quando estiver offline. */
+  getLastSync(collection: string): Date | null {
+    const cached = this.readCache(collection);
+    return cached ? new Date(cached.at) : null;
+  }
+
+  /** true se a última chamada a `list()` foi servida pelo cache local. */
+  isServingCache(collection: string): boolean {
+    return this.staleCollections.has(collection);
+  }
+
+  private staleCollections = new Set<string>();
+
+  /** Limpa o cache offline. Chamado no logout. */
+  clearCache() {
+    this.staleCollections.clear();
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('cache_col_'))
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
   }
 
   // --- Collections ---
   async list(collection: string) {
-    return this.request(`/collections/${collection}`);
+    try {
+      const data = await this.request(`/collections/${collection}`);
+      if (Array.isArray(data)) {
+        this.writeCache(collection, data);
+        this.staleCollections.delete(collection);
+      }
+      return data;
+    } catch (err: any) {
+      // Só usamos o cache em falha de rede. Erro de permissão ou sessão
+      // expirada precisa continuar falhando de verdade.
+      if (err?.isNetworkError) {
+        const cached = this.readCache(collection);
+        if (cached) {
+          this.staleCollections.add(collection);
+          console.warn(
+            `[Offline] Usando cache de "${collection}" de ${new Date(cached.at).toLocaleString('pt-BR')}`
+          );
+          return cached.data;
+        }
+      }
+      throw err;
+    }
   }
 
   async get(collection: string, id: string) {
@@ -281,19 +386,58 @@ class ApiService {
     });
   }
 
-  // Simple polling helper for onSnapshot replacement
-  subscribe(collection: string, callback: (data: any[]) => void, interval = 5000) {
+  /**
+   * Substituto do onSnapshot do Firestore: busca a coleção periodicamente.
+   *
+   * As telas pediam 5 segundos. Com 15 assinaturas ativas ao mesmo tempo, isso
+   * dava 3 requisições por segundo POR USUÁRIO, para sempre, com o app aberto —
+   * e cada uma relia o arquivo JSON inteiro no servidor. Três cuidados aqui:
+   *
+   * 1. INTERVALO MÍNIMO — o valor pedido pela tela é tratado como sugestão e
+   *    respeita um piso (MIN_POLL_INTERVAL).
+   * 2. PAUSA EM SEGUNDO PLANO — sem isso o app segue consumindo bateria e
+   *    dados no bolso do usuário. Ao voltar para a tela, busca na hora.
+   * 3. ESPALHAMENTO — um atraso aleatório evita que todas as assinaturas
+   *    disparem no mesmo instante e criem picos no servidor.
+   */
+  subscribe(collection: string, callback: (data: any[]) => void, interval = MIN_POLL_INTERVAL) {
+    const period = Math.max(interval, MIN_POLL_INTERVAL) + Math.floor(Math.random() * 4000);
+    let stopped = false;
+    let inFlight = false;
+
     const poll = async () => {
+      if (stopped || inFlight) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      inFlight = true;
       try {
         const data = await this.list(collection);
-        callback(data);
+        if (!stopped) callback(data);
       } catch (err) {
         console.error(`Error polling ${collection}:`, err);
+      } finally {
+        inFlight = false;
       }
     };
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) poll();
+    };
+
     poll();
-    const timer = setInterval(poll, interval);
-    return () => clearInterval(timer);
+    const timer = setInterval(poll, period);
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibilityChange);
+    }
+
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
+    };
   }
 }
 
