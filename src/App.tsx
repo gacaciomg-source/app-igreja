@@ -541,7 +541,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
                     placeholder="Seu nome"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
                 </div>
               </div>
@@ -556,7 +556,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
                     placeholder="Ex: 5511999999999"
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
                 </div>
               </div>
@@ -568,7 +568,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
                   onChange={setBirthDate}
                   required
                   iconColorClass="text-slate-400 w-5 h-5"
-                  className="w-full pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  className="w-full pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
               </div>
 
@@ -582,7 +582,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
                     placeholder="Seu endereço completo"
                     value={address}
                     onChange={e => setAddress(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
                 </div>
               </div>
@@ -603,7 +603,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
                 placeholder={mode === 'login' ? "E-mail ou usuário" : "seu@email.com"}
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>
           </div>
@@ -622,7 +622,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
                     setPassword(e.target.value);
                     setError('');
                   }}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
               </div>
             </div>
@@ -2743,10 +2743,37 @@ const Dashboard = ({
     }
   };
 
-  const verseDisplay = { 
-    text: currentVerseText || ((dailyVerse?.text?.startsWith('Carregando') || dailyVerse?.text?.startsWith('Texto será')) ? dailyVerse?.text : "Carregando palavra do dia..."), 
-    ref: dailyVerse?.ref || "..." 
-  };
+  /*
+   * O texto exibido depende de três situações diferentes, e antes as três
+   * caíam na mesma mensagem "Carregando palavra do dia...".
+   *
+   * O problema: quando /verses/today falha (nenhum versículo cadastrado, rede
+   * fora, erro no servidor), `dailyVerse` fica nulo. O efeito acima nunca roda,
+   * `currentVerseText` continua vazio e a tela mostrava "Carregando" PARA
+   * SEMPRE — sem nunca carregar e sem dizer o motivo.
+   */
+  const verseDisplay = (() => {
+    // 1. Já temos o texto (ou uma mensagem de erro vinda do efeito acima)
+    if (currentVerseText) {
+      return { text: currentVerseText, ref: dailyVerse?.ref || '...' };
+    }
+
+    // 2. A resposta chegou, mas o texto ainda está sendo buscado na API bíblica
+    if (dailyVerse) {
+      const provisorio =
+        dailyVerse.text?.startsWith('Carregando') || dailyVerse.text?.startsWith('Texto será');
+      return {
+        text: provisorio ? dailyVerse.text : 'Carregando palavra do dia...',
+        ref: dailyVerse.ref || '...',
+      };
+    }
+
+    // 3. Não veio nada. Antes mentia dizendo que estava carregando.
+    return {
+      text: 'Nenhum versículo disponível no momento. Puxe a tela para baixo para tentar de novo.',
+      ref: '',
+    };
+  })();
 
   return (
     <div className="space-y-6 pb-24">
@@ -8610,7 +8637,7 @@ const ForceChangePasswordScreen = ({ onComplete, appearanceConfig, cacheVersion,
                   setError('');
                 }}
                 placeholder="No mínimo 6 caracteres" 
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white dark:bg-transparent"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white dark:bg-transparent"
                 required
               />
             </div>
@@ -8628,7 +8655,7 @@ const ForceChangePasswordScreen = ({ onComplete, appearanceConfig, cacheVersion,
                   setError('');
                 }}
                 placeholder="Repita a nova senha" 
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white dark:bg-transparent"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white dark:bg-transparent"
                 required
               />
             </div>

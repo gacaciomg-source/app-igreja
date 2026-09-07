@@ -165,6 +165,26 @@
   background-color: #262626 !important;
 }
 
+/*
+ * TEMA ESCURO: valor escuro para --color-primary-light
+ *
+ * As três regras abaixo (borda, .bg-primary-light e input) usam
+ * `var(--color-primary-light, <cor escura>)` esperando cair no fallback
+ * escuro no tema escuro. Só que o fallback NUNCA entra em ação: a variável
+ * está sempre definida, lá no @theme, como #e6f4ea — um verde quase branco.
+ *
+ * O efeito no login era texto branco (#f8fafc) sobre fundo quase branco:
+ * o texto estava lá, apenas invisível. Só aparecia quando a configuração de
+ * aparência definia `colorPrimaryLightDark`; no tema padrão, não define.
+ *
+ * Redefinir a variável aqui conserta as três regras de uma vez. Temas
+ * personalizados continuam mandando, porque o app grava a cor como estilo
+ * inline no <html>, que tem precedência sobre esta regra.
+ */
+.dark {
+  --color-primary-light: #1a331a;
+}
+
 /* Border overrides */
 .dark .border-slate-100, .dark .border-slate-200, .dark .border-slate-300, .dark .border-primary\/20, .dark .border-white\/20 {
   border-color: var(--color-primary-light, #1a331a) !important;
