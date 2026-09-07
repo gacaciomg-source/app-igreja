@@ -1,5 +1,24 @@
 apply plugin: 'com.android.application'
 
+/*
+ * ASSINATURA DE PRODUÇÃO
+ *
+ * A senha da chave NÃO fica aqui. Ela é lida de android/key.properties, que o
+ * .gitignore bloqueia — assim o build.gradle pode ir para o repositório sem
+ * levar segredo junto.
+ *
+ * Se o key.properties não existir, o build de release ainda roda: sai sem
+ * assinatura, servindo para teste local. Só não dá para enviar à Play Store.
+ *
+ * Para criar a chave, veja GUIA_PLAY_STORE.md, Parte 1.
+ */
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+def hasKeystore = keystorePropertiesFile.exists()
+if (hasKeystore) {
+    keystorePropertiesFile.withReader('UTF-8') { keystoreProperties.load(it) }
+}
+
 android {
     namespace = "com.renovar"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +35,22 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasKeystore) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Só assina se a chave existir. Sem isso, um clone novo do
+            // repositório falharia no build de release com erro confuso.
+            signingConfig hasKeystore ? signingConfigs.release : null
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
