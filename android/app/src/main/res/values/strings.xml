@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Igreja Renovar</string>
+    <string name="title_activity_main">Igreja Renovar</string>
+    <string name="package_name">com.renovar</string>
+    <string name="custom_url_scheme">com.renovar</string>
+</resources>

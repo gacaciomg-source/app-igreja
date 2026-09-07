@@ -161,10 +161,51 @@ async function initWebPush() {
 }
 initWebPush();
 
+/**
+ * Guarda a notificação em disco para que o aplicativo Android possa buscá-la
+ * depois pelo endpoint GET /api/notifications.
+ *
+ * Por que isso existe: o Web Push (VAPID) não funciona dentro da WebView do
+ * Capacitor — o Android não expõe a PushManager ali. Então o app nativo
+ * consulta esta coleção de tempos em tempos e dispara uma notificação local.
+ * O navegador e o PWA continuam recebendo por Web Push normalmente; este
+ * registro é só um espelho, não substitui nada.
+ *
+ * `targetUserIds` nulo significa "para todo mundo".
+ */
+const NOTIFICATION_RETENTION_DAYS = 7;
+
+async function recordNotification(title: string, body: string, url: string, targetUserIds?: string[]) {
+    try {
+        const all = await storage.readCollection<any>("notifications");
+
+        // Poda o histórico: sem isso o arquivo cresce para sempre.
+        const cutoff = Date.now() - NOTIFICATION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+        const kept = all.filter((n: any) => new Date(n.createdAt).getTime() >= cutoff);
+
+        kept.push({
+            id: uuidv4(),
+            title,
+            body,
+            url,
+            targetUserIds: targetUserIds ?? null,
+            createdAt: new Date().toISOString(),
+        });
+
+        await storage.writeCollection("notifications", kept);
+    } catch (e) {
+        // Falhar aqui não pode derrubar o envio do Web Push.
+        console.error("Falha ao registrar notificação para o app nativo:", e);
+    }
+}
+
 async function sendPushNotification(title: string, body: string, url: string = '/', targetUserIds?: string[]) {
+    // Registra antes de enviar, para o app nativo não depender do sucesso do Web Push.
+    await recordNotification(title, body, url, targetUserIds);
+
     try {
         let subscriptions = await storage.readCollection<any>("push_subscriptions");
-        
+
         if (targetUserIds) {
             const allowedUsers = new Set(targetUserIds);
             subscriptions = subscriptions.filter((s:any) => allowedUsers.has(s.userId));
@@ -2951,6 +2992,56 @@ async function startServer() {
     } catch (error) {
         console.error("Error subscribing:", error);
         res.status(500).json({ error: "Failed to subscribe" });
+    }
+  });
+
+  /**
+   * Notificações pendentes para o usuário logado.
+   *
+   * Usado pelo aplicativo Android, que não recebe Web Push (a WebView não
+   * implementa a PushManager). O app chama isto de tempos em tempos passando
+   * `?since=<ISO>` e transforma o que vier em notificação local.
+   *
+   * Devolve `serverTime` para o app usar como próximo `since` — assim o
+   * relógio do celular estar adiantado ou atrasado não faz o app pular nem
+   * repetir notificação.
+   */
+  app.get("/api/notifications", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const since = typeof req.query.since === 'string' ? Date.parse(req.query.since) : NaN;
+      const all = await storage.readCollection<any>("notifications");
+
+      let items = all.filter((n: any) =>
+        n.targetUserIds === null || (Array.isArray(n.targetUserIds) && n.targetUserIds.includes(userId))
+      );
+
+      if (!Number.isNaN(since)) {
+        items = items.filter((n: any) => new Date(n.createdAt).getTime() > since);
+      }
+
+      items.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+      // Teto de segurança: se o app ficou dias sem abrir, não despeja
+      // dezenas de notificações de uma vez na barra do usuário.
+      const MAX = 20;
+      const overflow = items.length > MAX;
+      if (overflow) items = items.slice(-MAX);
+
+      res.json({
+        items: items.map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          body: n.body,
+          url: n.url,
+          createdAt: n.createdAt,
+        })),
+        overflow,
+        serverTime: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Erro ao listar notificações:", error);
+      res.status(500).json({ error: "Falha ao listar notificações" });
     }
   });
 

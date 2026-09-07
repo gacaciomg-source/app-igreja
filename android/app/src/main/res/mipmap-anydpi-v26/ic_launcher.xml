@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Fundo sem inset: a cor solida precisa cobrir os 108dp inteiros, senao
+         o launcher mostra canto transparente ao aplicar a mascara. -->
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <!-- Primeiro plano com inset de 16.7%: mantem a arte dentro da zona
+         segura de 72dp exigida pelo Android. -->
+    <foreground>
+        <inset android:drawable="@mipmap/ic_launcher_foreground" android:inset="16.7%" />
+    </foreground>
+</adaptive-icon>

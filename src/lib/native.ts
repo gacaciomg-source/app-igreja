@@ -110,6 +110,12 @@ export async function initNative() {
     const isDark = document.documentElement.classList.contains('dark');
     await syncStatusBar(isDark);
     registerBackButton();
+
+    // Notificações: no APK o Web Push não funciona (a WebView não tem
+    // PushManager), então consultamos o servidor de tempos em tempos.
+    // Importado sob demanda para que uma falha aqui não atrase a splash.
+    const { startNotificationPolling } = await import('./nativeNotifications');
+    startNotificationPolling();
   } catch (e) {
     // Um plugin ausente ou com erro não pode impedir o app de abrir
     console.error('[Native] Falha na inicialização nativa:', e);

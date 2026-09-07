@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sort -u -t: -k2)"
+    ]
+  }
+}

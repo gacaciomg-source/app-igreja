@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        LOCALIZAÇÃO: REMOVIDA DE PROPÓSITO.
+
+        O plugin @capacitor/background-runner declara ACCESS_FINE_LOCATION,
+        ACCESS_COARSE_LOCATION e ACCESS_BACKGROUND_LOCATION no manifesto dele,
+        e o merge do Android jogaria tudo isso no APK final mesmo sem o app
+        usar localização em lugar nenhum.
+
+        Duas consequências, as duas ruins:
+        1. O usuário veria "Localização" na lista de permissões de um app de
+           igreja, sem nenhuma explicação possível.
+        2. ACCESS_BACKGROUND_LOCATION exige formulário de justificativa na
+           Play Store e é um dos motivos mais comuns de recusa na revisão.
+
+        Usamos o background-runner só para consultar notificações no servidor,
+        então removemos as três. Se um dia o app passar a usar localização,
+        apague estas linhas.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove" />
+</manifest>

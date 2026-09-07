@@ -9,7 +9,7 @@ import { KeyboardResize } from '@capacitor/keyboard';
  * e perder todos os usuários. Confira antes de rodar `npx cap add`.
  */
 const config: CapacitorConfig = {
-  appId: 'com.igrejarenovar.app',
+  appId: 'com.renovar',
   appName: 'Igreja Renovar',
   webDir: 'dist',
 
@@ -43,7 +43,7 @@ const config: CapacitorConfig = {
       // Escondemos a splash por código (em src/lib/native.ts), quando o app
       // realmente terminou de carregar. Evita o flash de tela branca.
       launchAutoHide: false,
-      backgroundColor: '#064e3b',
+      backgroundColor: '#0f2616',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
     },
@@ -58,6 +58,27 @@ const config: CapacitorConfig = {
       // Redimensiona a tela quando o teclado abre, para não cobrir os campos
       resize: KeyboardResize.Native,
       resizeOnFullScreen: true,
+    },
+
+    LocalNotifications: {
+      // Ícone monocromático da barra de status. Sem isso o Android desenha um
+      // quadrado branco no lugar do ícone (ele exige silhueta, não a logo
+      // colorida). Gerado a partir da própria logo em res/drawable.
+      smallIcon: 'ic_stat_igreja',
+      iconColor: '#0f2616',
+    },
+
+    BackgroundRunner: {
+      // Verifica notificações novas com o aplicativo fechado, sem Firebase.
+      // Ver public/background-runner.js e src/lib/nativeNotifications.ts.
+      label: 'com.renovar.notifications',
+      src: 'background-runner.js',
+      event: 'checkNotifications',
+      repeat: true,
+      // 15 minutos é o PISO do WorkManager do Android. Pedir menos não acelera:
+      // o sistema arredonda para cima e pode atrasar bem mais em Doze mode.
+      interval: 15,
+      autoStart: true,
     },
   },
 };

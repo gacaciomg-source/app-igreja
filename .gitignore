@@ -4,9 +4,39 @@ dist/
 coverage/
 .DS_Store
 *.log
+
+# Segredos — nunca versionar
 .env*
 !.env.example
+
+# Sessão do WhatsApp (equivale a estar logado na conta da igreja)
 .wwebjs_auth
 .wwebjs_cache
+
+# DADOS PESSOAIS DOS MEMBROS — jamais podem ir para um repositório
 data/
+uploads/
 backups/
+
+# Backups em zip. O /api/system/update grava `backup-pre-update-*.zip` na raiz
+# do projeto, e esses arquivos contêm data/users.json (nomes, e-mails,
+# telefones e hashes de senha). Nenhum .zip tem motivo para estar no repo.
+*.zip
+
+# Chaves de assinatura do app Android: perder = não poder mais atualizar o app
+# na Play Store. Guarde em local seguro, mas fora do repositório.
+*.jks
+*.keystore
+key.properties
+
+# As pastas android/ e ios/ DEVEM ser versionadas (recomendação do Capacitor):
+# é nelas que ficam o AndroidManifest.xml editado, os ícones gerados e a
+# configuração de build. Ignorá-las faria um clone novo perder tudo isso.
+# Abaixo só o que é gerado automaticamente dentro delas:
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
