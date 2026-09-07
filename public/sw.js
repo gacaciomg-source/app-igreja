@@ -1,7 +1,7 @@
 /* Ao mudar este nome, o handler de `activate` apaga os caches antigos.
    Suba a versão sempre que index.html ou manifest.json mudarem, para quem
    já usava o app não ficar com a cópia guardada de antes. */
-const CACHE_NAME = 'igreja-v2';
+const CACHE_NAME = 'igreja-v3';
 const ASSETS = [
   '/',
   '/index.html',
