@@ -137,11 +137,25 @@ const isPastDate = (dateStr: string) => {
 };
 
 // --- Cache Buster ---
+/**
+ * Prepara a URL de uma imagem para exibição.
+ *
+ * O servidor devolve caminho relativo nos uploads (`/uploads/arquivo.png`).
+ * No navegador isso resolve sozinho contra a origem da página, mas no
+ * aplicativo a página é servida de `https://localhost` pelo Capacitor — e o
+ * caminho relativo vira `https://localhost/uploads/...`, que não existe.
+ * Resultado: toda imagem enviada pelo painel aparecia quebrada no APK.
+ *
+ * Por isso o endereço é resolvido para absoluto antes de ir para o <img>.
+ * O parâmetro de versão continua sendo aplicado só em URLs remotas, para
+ * forçar o recarregamento quando o administrador troca uma imagem.
+ */
 const getCacheBustedUrl = (url: string | undefined, version: number) => {
   if (!url) return url;
-  if (!url.startsWith('http')) return url; // local icons don't need buster
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}v=${version}`;
+  const absoluta = getAbsoluteUrl(url);
+  if (!absoluta) return url;
+  const separator = absoluta.includes('?') ? '&' : '?';
+  return `${absoluta}${separator}v=${version}`;
 };
 import { ReadingPlansScreen } from './components/ReadingPlansScreen';
 import { TithesScreen } from './components/TithesScreen';
@@ -1255,7 +1269,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
         </header>
 
         <div className="relative h-48 rounded-3xl overflow-hidden">
-          <img src={selectedMinistry.imageUrl || 'https://picsum.photos/seed/ministry/800/400'} className="w-full h-full object-cover" alt={selectedMinistry.name} />
+          <img src={getAbsoluteUrl(selectedMinistry.imageUrl) || 'https://picsum.photos/seed/ministry/800/400'} className="w-full h-full object-cover" alt={selectedMinistry.name} />
           <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent flex items-end p-6">
             <p className="text-white text-sm leading-relaxed">{selectedMinistry.description}</p>
           </div>
@@ -1767,7 +1781,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
           <Card key={m.id} className="overflow-hidden p-0 group" onClick={() => setSelectedMinistry(m)}>
             <div className="flex h-32">
               <div className="w-1/3 h-full overflow-hidden relative">
-                <img src={m.imageUrl || 'https://picsum.photos/seed/ministry/200/200'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={m.name} />
+                <img src={getAbsoluteUrl(m.imageUrl) || 'https://picsum.photos/seed/ministry/200/200'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={m.name} />
                 {isAdmin && (
                   <div className="absolute top-2 right-2 flex gap-1">
                     <button 
@@ -1880,7 +1894,7 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
                 />
                 {newMinistry.imageUrl && (
                   <div className="mt-2 h-32 rounded-xl overflow-hidden shadow-inner">
-                    <img src={newMinistry.imageUrl} className="w-full h-full object-cover" alt="Preview" onError={(e) => { (e.target as any).src = 'https://picsum.photos/seed/error/400/200'; }} />
+                    <img src={getAbsoluteUrl(newMinistry.imageUrl)} className="w-full h-full object-cover" alt="Preview" onError={(e) => { (e.target as any).src = 'https://picsum.photos/seed/error/400/200'; }} />
                   </div>
                 )}
               </div>
@@ -8220,7 +8234,7 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
           >
             <div className="relative aspect-video bg-slate-200">
               {sermon.thumbnail ? (
-                <img src={sermon.thumbnail} className="w-full h-full object-cover" alt={sermon.title} referrerPolicy="no-referrer" />
+                <img src={getAbsoluteUrl(sermon.thumbnail)} className="w-full h-full object-cover" alt={sermon.title} referrerPolicy="no-referrer" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400">
                   <Play className="w-12 h-12" />
@@ -8283,7 +8297,7 @@ const SermonsScreen = ({ sermons }: { sermons: Sermon[] }) => {
                     allowFullScreen
                   ></iframe>
                 ) : selectedSermon.thumbnail ? (
-                  <img src={selectedSermon.thumbnail} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+                  <img src={getAbsoluteUrl(selectedSermon.thumbnail)} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-white/20">
                     <Play className="w-16 h-16" />
@@ -8456,7 +8470,7 @@ const AdminSermonsScreen = ({ sermons, onAdd, onUpdate, onDelete }: { sermons: S
                           <div className="animate-spin rounded-full h-3 w-3 border-2 border-primary border-t-transparent" />
                         </div>
                       ) : (
-                        <img src={formData.thumbnail} className="w-full h-full object-cover" alt="Thumb" />
+                        <img src={getAbsoluteUrl(formData.thumbnail)} className="w-full h-full object-cover" alt="Thumb" />
                       )}
                     </div>
                   )}
@@ -8497,7 +8511,7 @@ const AdminSermonsScreen = ({ sermons, onAdd, onUpdate, onDelete }: { sermons: S
           <Card key={sermon.id} className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center">
-                {sermon.thumbnail ? <img src={sermon.thumbnail} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" /> : <Radio className="w-6 h-6 text-slate-300" />}
+                {sermon.thumbnail ? <img src={getAbsoluteUrl(sermon.thumbnail)} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" /> : <Radio className="w-6 h-6 text-slate-300" />}
               </div>
               <div>
                 <h4 className="font-bold text-slate-900">{sermon.title}</h4>

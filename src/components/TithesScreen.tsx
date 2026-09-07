@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, Button } from '../App';
 import { DollarSign, Copy, CheckCircle2, ChevronRight, Info, CreditCard, QrCode, Heart } from 'lucide-react';
 import { TitheConfig, cn } from '../types';
+import { getAbsoluteUrl } from '../services/apiService';
 
 export const TithesScreen = ({ config, onConfirmDonation, showMessage, currentUserData }: { config: TitheConfig | null, onConfirmDonation?: (value: number, label: string) => void, showMessage: (msg: string) => void, currentUserData: any }) => {
   const [copied, setCopied] = useState(false);
@@ -51,7 +52,10 @@ export const TithesScreen = ({ config, onConfirmDonation, showMessage, currentUs
           <div className="flex flex-col items-center gap-4">
             <div className="w-48 h-48 bg-slate-50 rounded-3xl flex items-center justify-center border-2 border-dashed border-slate-200 overflow-hidden">
               {config?.pixQrUrl ? (
-                <img src={config.pixQrUrl} alt="QR Code PIX" className="w-full h-full object-contain" />
+                /* getAbsoluteUrl é obrigatório aqui: o QR é salvo como
+                   caminho relativo (/uploads/...) e, sem resolver para
+                   absoluto, a imagem não carrega dentro do aplicativo. */
+                <img src={getAbsoluteUrl(config.pixQrUrl)} alt="QR Code PIX" className="w-full h-full object-contain" />
               ) : (
                 <QrCode className="w-32 h-32 text-slate-300" />
               )}
