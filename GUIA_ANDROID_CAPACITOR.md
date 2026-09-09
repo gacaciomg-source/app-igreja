@@ -311,3 +311,64 @@ pressa.
 - `.wwebjs_auth/` — sessão do WhatsApp, equivale a estar logado na conta da igreja
 - `*.zip` — os backups automáticos contêm o `data/` inteiro
 - `*.jks`, `*.keystore`, `key.properties` — as chaves de assinatura do app
+
+---
+
+## Pendências para a próxima versão
+
+Itens levantados depois da publicação, para resolver num `versionCode` futuro.
+
+### Ativar ofuscação (R8/ProGuard)
+
+**Origem:** aviso da Play Console em *Monitorar e aprimorar → Entre em ação*,
+visto em 09/09/2026:
+
+> A otimização do app está abaixo do nosso limite — Ofuscação (2%).
+> Valores abaixo de 25% podem afetar a visibilidade e os recursos de
+> publicação no Google Play. **Prazo: fevereiro de 2027.**
+
+**Causa:** `android/app/build.gradle` está com `minifyEnabled false` e o
+`proguard-rules.pro` não tem nenhuma regra. Foi deixado assim de propósito no
+primeiro lançamento, para tirar uma variável do caminho — ofuscação quebrando
+o app é o tipo de problema que só aparece em produção.
+
+**O que fazer:**
+
+```groovy
+// android/app/build.gradle, dentro de buildTypes.release
+minifyEnabled true
+shrinkResources true
+```
+
+**O cuidado que isso exige.** O Capacitor descobre os plugins por reflexão, em
+tempo de execução. O R8 não enxerga esse uso e remove as classes por achar que
+ninguém as chama — o app compila, instala e **quebra ao abrir**, sem erro de
+compilação que avise. Por isso o `proguard-rules.pro` precisa preservar:
+
+- `com.getcapacitor.**` e as classes anotadas com `@CapacitorPlugin`
+- os plugins usados: LocalNotifications, BackgroundRunner, Filesystem, Share,
+  App, SplashScreen, StatusBar, Keyboard, Browser
+- `@capgo/capacitor-updater`
+
+**Como validar antes de enviar:** gere o APK de release com a ofuscação ligada,
+instale num aparelho e percorra o app inteiro — login, agenda, Bíblia, orações,
+dízimos, compartilhamento de versículo e notificação. Um plugin removido pelo
+R8 só se manifesta na tela que o usa.
+
+Também vale subir o `mapping.txt` gerado em
+`android/app/build/outputs/mapping/release/` junto com o AAB, para os relatórios
+de falha virem legíveis.
+
+**Prazo real:** fevereiro de 2027. Não é urgente, mas não deixe para a última
+atualização antes do prazo — precisa de uma rodada de teste com calma.
+
+### Outras pendências
+
+- **WhatsApp em laço de QR.** A sessão não estabiliza e nenhum aviso sai por
+  WhatsApp. Investigar `whatsappClient` no `server.ts`.
+- **Palavra do Dia vazia em produção.** Conferir se há versículos cadastrados;
+  a tela agora informa quando não há, em vez de ficar em "carregando".
+- **Ícones do Android com o enquadramento novo.** O PWA e o iPhone já usam o
+  recorte centrado na árvore (`resources/icon-ios.png`). O Android continua com
+  a logo inteira — funciona bem porque o launcher aplica máscara própria, mas
+  se quiser unificar, troque `resources/icon.png` e rode `npm run assets`.
