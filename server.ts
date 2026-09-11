@@ -2409,7 +2409,23 @@ async function startServer() {
         const privacy = newItem.privacy === 'private' ? 'Privado' : 'Público';
         const msg = `🙏 *Novo Pedido de Oração*\n\n*Membro:* ${(req as any).user.name || 'Desconhecido'}\n*Privacidade:* ${privacy}\n*Mensagem:* ${newItem.content}`;
         sendWhatsAppNotifications(msg).catch(e => console.error("WhatsApp notification failed:", e));
-        sendPushNotification("Novo Pedido de Oração", `${(req as any).user.name || 'Alguém'} pediu oração: ${newItem.content.substring(0, 50)}...`, '/').catch(e => console.error("Push failed:", e));
+
+        if (newItem.privacy === 'private') {
+          // Pedido privado só é visível para administradores e para o autor
+          // (ver filterCollectionForUser). Antes o aviso ia para todo mundo e
+          // levava os primeiros 50 caracteres do pedido — que aparecem na tela
+          // de bloqueio. Agora só quem pode ler o pedido é avisado, e sem o
+          // conteúdo.
+          const users = await storage.readCollection<any>("users");
+          const adminIds = users
+            .filter((u: any) => isAdminRole(u) && u.id !== requester.id)
+            .map((u: any) => u.id);
+          if (adminIds.length > 0) {
+            sendPushNotification("Novo pedido de oração privado", "Um membro enviou um pedido de oração privado.", '/', adminIds).catch(e => console.error("Push failed:", e));
+          }
+        } else {
+          sendPushNotification("Novo Pedido de Oração", `${(req as any).user.name || 'Alguém'} pediu oração: ${newItem.content.substring(0, 50)}...`, '/').catch(e => console.error("Push failed:", e));
+        }
       } else if (req.params.name === 'pastoralVisits') {
         const msg = `🏡 *Nova Visita Pastoral*\n\n*Solicitante:* ${(req as any).user.name || 'Desconhecido'}\n*Motivo:* ${newItem.reason || 'Não informado'}`;
         sendWhatsAppNotifications(msg).catch(e => console.error("WhatsApp notification failed:", e));
