@@ -372,3 +372,11 @@ atualização antes do prazo — precisa de uma rodada de teste com calma.
   recorte centrado na árvore (`resources/icon-ios.png`). O Android continua com
   a logo inteira — funciona bem porque o launcher aplica máscara própria, mas
   se quiser unificar, troque `resources/icon.png` e rode `npm run assets`.
+- **"Completar cadastro" aparece para todo novo membro.** Anotado em
+  11/09/2026. O aviso em `src/App.tsx` (perto da linha 2819) usa só
+  `memberStatus === 'new_member'`, e o servidor grava esse status em todo
+  cadastro, completo ou não. Correção combinada: mostrar só para novo membro a
+  quem falta telefone, nascimento ou endereço. Não resolver mudando o
+  `memberStatus` no servidor: ele alimenta a lista de integração e as mensagens
+  automáticas de WhatsApp. Mexe na tela, então o APK precisa de versão nova; o
+  site corrige só com a atualização do servidor.
