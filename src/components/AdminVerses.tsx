@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Trash2, Edit2, BookOpen, ChevronLeft, Save, Globe, RefreshCcw, Upload, FileText, AlertCircle } from 'lucide-react';
 import { fetchVerseText, BIBLE_TRANSLATIONS } from '../lib/bible';
 import { BIBLE_BOOKS } from '../constants';
+import { lerCsvVersiculos } from '../lib/csvVersiculos';
 
 // Reusing styles consistent with the app's design
 const Card = ({ children, className, onClick, ...props }: { children: React.ReactNode, className?: string, onClick?: () => void, [key: string]: any }) => (
@@ -79,8 +80,9 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
   const [fetchingText, setFetchingText] = useState(false);
   const [selectedTranslation, setSelectedTranslation] = useState('almeida');
   const [isImporting, setIsImporting] = useState(false);
-  const [importedVerses, setImportedVerses] = useState<{ text: string, ref: string }[]>([]);
+  const [importedVerses, setImportedVerses] = useState<{ text: string, ref: string, theme?: string }[]>([]);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
   const [visibleCount, setVisibleCount] = useState(50);
   const [refMode, setRefMode] = useState<'select' | 'manual'>('select');
   const [selBook, setSelBook] = useState(BIBLE_BOOKS[0].name);
@@ -243,14 +245,34 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.txt')) {
-      showMessage?.('Por favor, selecione um arquivo .txt');
+    const nomeArquivo = file.name.toLowerCase();
+    const ehCsv = nomeArquivo.endsWith('.csv');
+    if (!ehCsv && !nomeArquivo.endsWith('.txt')) {
+      showMessage?.('Por favor, selecione um arquivo .txt ou .csv');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
+
+      if (ehCsv) {
+        try {
+          const lidos = lerCsvVersiculos(content);
+          if (lidos.length === 0) {
+            showMessage?.('Nenhum versículo encontrado no CSV');
+          } else {
+            setImportedVerses(lidos);
+            setIsImporting(true);
+          }
+        } catch (err: any) {
+          showMessage?.(err?.message || 'Não foi possível ler o CSV');
+        } finally {
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+        return;
+      }
+
       const lines = content.replace(/\r/g, '').split('\n').filter(line => line.trim().length > 0);
       
       const parsed = lines.map(line => {
@@ -293,25 +315,39 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
     setIsBulkSaving(true);
     
     try {
-      const formattedItems = importedVerses.filter(v => v.ref).map(async (v, index) => {
-        let textToSave = v.text;
-        if (!textToSave) {
-          try {
-            const fetched = await fetchVerseText(v.ref, 'acf');
-            textToSave = fetched || 'Texto não encontrado.';
-          } catch (e) {
-            textToSave = 'Erro ao buscar texto.';
-          }
-        }
-        return {
-          ref: v.ref,
-          text: textToSave,
-          id: `${Date.now()}-${index}`,
-          createdAt: new Date().toISOString()
-        };
-      });
+      // Busca os textos que faltam em lotes pequenos. Antes eram todos ao mesmo
+      // tempo: com centenas de linhas a API da Bíblia recusava parte dos pedidos
+      // e o versículo ficava gravado como "Erro ao buscar texto." para sempre,
+      // porque o servidor só busca de novo quando o texto começa com "Texto" ou
+      // "Carregando". Na falha, grava um marcador que o servidor reconhece.
+      const aSalvar = importedVerses.filter(v => v.ref);
+      const items: any[] = new Array(aSalvar.length);
+      const LOTE = 6;
+      let feitos = 0;
+      setSaveProgress({ done: 0, total: aSalvar.length });
 
-      const items = await Promise.all(formattedItems);
+      for (let inicio = 0; inicio < aSalvar.length; inicio += LOTE) {
+        await Promise.all(aSalvar.slice(inicio, inicio + LOTE).map(async (v, j) => {
+          const index = inicio + j;
+          let textToSave = v.text;
+          if (!textToSave) {
+            try {
+              textToSave = (await fetchVerseText(v.ref, 'acf')) || 'Texto será buscado na Bíblia.';
+            } catch (e) {
+              textToSave = 'Texto será buscado na Bíblia.';
+            }
+          }
+          items[index] = {
+            ref: v.ref,
+            text: textToSave,
+            ...(v.theme ? { theme: v.theme } : {}),
+            id: `${Date.now()}-${index}`,
+            createdAt: new Date().toISOString()
+          };
+          feitos++;
+          setSaveProgress({ done: feitos, total: aSalvar.length });
+        }));
+      }
 
       if (items.length > 0) {
         const response = await fetch('/api/collections/verses/batch', {
@@ -366,12 +402,12 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
             type="file" 
             ref={fileInputRef} 
             onChange={handleFileUpload} 
-            accept=".txt" 
+            accept=".txt,.csv" 
             className="hidden" 
           />
           <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="bg-white">
             <Upload className="w-4 h-4" />
-            Importar TXT
+            Importar TXT ou CSV
           </Button>
           <Button onClick={() => setIsAdding(true)} className="flex items-center gap-2">
             <Plus className="w-4 h-4" />
@@ -409,6 +445,11 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
               Cancelar
             </Button>
           </div>
+          {isBulkSaving && saveProgress.total > 0 && (
+            <p className="text-xs font-bold text-amber-700">
+              Buscando textos na Bíblia: {saveProgress.done} de {saveProgress.total}
+            </p>
+          )}
           <div className="flex items-start gap-2 text-[10px] text-amber-600 italic">
             <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
             <p>Dica: O arquivo deve estar no formato "Referência - Texto" ou apenas a relação de referências.</p>
