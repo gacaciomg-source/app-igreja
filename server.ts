@@ -693,20 +693,12 @@ async function cleanupAndExit() {
   process.exit(0);
 }
 
-let versesCache: any[] | null = null;
-let lastCacheRefresh = 0;
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
-
 async function getDailyVerse(specificDate?: string) {
-    const now = Date.now();
-    
-    // Refresh cache se necessário
-    if (!versesCache || (now - lastCacheRefresh > CACHE_TTL_MS)) {
-        versesCache = await storage.readCollection<any>("verses");
-        lastCacheRefresh = now;
-    }
-    
-    const verses = versesCache;
+    // Antes havia um cache próprio de 1 hora que ninguém limpava quando os
+    // versículos mudavam. Se ele guardasse a lista vazia (depois de "Apagar
+    // Todos"), a importação seguinte não aparecia por até 1 hora e o app dizia
+    // "nenhum versículo". O cache do storage já se atualiza a cada gravação.
+    const verses = await storage.readCollection<any>("verses");
     if (!verses || verses.length === 0) return null;
 
     const history = await storage.readCollection<any>("verseHistory") || [];
@@ -717,7 +709,15 @@ async function getDailyVerse(specificDate?: string) {
     const dateEntry = history.find(entry => entry.date === targetDate);
     if (dateEntry) {
         selectedVerse = verses.find(v => v.id === dateEntry.verseId);
-    } else {
+        if (!selectedVerse) {
+            // O versículo escolhido para este dia foi apagado — por exemplo,
+            // "Apagar Todos" seguido de nova importação. Antes o servidor
+            // respondia "nenhum versículo cadastrado" pelo resto do dia. Agora
+            // descarta a anotação velha e sorteia outro.
+            await storage.remove("verseHistory", dateEntry.id);
+        }
+    }
+    if (!selectedVerse) {
         // Select new verse
         const history180DaysAgo = new Date();
         history180DaysAgo.setDate(history180DaysAgo.getDate() - 180);
@@ -2064,6 +2064,27 @@ async function startServer() {
     }
   });
 
+  /**
+   * Apaga todos os versículos de uma vez (botão "Apagar Todos" do painel).
+   *
+   * Antes o painel mandava uma exclusão por versículo, todas ao mesmo tempo,
+   * e parte se perdia. Aqui é uma gravação só. O histórico do versículo do dia
+   * também é limpo, porque passaria a apontar para versículos que não existem.
+   */
+  app.delete("/api/verses", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') {
+      return res.status(403).json({ error: "Apenas o Super Admin pode apagar todos os versículos." });
+    }
+    try {
+      let apagados = 0;
+      await storage.mutate<any>("verses", atual => { apagados = atual.length; return []; });
+      await storage.mutate<any>("verseHistory", () => []);
+      res.json({ success: true, count: apagados });
+    } catch (e) {
+      res.status(500).json({ error: "Erro ao apagar os versículos" });
+    }
+  });
+
   // =========================================================================
   // POLÍTICA DE LEITURA DAS COLEÇÕES
   //
@@ -2340,9 +2361,8 @@ async function startServer() {
         createdAt: item.createdAt || new Date().toISOString()
       }));
       
-      const existing = await storage.readCollection(req.params.name) || [];
-      const updated = [...existing, ...newItems];
-      await storage.writeCollection(req.params.name, updated);
+      // Dentro da fila da coleção, para não perder gravações simultâneas.
+      await storage.mutate<any>(req.params.name, existing => [...existing, ...newItems]);
       
       res.json({ success: true, count: newItems.length });
     } catch (error) {

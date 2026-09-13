@@ -9115,6 +9115,20 @@ export default function App() {
     // Dynamic polling based on roles
     const unsubscribes: (() => void)[] = [];
 
+    // Versículo do dia também se atualiza sozinho. Antes só era buscado ao
+    // abrir o app ou puxar a tela: se o servidor respondesse "nenhum
+    // versículo" (lista vazia, rede instável), a tela ficava assim até o membro
+    // puxar para baixo. De quebra, troca sozinho quando vira o dia.
+    const buscarVersiculoDoDia = () => api.request('/verses/today')
+      .then((v: any) => setDailyVerse(prev => (prev && v && prev.ref === v.ref && prev.text === v.text) ? prev : v))
+      .catch((err: any) => {
+        // Só limpa se o servidor disse que não há versículo; falha de rede
+        // mantém o que já está na tela.
+        if (/nenhum versículo/i.test(err?.message || '')) setDailyVerse(null);
+      });
+    const timerVersiculo = setInterval(buscarVersiculoDoDia, 30000);
+    unsubscribes.push(() => clearInterval(timerVersiculo));
+
     unsubscribes.push(api.subscribe('events', setEvents, 5000));
     unsubscribes.push(api.subscribe('prayers', (data) => {
       data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

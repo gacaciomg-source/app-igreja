@@ -221,18 +221,16 @@ const AdminVerses = ({ onBack, showMessage, isSuperAdmin = false }: { onBack: ()
     
     setLoading(true);
     try {
-      // We'll delete them one by one if the API doesn't support bulk delete
-      // Or if the API supports it, we'd use that. 
-      // Optimized way: concurrently delete
-      const deletePromises = verses.map(v => 
-        fetch(`/api/collections/verses/${v.id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
-        })
-      );
-      
-      await Promise.all(deletePromises);
-      showMessage?.('Todos os versículos foram apagados');
+      // Uma chamada só: o servidor apaga tudo numa gravação. Antes eram
+      // centenas de exclusões simultâneas, e parte delas se perdia — e a tela
+      // dizia "todos apagados" sem conferir.
+      const res = await fetch('/api/verses', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erro ao apagar versículos');
+      showMessage?.(`${data.count ?? 0} versículos apagados`);
       fetchVerses();
     } catch (e) {
       showMessage?.('Erro ao apagar versículos');

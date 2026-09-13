@@ -38,6 +38,27 @@ export function sanitizeCollectionName(name: string): string {
 const memoryCache = new Map<string, any[]>();
 
 /**
+ * Fila de gravação por coleção.
+ *
+ * insert, update e remove leem a coleção, alteram e gravam o arquivo inteiro.
+ * Duas chamadas ao mesmo tempo liam a mesma versão, e a segunda gravava por
+ * cima da primeira — a alteração da primeira sumia. O "Apagar Todos" do painel
+ * disparava centenas de exclusões simultâneas e sobravam versículos.
+ *
+ * Agora toda alteração de uma coleção entra na fila dela e roda uma de cada
+ * vez. Coleções diferentes continuam independentes entre si.
+ */
+const filas = new Map<string, Promise<unknown>>();
+
+function naFila<R>(nome: string, tarefa: () => Promise<R>): Promise<R> {
+  const anterior = filas.get(nome) ?? Promise.resolve();
+  const atual = anterior.then(tarefa, tarefa);
+  // Guarda uma versão que nunca rejeita: um erro não pode travar a fila.
+  filas.set(nome, atual.catch(() => undefined));
+  return atual;
+}
+
+/**
  * Descarta o cache. Obrigatório depois de qualquer operação que altere os
  * arquivos em `data/` por fora daqui — importação de backup, por exemplo,
  * que extrai os arquivos direto do zip.
@@ -73,12 +94,36 @@ export async function readCollection<T>(collectionName: string): Promise<T[]> {
   }
 }
 
-export async function writeCollection<T>(collectionName: string, data: T[]): Promise<void> {
-  const safeCollectionName = sanitizeCollectionName(collectionName);
+// Grava sem passar pela fila. Só pode ser chamada por quem já está nela.
+async function gravar<T>(nome: string, data: T[]): Promise<void> {
   await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `${safeCollectionName}.json`);
+  const filePath = path.join(DATA_DIR, `${nome}.json`);
   await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-  memoryCache.set(safeCollectionName, structuredClone(data) as any[]);
+  memoryCache.set(nome, structuredClone(data) as any[]);
+}
+
+export async function writeCollection<T>(collectionName: string, data: T[]): Promise<void> {
+  const nome = sanitizeCollectionName(collectionName);
+  await naFila(nome, () => gravar(nome, data));
+}
+
+/**
+ * Lê, altera e grava uma coleção sem que outra alteração se intrometa no meio.
+ * `alterar` recebe a coleção atual e devolve a nova; devolver `null` significa
+ * "nada mudou" e evita a gravação.
+ *
+ * Use no lugar de readCollection + writeCollection sempre que o valor gravado
+ * depender do que já estava lá.
+ */
+export function mutate<T>(collectionName: string, alterar: (colecao: T[]) => T[] | null | Promise<T[] | null>): Promise<T[]> {
+  const nome = sanitizeCollectionName(collectionName);
+  return naFila(nome, async () => {
+    const colecao = await readCollection<T>(nome);
+    const nova = await alterar(colecao);
+    if (nova === null) return colecao;
+    await gravar(nome, nova);
+    return nova;
+  });
 }
 
 export async function findById<T extends { id: string }>(collectionName: string, id: string): Promise<T | undefined> {
@@ -87,27 +132,32 @@ export async function findById<T extends { id: string }>(collectionName: string,
 }
 
 export async function insert<T extends { id: string }>(collectionName: string, item: T): Promise<T> {
-  const collection = await readCollection<T>(collectionName);
-  collection.push(item);
-  await writeCollection(collectionName, collection);
+  await mutate<T>(collectionName, collection => {
+    collection.push(item);
+    return collection;
+  });
   return item;
 }
 
 export async function update<T extends { id: string }>(collectionName: string, id: string, updates: Partial<T>): Promise<T | undefined> {
-  const collection = await readCollection<T>(collectionName);
-  const index = collection.findIndex(item => item.id === id);
-  if (index === -1) return undefined;
-  
-  collection[index] = { ...collection[index], ...updates };
-  await writeCollection(collectionName, collection);
-  return collection[index];
+  let atualizado: T | undefined;
+  await mutate<T>(collectionName, collection => {
+    const index = collection.findIndex(item => item.id === id);
+    if (index === -1) return null;
+    collection[index] = { ...collection[index], ...updates };
+    atualizado = collection[index];
+    return collection;
+  });
+  return atualizado;
 }
 
 export async function remove<T extends { id: string }>(collectionName: string, id: string): Promise<boolean> {
-  const collection = await readCollection<T>(collectionName);
-  const filtered = collection.filter(item => item.id !== id);
-  if (filtered.length === collection.length) return false;
-  
-  await writeCollection(collectionName, filtered);
-  return true;
+  let removeu = false;
+  await mutate<T>(collectionName, collection => {
+    const filtered = collection.filter(item => item.id !== id);
+    if (filtered.length === collection.length) return null;
+    removeu = true;
+    return filtered;
+  });
+  return removeu;
 }
