@@ -19,6 +19,7 @@ import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import * as storage from "./src/lib/storage";
 import { seedVerses } from "./src/lib/seedVerses";
+import { statusAtualizacao } from "./src/lib/versaoSistema";
 import { fetchVerseText } from "./src/lib/bible";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia, Poll } = pkg;
@@ -1733,6 +1734,20 @@ async function startServer() {
         process.exit(0);
       }, 3000);
     });
+  });
+
+  /**
+   * Versão em uso e se há versão nova no GitHub. Alimenta o aviso do Dashboard
+   * e a tela Servidor. Só o super admin, que é quem pode atualizar.
+   * `?forcar=1` ignora o resultado guardado de 15 minutos.
+   */
+  app.get("/api/system/update-status", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    try {
+      res.json(await statusAtualizacao(process.cwd(), req.query.forcar === '1'));
+    } catch (e) {
+      res.status(500).json({ error: "Não foi possível verificar a versão do sistema" });
+    }
   });
 
   app.get("/api/backup", authenticateToken, async (req, res) => {

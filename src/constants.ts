@@ -1,4 +1,7 @@
 export const SYSTEM_VERSION = "1.2 (Beta)";
+// A versão exibida é esta base + a quantidade de atualizações no Git (ex.: 1.2.150).
+// Troque a base só em mudanças grandes; o último número sobe sozinho.
+export const SYSTEM_VERSION_BASE = "1.2";
 
 export const BIBLE_BOOKS = [
   { name: 'Gênesis', chapters: 50, category: 'Antigo Testamento' },

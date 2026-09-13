@@ -108,7 +108,7 @@ import {
   CartesianGrid
 } from 'recharts';
 import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedule, Event, EventRegistration, PrayerRequest, PrayerComment, CellGroup, Announcement, ReadingPlan, TitheConfig, Attendance, VerseHighlight, Sermon, PastoralVisit, WhatsAppConfig, AdminRole, FinancialFund, FinancialTransaction, FinancialRule } from './types';
-import { BIBLE_BOOKS, READING_PLAN_TEMPLATES, SYSTEM_VERSION } from './constants';
+import { BIBLE_BOOKS, READING_PLAN_TEMPLATES, SYSTEM_VERSION, SYSTEM_VERSION_BASE } from './constants';
 import { api, getApiUrl, BASE_URL, getAbsoluteUrl } from './services/apiService';
 
 const DEFAULT_AVATAR = "https://renovar.warpserver.com.br/avatar.png";
@@ -4338,8 +4338,47 @@ const InventoryScreen = ({ inventory, onAdd, onUpdate, onDelete, showMessage }: 
   );
 };
 
+/**
+ * VERSÃO DO SISTEMA
+ *
+ * A versão exibida é SYSTEM_VERSION_BASE + a quantidade de atualizações no Git
+ * (ex.: 1.2.150) e sobe sozinha a cada atualização. O servidor também consulta
+ * o GitHub e avisa quando existe versão nova (ver src/lib/versaoSistema.ts).
+ */
+type StatusAtualizacao = {
+  atual: { curto: string; data: string; numero: number; titulo: string } | null;
+  maisRecente: { curto: string; data: string; numero: number; titulo: string } | null;
+  atras: number;
+  mudancas: { curto: string; data: string; titulo: string }[];
+  verificadoEm: string;
+  erro?: string;
+};
+
+const rotuloVersao = (numero?: number) => (numero ? `${SYSTEM_VERSION_BASE}.${numero}` : SYSTEM_VERSION);
+const dataHoraBR = (iso?: string) =>
+  iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+/** Status da versão. Fica null para quem não é super admin (a rota responde 403). */
+function useStatusAtualizacao() {
+  const [status, setStatus] = useState<StatusAtualizacao | null>(null);
+  const [verificando, setVerificando] = useState(false);
+  const verificar = async (forcar = false) => {
+    setVerificando(true);
+    try {
+      setStatus(await api.request(`/system/update-status${forcar ? '?forcar=1' : ''}`));
+    } catch {
+      // sem permissão ou servidor fora do ar: simplesmente não mostra o aviso
+    } finally {
+      setVerificando(false);
+    }
+  };
+  useEffect(() => { verificar(); }, []);
+  return { status, verificando, verificar };
+}
+
 const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnouncement, onAddReadingPlan, onAddTransaction, onSwitchToMember, onTabChange, showMessage, onRefreshVerses, appearanceConfig }: { stats: any, users: UserType[], verseStats: any, onAddEvent: () => void, onAddAnnouncement: () => void, onAddReadingPlan: () => void, onAddTransaction: () => void, onSwitchToMember?: () => void, onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, onRefreshVerses?: () => Promise<void>, appearanceConfig?: any }) => {
   const [showBirthdays, setShowBirthdays] = useState<'today' | 'month' | null>(null);
+  const { status: statusSistema } = useStatusAtualizacao();
   const [dynamicDailyVerse, setDynamicDailyVerse] = useState<string | null>(null);
   const [dynamicTomorrowVerse, setDynamicTomorrowVerse] = useState<string | null>(null);
   const [refreshingVerses, setRefreshingVerses] = useState(false);
@@ -4411,6 +4450,25 @@ const AdminDashboard = ({ stats, users = [], verseStats, onAddEvent, onAddAnnoun
 
   return (
   <div className="space-y-6 pb-24">
+    {statusSistema && statusSistema.atras > 0 && (
+      <button
+        onClick={() => onTabChange?.('hosting')}
+        className="w-full text-left flex items-center gap-4 p-4 rounded-2xl border-2 border-amber-300 bg-amber-50 hover:bg-amber-100 transition-colors"
+      >
+        <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+          <TrendingUp className="w-6 h-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-black text-amber-900">
+            Nova versão do sistema disponível: {rotuloVersao(statusSistema.maisRecente?.numero)}
+          </p>
+          <p className="text-xs text-amber-800">
+            {statusSistema.atras === 1 ? '1 atualização' : `${statusSistema.atras} atualizações`} desde a sua versão ({rotuloVersao(statusSistema.atual?.numero)}). Toque para ver o que mudou e atualizar.
+          </p>
+        </div>
+        <ChevronRight className="w-5 h-5 text-amber-700 shrink-0" />
+      </button>
+    )}
     <header className="flex items-center justify-between">
       <div>
         <h2 className="text-2xl font-bold text-slate-900">GESTÃO</h2>
@@ -5265,6 +5323,7 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
 
 const AdminHostingScreen = () => {
   const [sysInfo, setSysInfo] = useState<any>(null);
+  const { status: statusSistema, verificando: verificandoVersao, verificar: verificarVersao } = useStatusAtualizacao();
   const [loading, setLoading] = useState(true);
   const [showTutorial, setShowTutorial] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
@@ -5628,9 +5687,54 @@ const AdminHostingScreen = () => {
             <p className="text-xs text-slate-500 leading-relaxed">
               Sincroniza o servidor com a última versão do seu repositório Git.
             </p>
-            <p className="text-sm font-bold text-slate-800 bg-slate-50 p-2 rounded-lg border border-slate-100 text-center">
-              Versão atual do sistema: {SYSTEM_VERSION}
-            </p>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-center space-y-1">
+              <p className="text-sm font-bold text-slate-800">
+                Versão atual do sistema: {rotuloVersao(statusSistema?.atual?.numero)}
+              </p>
+              {statusSistema?.atual && (
+                <p className="text-[11px] text-slate-500">
+                  Atualizada em {dataHoraBR(statusSistema.atual.data)} · código {statusSistema.atual.curto}
+                </p>
+              )}
+            </div>
+
+            {statusSistema && statusSistema.atras > 0 && (
+              <div className="p-3 rounded-xl border-2 border-amber-300 bg-amber-50 space-y-2">
+                <p className="text-sm font-black text-amber-900">
+                  Nova versão disponível: {rotuloVersao(statusSistema.maisRecente?.numero)}
+                </p>
+                <p className="text-xs font-bold text-amber-800">O que mudou:</p>
+                <ul className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                  {statusSistema.mudancas.map(m => (
+                    <li key={m.curto} className="text-xs text-amber-900 flex gap-2">
+                      <span className="text-amber-500">•</span>
+                      <span className="flex-1">{m.titulo}</span>
+                      <span className="text-amber-600 shrink-0">{new Date(m.data).toLocaleDateString('pt-BR')}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {statusSistema && statusSistema.atras === 0 && !statusSistema.erro && (
+              <p className="text-xs font-bold text-emerald-700 flex items-center justify-center gap-1">
+                <CheckCircle2 className="w-4 h-4" /> Você está na versão mais recente
+              </p>
+            )}
+
+            {statusSistema?.erro && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 rounded-lg">{statusSistema.erro}</p>
+            )}
+
+            <button
+              onClick={() => verificarVersao(true)}
+              disabled={verificandoVersao}
+              className="w-full text-center text-xs font-bold text-slate-500 hover:text-slate-700"
+            >
+              {verificandoVersao
+                ? 'Verificando no GitHub...'
+                : `Verificar agora${statusSistema?.verificadoEm ? ` · última verificação ${dataHoraBR(statusSistema.verificadoEm)}` : ''}`}
+            </button>
             <Button 
               onClick={handleGitUpdate} 
               disabled={isUpdating}
@@ -5638,7 +5742,11 @@ const AdminHostingScreen = () => {
               className="w-full flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 border-emerald-200 h-12 rounded-xl"
             >
               {isUpdating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
-              {isUpdating ? 'Atualizando...' : 'Puxar Atualizações (Git)'}
+              {isUpdating
+                ? 'Atualizando...'
+                : statusSistema && statusSistema.atras > 0
+                  ? `Atualizar para a versão ${rotuloVersao(statusSistema.maisRecente?.numero)}`
+                  : 'Puxar Atualizações (Git)'}
             </Button>
           </div>
         </Card>
