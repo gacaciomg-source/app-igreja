@@ -29,6 +29,9 @@ const BIBLE_BOOKS_MAP: Record<string, number> = {
 function stripHtml(text: string) {
   if (!text) return "";
   return text
+    // Notas de rodapé da NAA vêm como <sup>ⓢ</sup>: some a nota inteira,
+    // senão sobra a letrinha no meio do versículo.
+    .replace(/<sup[^>]*>[\s\S]*?<\/sup>/gi, '')
     .replace(/<br\s*[\/]?>/gi, ' ')
     .replace(/<\/br>/gi, ' ')
     .replace(/<[^>]*>?/gm, '')

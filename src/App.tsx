@@ -3447,6 +3447,8 @@ const PrayerWall = ({ prayers, cells, onAdd, onDelete, onTogglePrayed, onAddComm
 const stripHtml = (text: any) => {
   if (!text) return "";
   return text
+    // Notas de rodapé da NAA vêm como <sup>ⓢ</sup>: some a nota inteira.
+    .replace(/<sup[^>]*>[\s\S]*?<\/sup>/gi, '')
     .replace(/<br\s*[\/]?>/gi, ' ')
     .replace(/<\/br>/gi, ' ')
     .replace(/<[^>]*>?/gm, '')
