@@ -4,6 +4,7 @@ import { CRMTicket, CRMMessage, User as UserType } from '../types';
 import { Card, Button } from '../App';
 import { api } from '../services/apiService';
 import { cn } from '../types';
+import EnvioEmMassa from './EnvioEmMassa';
 
 export const CRMScreen = ({ 
   users,
@@ -14,6 +15,7 @@ export const CRMScreen = ({
   currentUser: UserType | null,
   showMessage: (msg: string) => void
 }) => {
+  const [aba, setAba] = useState<'atendimentos' | 'massa'>('atendimentos');
   const [tickets, setTickets] = useState<CRMTicket[]>([]);
   const [messages, setMessages] = useState<Record<string, CRMMessage[]>>({});
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
@@ -173,8 +175,18 @@ export const CRMScreen = ({
   }) : null;
 
   return (
+    <div className="space-y-3">
+    <div className="flex gap-2">
+      {([['atendimentos', 'Atendimentos'], ['massa', 'Envio em massa']] as const).map(([id, rotulo]) => (
+        <button key={id} onClick={() => setAba(id)}
+          className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-colors", aba === id ? "bg-emerald-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50")}>
+          {rotulo}
+        </button>
+      ))}
+    </div>
+    {aba === 'massa' ? <EnvioEmMassa showMessage={showMessage} /> : (
     <div className="flex h-[calc(100vh-160px)] min-h-[600px] bg-slate-50 rounded-2xl overflow-hidden border border-slate-200">
-      
+
       {/* Left Sidebar - Ticket List */}
       <div className="w-1/3 bg-white border-r border-slate-200 flex flex-col h-full">
         <div className="p-4 border-b border-slate-100 flex flex-col gap-4">
@@ -497,6 +509,8 @@ export const CRMScreen = ({
           </div>
         </div>
       )}
+    </div>
+    )}
     </div>
   );
 };

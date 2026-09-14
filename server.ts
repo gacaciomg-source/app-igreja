@@ -23,6 +23,7 @@ import { statusAtualizacao } from "./src/lib/versaoSistema";
 import { enviarFcm, statusFirebase, salvarChave, removerChave, validarChave } from "./src/lib/firebasePush";
 import { listarBiblias, lerCapitulo, buscarLocal, importarBiblia, removerBiblia, restaurarPadrao, esquecerLocal } from "./src/lib/biblias";
 import { lerBibliaJson } from "./src/lib/bibliaJson";
+import * as envioMassa from "./src/lib/envioMassa";
 import { fetchVerseText } from "./src/lib/bible";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia, Poll } = pkg;
@@ -2761,6 +2762,88 @@ async function startServer() {
     } catch (error) {
       res.status(500).json({ error: "Erro ao enviar: " + (error instanceof Error ? error.message : "Erro desconhecido") });
     }
+  });
+
+  /**
+   * ENVIO EM MASSA (ver src/lib/envioMassa.ts). Só administradores.
+   */
+  const enviarMassa: envioMassa.FuncaoEnvio = async (telefone, texto, imagemUrl) => {
+    const chatId = await getWhatsAppChatId(telefone);
+    if (!chatId || !whatsappClient) throw new Error('Número não encontrado no WhatsApp');
+    if (!imagemUrl) {
+      await whatsappClient.sendMessage(chatId, texto);
+      return;
+    }
+    // Imagem enviada pelo painel: lê do disco. Link externo: baixa.
+    const local = imagemUrl.match(/\/uploads\/([^/?#]+)$/);
+    const media = local
+      ? MessageMedia.fromFilePath(path.join(uploadsDir, path.basename(local[1])))
+      : await MessageMedia.fromUrl(imagemUrl, { unsafeMime: true });
+    await whatsappClient.sendMessage(chatId, media, { caption: texto });
+  };
+  const whatsappPronto = () => !!whatsappClient && whatsappStatus === 'READY';
+  // Começa os agendados que venceram e retoma envios interrompidos.
+  setInterval(() => { envioMassa.processarFila(enviarMassa, whatsappPronto); }, 30_000);
+
+  app.get("/api/whatsapp/massa/categorias", authenticateToken, async (req: any, res) => {
+    if (!isAdminRole(req.user)) return res.status(403).json({ error: "Acesso negado" });
+    const usuarios = await storage.readCollection<any>("users");
+    const contagem: Record<string, number> = {};
+    for (const u of usuarios) contagem[envioMassa.categoriaDe(u)] = (contagem[envioMassa.categoriaDe(u)] || 0) + 1;
+    res.json({ categorias: envioMassa.CATEGORIAS, contagem });
+  });
+
+  app.post("/api/whatsapp/massa/previa", authenticateToken, async (req: any, res) => {
+    if (!isAdminRole(req.user)) return res.status(403).json({ error: "Acesso negado" });
+    const categorias = Array.isArray(req.body?.categorias) ? req.body.categorias.map(String) : [];
+    const { lista, semTelefone, naoQuerem } = envioMassa.escolherDestinatarios(await storage.readCollection<any>("users"), categorias);
+    const exemplo = lista[0] ? envioMassa.personalizar(String(req.body?.mensagem || ''), lista[0].nome) : undefined;
+    res.json({ total: lista.length, semTelefone, naoQuerem, exemplo });
+  });
+
+  app.get("/api/whatsapp/massa", authenticateToken, async (req: any, res) => {
+    if (!isAdminRole(req.user)) return res.status(403).json({ error: "Acesso negado" });
+    const envios = await storage.readCollection<envioMassa.EnvioMassa>("envios_massa");
+    res.json({
+      whatsappConectado: whatsappPronto(),
+      envios: [...envios].sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).slice(0, 30).map(envioMassa.resumo),
+    });
+  });
+
+  app.post("/api/whatsapp/massa", authenticateToken, async (req: any, res) => {
+    if (!isAdminRole(req.user)) return res.status(403).json({ error: "Acesso negado" });
+    const mensagem = String(req.body?.mensagem || '').trim();
+    const categorias = Array.isArray(req.body?.categorias) ? req.body.categorias.map(String).filter((c: string) => envioMassa.CATEGORIAS[c]) : [];
+    const imagemUrl = typeof req.body?.imagemUrl === 'string' && /^(https?:\/\/|\/uploads\/)/.test(req.body.imagemUrl) ? req.body.imagemUrl : undefined;
+    const agendadoPara = req.body?.agendadoPara && !Number.isNaN(Date.parse(req.body.agendadoPara)) ? new Date(req.body.agendadoPara).toISOString() : undefined;
+    if (!mensagem) return res.status(400).json({ error: "Escreva a mensagem" });
+    if (mensagem.length > 4000) return res.status(400).json({ error: "Mensagem longa demais (máximo 4000 caracteres)" });
+    if (!categorias.length) return res.status(400).json({ error: "Escolha pelo menos uma categoria" });
+
+    const { lista } = envioMassa.escolherDestinatarios(await storage.readCollection<any>("users"), categorias);
+    if (!lista.length) return res.status(400).json({ error: "Ninguém com telefone nessas categorias" });
+
+    const envio: envioMassa.EnvioMassa = {
+      id: uuidv4(), mensagem, imagemUrl, categorias, criadoPor: req.user.id, criadoEm: new Date().toISOString(),
+      agendadoPara, status: 'agendado', destinatarios: lista,
+    };
+    await storage.mutate<envioMassa.EnvioMassa>("envios_massa", todos => [...todos, envio]);
+    envioMassa.processarFila(enviarMassa, whatsappPronto);
+    res.status(201).json(envioMassa.resumo(envio));
+  });
+
+  app.post("/api/whatsapp/massa/:id/cancelar", authenticateToken, async (req: any, res) => {
+    if (!isAdminRole(req.user)) return res.status(403).json({ error: "Acesso negado" });
+    envioMassa.cancelar(req.params.id);
+    // Agendado que ainda não começou: cancela direto.
+    await storage.mutate<envioMassa.EnvioMassa>("envios_massa", todos => {
+      const i = todos.findIndex(e => e.id === req.params.id && e.status === 'agendado');
+      if (i < 0) return null;
+      const copia = [...todos];
+      copia[i] = { ...todos[i], status: 'cancelado', concluidoEm: new Date().toISOString() };
+      return copia;
+    });
+    res.json({ success: true });
   });
 
   app.post("/api/whatsapp/test", authenticateToken, async (req, res) => {
