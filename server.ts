@@ -21,6 +21,8 @@ import * as storage from "./src/lib/storage";
 import { seedVerses } from "./src/lib/seedVerses";
 import { statusAtualizacao } from "./src/lib/versaoSistema";
 import { enviarFcm, statusFirebase, salvarChave, removerChave, validarChave } from "./src/lib/firebasePush";
+import { listarBiblias, lerCapitulo, buscarLocal, importarBiblia, removerBiblia, restaurarPadrao, esquecerLocal } from "./src/lib/biblias";
+import { lerBibliaJson } from "./src/lib/bibliaJson";
 import { fetchVerseText } from "./src/lib/bible";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia, Poll } = pkg;
@@ -3090,6 +3092,60 @@ async function startServer() {
         console.error("Error subscribing:", error);
         res.status(500).json({ error: "Failed to subscribe" });
     }
+  });
+
+  /**
+   * BÍBLIAS (ver src/lib/biblias.ts)
+   * Leitura para qualquer pessoa logada; gerenciar só o super admin.
+   */
+  app.get("/api/biblias", authenticateToken, async (req, res) => {
+    res.json(await listarBiblias());
+  });
+
+  app.get("/api/biblias/:id/busca", authenticateToken, async (req, res) => {
+    const termo = String(req.query.q || '').trim();
+    if (termo.length < 3) return res.json([]);
+    try {
+      res.json(await buscarLocal(req.params.id, termo));
+    } catch {
+      res.status(404).json({ error: "Busca disponível só em versões importadas" });
+    }
+  });
+
+  app.get("/api/biblias/:id/:livro/:capitulo", authenticateToken, async (req, res) => {
+    const livro = Number(req.params.livro), cap = Number(req.params.capitulo);
+    if (!Number.isInteger(livro) || livro < 0 || livro > 65 || !Number.isInteger(cap) || cap < 1 || cap > 150) {
+      return res.status(400).json({ error: "Capítulo inválido" });
+    }
+    try {
+      res.json(await lerCapitulo(req.params.id, livro, cap));
+    } catch (e: any) {
+      res.status(502).json({ error: "Não foi possível carregar este capítulo agora" });
+    }
+  });
+
+  app.post("/api/biblias", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    const nome = String(req.body?.nome || '').trim();
+    if (!nome) return res.status(400).json({ error: "Informe o nome da versão" });
+    try {
+      const livros = lerBibliaJson(req.body?.livros);
+      res.status(201).json(await importarBiblia(nome, String(req.body?.sigla || '').trim(), livros));
+    } catch (e: any) {
+      res.status(400).json({ error: e.message || "Arquivo inválido" });
+    }
+  });
+
+  app.delete("/api/biblias/:id", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    esquecerLocal(req.params.id);
+    if (!(await removerBiblia(req.params.id))) return res.status(404).json({ error: "Versão não encontrada" });
+    res.json(await listarBiblias());
+  });
+
+  app.post("/api/biblias/restaurar", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    res.json(await restaurarPadrao());
   });
 
   /**

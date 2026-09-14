@@ -10,6 +10,7 @@ import {
 } from 'react-router-dom';
 import { toPng } from 'html-to-image';
 import { fetchVerseText, BIBLE_TRANSLATIONS } from './lib/bible';
+import AdminBiblias from './components/AdminBiblias';
 import AdminVerses from './components/AdminVerses';
 import { ServiceReportsScreen } from './components/ServiceReportsScreen';
 import { CRMScreen } from './components/CRMScreen';
@@ -3456,6 +3457,35 @@ const stripHtml = (text: any) => {
     .trim();
 };
 
+/**
+ * VERSÕES DA BÍBLIA
+ * A lista vem do servidor (gerenciada no painel, tela "Versões da Bíblia").
+ * Os campos antigos (name, api, bollsStr, translation) continuam preenchidos
+ * para o caminho de reserva, que busca direto na internet se o servidor falhar.
+ */
+type BibliaApp = { id: string; nome: string; sigla: string; fonte: 'bolls' | 'bibleapi' | 'local'; codigo?: string;
+  name: string; api: string; bollsStr?: string; translation?: string };
+
+const paraBibliaApp = (b: any): BibliaApp => ({
+  ...b,
+  name: b.nome,
+  api: b.fonte === 'bolls' ? 'bolls' : b.fonte,
+  bollsStr: b.fonte === 'bolls' ? b.codigo : undefined,
+  translation: b.fonte === 'bibleapi' ? b.codigo : 'almeida',
+});
+
+const BIBLIAS_RESERVA: BibliaApp[] = BIBLE_TRANSLATIONS.map(t => paraBibliaApp({ id: t.id, nome: t.name, sigla: t.bollsStr, fonte: 'bolls', codigo: t.bollsStr }));
+
+function useBiblias(): BibliaApp[] {
+  const [lista, setLista] = useState<BibliaApp[]>(BIBLIAS_RESERVA);
+  useEffect(() => {
+    api.request('/biblias')
+      .then((l: any[]) => { if (Array.isArray(l) && l.length) setLista(l.map(paraBibliaApp)); })
+      .catch(() => { /* servidor antigo ou fora do ar: fica a lista de reserva */ });
+  }, []);
+  return lista;
+}
+
 const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight, onShareVerse, fontSize }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void, onShareVerse?: (v: {text: string, ref: string}) => void, fontSize?: 'small' | 'normal' | 'large' | 'xl' }) => {
   const [selectedBook, setSelectedBook] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
@@ -3481,7 +3511,8 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
 
   const currentVerseSize = verseFontSizeClasses[fontSize || 'normal'];
 
-  const currentTranslation = BIBLE_TRANSLATIONS.find(t => t.id === translation) || BIBLE_TRANSLATIONS[0];
+  const biblias = useBiblias();
+  const currentTranslation = biblias.find(t => t.id === translation) || biblias[0];
 
   const colors = [
     { name: 'Amarelo', value: 'bg-yellow-200' },
@@ -3500,8 +3531,8 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
     const signal = abortControllerRef.current.signal;
 
     const tId = transId || translation;
-    const t = BIBLE_TRANSLATIONS.find(tr => tr.id === tId) || BIBLE_TRANSLATIONS[0];
-    
+    const t = biblias.find(tr => tr.id === tId) || biblias[0];
+
     setSelectedBook(book);
     setSelectedChapter(chapter);
     localStorage.setItem('lastReadBook', book);
@@ -3510,7 +3541,16 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
     setLoadingVerses(true);
     setVerses([]);
     try {
-      if (t.api === 'bolls') {
+      // Primeiro pelo servidor da igreja, que guarda cópia de cada capítulo.
+      const doServidor = await api.request(`/biblias/${t.id}/${BIBLE_BOOKS.findIndex(b => b.name === book)}/${chapter}`, { signal }).catch((e: any) => {
+        if (e?.name === 'AbortError') throw e;
+        return null;
+      });
+      if (Array.isArray(doServidor) && doServidor.length) {
+        if (!signal.aborted) setVerses(doServidor);
+      } else if (t.fonte === 'local') {
+        throw new Error('Versão importada indisponível');
+      } else if (t.api === 'bolls') {
         const bookId = BIBLE_BOOKS.findIndex(b => b.name === book) + 1;
         const response = await fetch(`https://bolls.life/get-text/${t.bollsStr}/${bookId}/${chapter}/`, { signal });
         if (response.ok) {
@@ -3564,7 +3604,10 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
       const t = currentTranslation;
       let results: any[] = [];
       
-      if (t.api === 'bolls') {
+      if (t.fonte === 'local') {
+        const achados = await api.request(`/biblias/${t.id}/busca?q=${encodeURIComponent(searchQuery)}`);
+        results = achados.map((r: any) => ({ book: BIBLE_BOOKS[r.livro]?.name || `Livro ${r.livro + 1}`, chapter: r.chapter, verse: r.verse, text: r.text }));
+      } else if (t.api === 'bolls') {
         const response = await fetch(`https://bolls.life/search/${t.bollsStr}/?search=${encodeURIComponent(searchQuery)}`);
         if (response.ok) {
           const data = await response.json();
@@ -3613,9 +3656,15 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
       const verseQuery = comparingVerse.verse;
       const actBook = comparingVerse.book;
       
-      await Promise.all(BIBLE_TRANSLATIONS.map(async (t) => {
+      await Promise.all(biblias.map(async (t) => {
         try {
-          if (t.api === 'bolls') {
+          const doServidor = await api.request(`/biblias/${t.id}/${BIBLE_BOOKS.findIndex(b => b.name === actBook)}/${chapterQuery}`).catch(() => null);
+          const achado = Array.isArray(doServidor) ? doServidor.find((v: any) => v.verse === verseQuery) : null;
+          if (achado) {
+            newTexts[t.id] = achado.text;
+          } else if (t.fonte === 'local') {
+            // importada: só existe no servidor
+          } else if (t.api === 'bolls') {
             const bookId = BIBLE_BOOKS.findIndex(b => b.name === actBook) + 1;
             const res = await fetch(`https://bolls.life/get-text/${t.bollsStr}/${bookId}/${chapterQuery}/`);
             if (res.ok) {
@@ -3676,10 +3725,10 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
               </button>
             </div>
             <div className="p-4 overflow-y-auto space-y-4">
-              {BIBLE_TRANSLATIONS.map(t => (
+              {biblias.map(t => (
                 <Card key={t.id} className="p-4 bg-slate-50 border-none shadow-none space-y-2 relative">
                   <div className="absolute -top-3 left-4 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    {t.id}
+                    {t.sigla}
                   </div>
                   {loadingCompare && !comparingTexts[t.id] ? (
                     <div className="h-10 flex items-center pt-2">
@@ -3720,8 +3769,8 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
             }}
             className="text-[10px] font-bold bg-slate-50 border-none rounded-lg py-2 px-3 focus:ring-0"
           >
-            {BIBLE_TRANSLATIONS.map(t => (
-              <option key={t.id} value={t.id}>{t.id.toUpperCase()}</option>
+            {biblias.map(t => (
+              <option key={t.id} value={t.id}>{t.sigla}</option>
             ))}
           </select>
         </header>
@@ -3857,8 +3906,8 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
             }}
             className="text-[10px] font-bold bg-white border border-slate-100 rounded-lg py-2 px-3 focus:ring-0 shadow-sm"
           >
-            {BIBLE_TRANSLATIONS.map(t => (
-              <option key={t.id} value={t.id}>{t.id.toUpperCase()}</option>
+            {biblias.map(t => (
+              <option key={t.id} value={t.id}>{t.sigla}</option>
             ))}
           </select>
         </div>
@@ -6128,7 +6177,8 @@ const AdminAllScreens = ({ onTabChange, isTabAllowed, userRole }: { onTabChange:
     { id: 'admin_roles', label: 'Perfis de Acesso Adm', icon: Shield, color: 'bg-red-600' },
     ...(userRole === 'superadmin' ? [
         { id: 'appearance', label: 'Personalização do App', icon: Palette, color: 'bg-pink-500' },
-        { id: 'whatsapp', label: 'Configuração WhatsApp', icon: MessageSquare, color: 'bg-green-500' }
+        { id: 'whatsapp', label: 'Configuração WhatsApp', icon: MessageSquare, color: 'bg-green-500' },
+        { id: 'bibles', label: 'Versões da Bíblia', icon: BookOpen, color: 'bg-emerald-700' }
     ] : []),
     { id: 'hosting', label: 'Servidor e Backups', icon: Server, color: 'bg-slate-700' },
   ].filter(s => isTabAllowed(s.id));
@@ -10407,6 +10457,7 @@ const joinCell = async (cellId: string) => {
       switch (currentTab) {
         case 'home': return <AdminDashboard appearanceConfig={appearanceConfig} stats={stats} users={visibleUsers} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} onRefreshVerses={refreshData} />;
         case 'bible': return <AdminVerses onBack={() => setCurrentTab('home')} showMessage={showMessage} isSuperAdmin={userRole === 'superadmin'} />;
+        case 'bibles': return <AdminBiblias onBack={() => setCurrentTab('all_screens')} showMessage={showMessage} />;
         case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} userRole={userRole} />;
         case 'financial': return (
           <AdminFinancial 
@@ -10612,7 +10663,7 @@ const joinCell = async (cellId: string) => {
 
   const isTabAllowed = (tabId: string) => {
     // Admins always have access to appearance/whatsapp config in their panel if superadmin
-    if (userRole === 'superadmin' && ['appearance', 'whatsapp'].includes(tabId)) return true;
+    if (userRole === 'superadmin' && ['appearance', 'whatsapp', 'bibles'].includes(tabId)) return true;
     
     // Check if module is turned off globally by superadmin
     const moduleMap: Record<string, string> = {
