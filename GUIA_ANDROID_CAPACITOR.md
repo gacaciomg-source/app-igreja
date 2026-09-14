@@ -250,6 +250,10 @@ app aberto, até 1 minuto. Com o app fechado, quem executa é o WorkManager do
 Android: **15 minutos é o piso, não uma promessa** — em Doze mode ou com
 economia de bateria agressiva pode atrasar bem mais ou não rodar.
 
+Na prática, em 14/09/2026 nenhum Android recebeu os avisos com o app fechado.
+A correção definitiva é o Firebase (ver "Ligar o Firebase no APK" nas
+pendências): o servidor já está pronto, falta a próxima versão do APK.
+
 ### 6. Play Store recusando por permissão de localização
 
 **Sintoma** — O app pede permissão de localização sem nunca usar localização, e
@@ -278,6 +282,12 @@ importado, e ele arrasta o Firebase junto.
 **Solução** — Foi removido. Se um dia precisar de push nativo via FCM, é só
 `npm install @capacitor/push-notifications` de volta — aí sim junto com o
 `google-services.json`.
+
+**Atualização (14/09/2026)** — Voltou de propósito, para o Firebase. O código
+fica desligado por `FIREBASE_NO_APP = false` em `src/lib/nativeFcm.ts`: sem o
+`google-services.json`, registrar no Firebase fecha o app. O
+`android/app/build.gradle` só aplica o plugin do Google quando o arquivo
+existe, então o APK continua gerando normalmente.
 
 ---
 
@@ -361,6 +371,25 @@ de falha virem legíveis.
 
 **Prazo real:** fevereiro de 2027. Não é urgente, mas não deixe para a última
 atualização antes do prazo — precisa de uma rodada de teste com calma.
+
+### Ligar o Firebase no APK
+
+O servidor e o painel já estão prontos (desde 14/09/2026): cada aviso vai pelo
+caminho antigo e também pelo Firebase, com o mesmo id, e o app nunca mostra
+duas vezes. Falta só a parte do celular:
+
+1. Criar o projeto grátis em console.firebase.google.com (plano Spark, sem
+   cartão). Adicionar um app Android com o pacote `com.renovar`.
+2. Baixar o `google-services.json` e colocar em `android/app/`. Ele identifica
+   o app, não é senha — mas deixe fora de repositório público.
+3. Em `src/lib/nativeFcm.ts`, trocar `FIREBASE_NO_APP` para `true`.
+4. No Firebase: Configurações do projeto → Contas de serviço → "Gerar nova
+   chave privada". Enviar esse .json no painel, tela Servidor, cartão
+   "Notificações (Firebase)". **Esse arquivo é senha**: nunca no Git.
+5. `npm run build && npx cap sync android`, gerar o AAB e publicar.
+
+Depois de publicado, o cartão do painel mostra quantos aparelhos recebem pelo
+Firebase. Quem não atualizar o app continua recebendo pelo caminho antigo.
 
 ### Outras pendências
 

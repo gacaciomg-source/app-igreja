@@ -47,6 +47,7 @@ addEventListener('syncState', (resolve, reject, args) => {
     if (args[KV_TOKEN] !== undefined) CapacitorKV.set(KV_TOKEN, String(args[KV_TOKEN]));
     if (args[KV_API] !== undefined) CapacitorKV.set(KV_API, String(args[KV_API]));
     if (args[KV_SINCE] !== undefined) CapacitorKV.set(KV_SINCE, String(args[KV_SINCE]));
+    if (args.notif_fcm !== undefined) CapacitorKV.set('notif_fcm', String(args.notif_fcm));
     resolve();
   } catch (e) {
     reject(e);
@@ -96,7 +97,8 @@ addEventListener('checkNotifications', async (resolve, reject, args) => {
     const data = await res.json();
     const items = data.items || [];
 
-    if (items.length > 0) {
+    // Com o Firebase ativo neste aparelho, o Android já mostrou; só avança.
+    if (items.length > 0 && readKV('notif_fcm') !== '1') {
       CapacitorNotifications.schedule(
         items.map((n) => ({
           id: notificationId(n.id),

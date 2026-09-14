@@ -20,6 +20,7 @@ import { v4 as uuidv4 } from "uuid";
 import * as storage from "./src/lib/storage";
 import { seedVerses } from "./src/lib/seedVerses";
 import { statusAtualizacao } from "./src/lib/versaoSistema";
+import { enviarFcm, statusFirebase, salvarChave, removerChave, validarChave } from "./src/lib/firebasePush";
 import { fetchVerseText } from "./src/lib/bible";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia, Poll } = pkg;
@@ -176,33 +177,53 @@ initWebPush();
  */
 const NOTIFICATION_RETENTION_DAYS = 7;
 
-async function recordNotification(title: string, body: string, url: string, targetUserIds?: string[]) {
+async function recordNotification(title: string, body: string, url: string, targetUserIds?: string[]): Promise<string> {
+    const id = uuidv4();
     try {
-        const all = await storage.readCollection<any>("notifications");
-
         // Poda o histórico: sem isso o arquivo cresce para sempre.
         const cutoff = Date.now() - NOTIFICATION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
-        const kept = all.filter((n: any) => new Date(n.createdAt).getTime() >= cutoff);
-
-        kept.push({
-            id: uuidv4(),
-            title,
-            body,
-            url,
-            targetUserIds: targetUserIds ?? null,
-            createdAt: new Date().toISOString(),
-        });
-
-        await storage.writeCollection("notifications", kept);
+        await storage.mutate<any>("notifications", all => [
+            ...all.filter((n: any) => new Date(n.createdAt).getTime() >= cutoff),
+            {
+                id,
+                title,
+                body,
+                url,
+                targetUserIds: targetUserIds ?? null,
+                createdAt: new Date().toISOString(),
+            },
+        ]);
     } catch (e) {
         // Falhar aqui não pode derrubar o envio do Web Push.
         console.error("Falha ao registrar notificação para o app nativo:", e);
+    }
+    return id;
+}
+
+/** Envia pelo Firebase aos aparelhos com o app novo. Sem chave cadastrada, não faz nada. */
+async function sendFcmNotification(id: string, title: string, body: string, url: string, targetUserIds?: string[]) {
+    try {
+        let aparelhos = await storage.readCollection<any>("fcm_tokens");
+        if (targetUserIds) {
+            const permitidos = new Set(targetUserIds);
+            aparelhos = aparelhos.filter((t: any) => permitidos.has(t.userId));
+        }
+        if (!aparelhos.length) return;
+        const { invalidos } = await enviarFcm(aparelhos.map((t: any) => t.token), { id, title, body, url });
+        if (invalidos.length) {
+            const remover = new Set(invalidos);
+            await storage.mutate<any>("fcm_tokens", todos => todos.filter((t: any) => !remover.has(t.token)));
+        }
+    } catch (e) {
+        console.error("Falha ao enviar pelo Firebase:", e);
     }
 }
 
 async function sendPushNotification(title: string, body: string, url: string = '/', targetUserIds?: string[]) {
     // Registra antes de enviar, para o app nativo não depender do sucesso do Web Push.
-    await recordNotification(title, body, url, targetUserIds);
+    // O mesmo id vai pelo Firebase, e o app usa isso para não mostrar em dobro.
+    const notificationId = await recordNotification(title, body, url, targetUserIds);
+    await sendFcmNotification(notificationId, title, body, url, targetUserIds);
 
     try {
         let subscriptions = await storage.readCollection<any>("push_subscriptions");
@@ -1877,11 +1898,16 @@ async function startServer() {
         
         // --- PRESERVE NOTIFICATIONS & USERS ---
         let existingPushSubscriptions = null;
+        let existingFcmTokens: string | null = null;
         let existingUsers = null;
         try {
             const pushPath = path.join(cwd, 'data', 'push_subscriptions.json');
             if (fs.existsSync(pushPath)) {
                 existingPushSubscriptions = fs.readFileSync(pushPath, 'utf-8');
+            }
+            // Aparelhos do Firebase: os do backup podem estar vencidos; vale o de agora.
+            if (fs.existsSync(path.join(cwd, 'data', 'fcm_tokens.json'))) {
+                existingFcmTokens = fs.readFileSync(path.join(cwd, 'data', 'fcm_tokens.json'), 'utf-8');
             }
             const usersPath = path.join(cwd, 'data', 'users.json');
             if (fs.existsSync(usersPath)) {
@@ -1907,6 +1933,9 @@ async function startServer() {
         try {
             if (existingPushSubscriptions) {
                 fs.writeFileSync(path.join(cwd, 'data', 'push_subscriptions.json'), existingPushSubscriptions);
+            }
+            if (existingFcmTokens) {
+                fs.writeFileSync(path.join(cwd, 'data', 'fcm_tokens.json'), existingFcmTokens);
             }
             if (existingUsers && Array.isArray(existingUsers)) {
                 const newUsersPath = path.join(cwd, 'data', 'users.json');
@@ -1956,11 +1985,16 @@ async function startServer() {
       
       // --- PRESERVE NOTIFICATIONS & USERS ---
       let existingPushSubscriptions = null;
+        let existingFcmTokens: string | null = null;
       let existingUsers = null;
       try {
           const pushPath = path.join(cwd, 'data', 'push_subscriptions.json');
           if (fs.existsSync(pushPath)) {
               existingPushSubscriptions = fs.readFileSync(pushPath, 'utf-8');
+            }
+            // Aparelhos do Firebase: os do backup podem estar vencidos; vale o de agora.
+            if (fs.existsSync(path.join(cwd, 'data', 'fcm_tokens.json'))) {
+                existingFcmTokens = fs.readFileSync(path.join(cwd, 'data', 'fcm_tokens.json'), 'utf-8');
           }
           const usersPath = path.join(cwd, 'data', 'users.json');
           if (fs.existsSync(usersPath)) {
@@ -1986,6 +2020,9 @@ async function startServer() {
       try {
           if (existingPushSubscriptions) {
               fs.writeFileSync(path.join(cwd, 'data', 'push_subscriptions.json'), existingPushSubscriptions);
+            }
+            if (existingFcmTokens) {
+                fs.writeFileSync(path.join(cwd, 'data', 'fcm_tokens.json'), existingFcmTokens);
           }
           if (existingUsers && Array.isArray(existingUsers)) {
               const newUsersPath = path.join(cwd, 'data', 'users.json');
@@ -2237,6 +2274,15 @@ async function startServer() {
 
     return data;
   }
+
+  // Coleções internas do sistema de notificações: só o próprio servidor mexe.
+  // Pela rota genérica, alguém poderia cadastrar o próprio aparelho com o id
+  // de outra pessoa e passar a receber as notificações privadas dela.
+  const COLECOES_INTERNAS = new Set(['fcm_tokens', 'push_subscriptions', 'notifications']);
+  app.use("/api/collections/:name", (req, res, next) => {
+    if (COLECOES_INTERNAS.has(req.params.name)) return res.status(403).json({ error: "Coleção não disponível." });
+    next();
+  });
 
   app.get("/api/collections/:name", authenticateToken, async (req: any, res) => {
     const name = req.params.name;
@@ -3044,6 +3090,68 @@ async function startServer() {
         console.error("Error subscribing:", error);
         res.status(500).json({ error: "Failed to subscribe" });
     }
+  });
+
+  /**
+   * FIREBASE (FCM)
+   * O app Android com Firebase registra aqui o código do aparelho. Um mesmo
+   * aparelho troca de dono quando outra pessoa faz login nele.
+   */
+  app.post("/api/push/fcm-token", authenticateToken, async (req: any, res) => {
+    const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+    if (!token || token.length > 4096) return res.status(400).json({ error: "Código do aparelho inválido" });
+    try {
+      await storage.mutate<any>("fcm_tokens", todos => [
+        ...todos.filter((t: any) => t.token !== token),
+        {
+          id: uuidv4(),
+          token,
+          userId: req.user.id,
+          platform: typeof req.body?.platform === 'string' ? req.body.platform.slice(0, 20) : 'android',
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
+      res.status(201).json({ success: true });
+    } catch (error) {
+      console.error("Erro ao registrar aparelho:", error);
+      res.status(500).json({ error: "Falha ao registrar aparelho" });
+    }
+  });
+
+  /** Chamado no logout: o aparelho deixa de receber as notificações dessa pessoa. */
+  app.delete("/api/push/fcm-token", authenticateToken, async (req: any, res) => {
+    const token = typeof req.body?.token === 'string' ? req.body.token : '';
+    await storage.mutate<any>("fcm_tokens", todos => {
+      const resto = todos.filter((t: any) => !(t.token === token && t.userId === req.user.id));
+      return resto.length === todos.length ? null : resto;
+    }).catch(() => undefined);
+    res.json({ success: true });
+  });
+
+  /** Situação do Firebase para a tela Servidor. Nunca devolve a chave privada. */
+  app.get("/api/system/firebase", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    const aparelhos = await storage.readCollection<any>("fcm_tokens").catch(() => []);
+    res.json({ ...statusFirebase(), aparelhos: aparelhos.length });
+  });
+
+  app.post("/api/system/firebase", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    const problema = validarChave(req.body);
+    if (problema) return res.status(400).json({ error: problema });
+    try {
+      await salvarChave(req.body);
+      res.json(statusFirebase());
+    } catch (e: any) {
+      await removerChave();
+      res.status(400).json({ error: e.message || "Chave recusada pelo Firebase" });
+    }
+  });
+
+  app.delete("/api/system/firebase", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    await removerChave();
+    res.json(statusFirebase());
   });
 
   /**

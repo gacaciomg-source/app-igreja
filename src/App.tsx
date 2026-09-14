@@ -5321,6 +5321,100 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
   );
 };
 
+/**
+ * NOTIFICAÇÕES PELO FIREBASE — cartão da tela Servidor
+ *
+ * Aqui o super admin envia a chave da conta de serviço do Firebase. Ela fica
+ * só no servidor (data/), nunca no Git. Enquanto não houver chave, ou enquanto
+ * ninguém tiver o app novo, as notificações seguem pelo caminho de sempre.
+ */
+const CartaoFirebase = () => {
+  const [status, setStatus] = useState<{ configurado: boolean; projeto?: string; conta?: string; aparelhos?: number } | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState('');
+  const arquivoRef = useRef<HTMLInputElement>(null);
+
+  const carregar = () => api.request('/system/firebase').then(setStatus).catch(() => setStatus(null));
+  useEffect(() => { carregar(); }, []);
+
+  const enviarChave = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo) return;
+    setErro('');
+    setEnviando(true);
+    try {
+      let dados: any;
+      try { dados = JSON.parse(await arquivo.text()); }
+      catch { throw new Error('O arquivo escolhido não é um JSON válido.'); }
+      await api.request('/system/firebase', { method: 'POST', body: JSON.stringify(dados) });
+      await carregar();
+    } catch (err: any) {
+      setErro(err?.message || 'Não foi possível salvar a chave.');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const remover = async () => {
+    if (!confirm('Remover a chave do Firebase? O app novo volta a receber só pelo caminho antigo (mais lento).')) return;
+    await api.request('/system/firebase', { method: 'DELETE' }).catch(() => undefined);
+    carregar();
+  };
+
+  if (!status) return null; // só o super admin enxerga
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
+          <Bell className="w-5 h-5" />
+        </div>
+        <div>
+          <h3 className="font-black text-slate-900 tracking-tight text-lg">Notificações (Firebase)</h3>
+          <p className="text-xs text-slate-500 font-medium">Entrega instantânea no app Android</p>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {status.configurado ? (
+          <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50 space-y-1">
+            <p className="text-sm font-bold text-emerald-800 flex items-center gap-1">
+              <CheckCircle2 className="w-4 h-4" /> Firebase configurado
+            </p>
+            <p className="text-[11px] text-emerald-700 break-all">Projeto: {status.projeto}</p>
+            <p className="text-[11px] text-emerald-700">
+              {status.aparelhos ? `${status.aparelhos} aparelho(s) recebendo pelo Firebase` : 'Nenhum aparelho com o app novo ainda'}
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Ainda não configurado. As notificações continuam chegando normalmente pelo caminho atual.
+            Para ativar: no console do Firebase, abra Configurações do projeto → Contas de serviço →
+            "Gerar nova chave privada" e envie o arquivo .json aqui.
+          </p>
+        )}
+
+        {erro && <p className="text-xs text-red-700 bg-red-50 border border-red-200 p-2 rounded-lg">{erro}</p>}
+
+        <input ref={arquivoRef} type="file" accept=".json,application/json" className="hidden" onChange={enviarChave} />
+        <Button
+          onClick={() => arquivoRef.current?.click()}
+          disabled={enviando}
+          variant="secondary"
+          className="w-full h-12 rounded-xl"
+        >
+          {enviando ? 'Verificando chave...' : status.configurado ? 'Trocar chave do Firebase' : 'Enviar chave do Firebase (.json)'}
+        </Button>
+        {status.configurado && (
+          <button onClick={remover} className="w-full text-center text-xs font-bold text-red-500 hover:text-red-700">
+            Remover chave
+          </button>
+        )}
+      </div>
+    </Card>
+  );
+};
+
 const AdminHostingScreen = () => {
   const [sysInfo, setSysInfo] = useState<any>(null);
   const { status: statusSistema, verificando: verificandoVersao, verificar: verificarVersao } = useStatusAtualizacao();
@@ -5750,6 +5844,8 @@ const AdminHostingScreen = () => {
             </Button>
           </div>
         </Card>
+
+        <CartaoFirebase />
       </div>
 
       <Card className="p-6 mt-6">
@@ -9666,6 +9762,8 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      // Antes de apagar o login: o aparelho deixa de receber pelo Firebase.
+      await import('./lib/nativeFcm').then(m => m.encerrarFirebase()).catch(() => undefined);
       api.logout();
       localStorage.removeItem('auth_user');
       setIsLoggedIn(false);

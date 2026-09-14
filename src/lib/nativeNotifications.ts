@@ -22,6 +22,15 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { IS_NATIVE } from './native';
 import { getApiUrl } from '../services/apiService';
+import { iniciarFirebase, firebaseAtivo, jaRecebidoPeloFirebase, marcarVisto } from './nativeFcm';
+
+/** O registro no Firebase precisa de login; tenta na primeira busca com token. */
+let firebaseIniciado = false;
+function iniciarFirebaseUmaVez() {
+  if (firebaseIniciado) return;
+  firebaseIniciado = true;
+  return iniciarFirebase();
+}
 
 /** Marca d'água do último item já notificado. Guardamos o `serverTime` que o
  *  servidor devolve, não o relógio do celular — celular com hora errada faria
@@ -42,7 +51,7 @@ let running = false;
 
 /** O Android exige id inteiro de 32 bits. Derivamos do id textual para que a
  *  mesma notificação nunca apareça duas vezes. */
-function notificationId(id: string): number {
+export function notificationId(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) {
     h = (h << 5) - h + id.charCodeAt(i);
@@ -81,6 +90,9 @@ async function syncStateForBackgroundRunner() {
         [KV_TOKEN]: localStorage.getItem('auth_token') || '',
         [KV_API]: getApiUrl('/notifications'),
         [KV_SINCE]: localStorage.getItem(SINCE_KEY) || '',
+        // Com o Firebase ativo, o próprio Android mostra com o app fechado;
+        // o runner só avança a marca d'água para não repetir.
+        notif_fcm: firebaseAtivo() ? '1' : '',
       },
     });
   } catch (e) {
@@ -112,7 +124,12 @@ export async function checkNotifications(): Promise<number> {
     }
 
     const data = await res.json();
-    const items: Array<{ id: string; title: string; body: string; url: string }> = data.items || [];
+    // Pula o que o Firebase já mostrou (ver src/lib/nativeFcm.ts) e marca o
+    // resto, para o Firebase também não repetir o que a busca mostrar.
+    const items: Array<{ id: string; title: string; body: string; url: string }> =
+      (data.items || []).filter((n: any) => !jaRecebidoPeloFirebase(n.id));
+    items.forEach((n) => marcarVisto(n.id));
+    void iniciarFirebaseUmaVez();
 
     if (items.length > 0) {
       const granted = await ensureNotificationPermission();
