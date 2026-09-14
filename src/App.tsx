@@ -10972,7 +10972,7 @@ const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, init
           </div>
           <div className="flex-1">
             <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs mb-1" disabled={uploading} />
-            <p className="text-[10px] text-slate-400 font-medium italic">Recomendado: 1024x1024 px (formato quadrado, proporção 1:1) para melhor visualização, mas aceita qualquer tamanho e será ajustada.</p>
+            <p className="text-[10px] text-slate-400 font-medium italic">Recomendado: 1600x800 px (formato horizontal, proporção 2:1). Deixe títulos e informações no centro, com margem livre em cima e embaixo — as bordas podem ser cortadas em algumas telas.</p>
           </div>
         </div>
       </div>
@@ -11322,7 +11322,7 @@ const AnnouncementForm = ({ onSubmit }: { onSubmit: (data: any) => void }) => {
           )}
           <div className="flex-1">
             <input type="file" accept="image/*" onChange={handleImageUpload} className="text-xs mb-1" disabled={uploading} />
-            <p className="text-[10px] text-slate-400 font-medium italic">Recomendado: 1024x1024 px (formato quadrado, 1:1).</p>
+            <p className="text-[10px] text-slate-400 font-medium italic">Recomendado: 1600x800 px (formato horizontal, 2:1), com o texto no centro.</p>
           </div>
         </div>
       </div>
