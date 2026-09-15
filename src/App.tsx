@@ -3353,7 +3353,7 @@ const PrayerWall = ({ prayers, cells, onAdd, onDelete, onTogglePrayed, onAddComm
   return (
   <div className="space-y-6 pb-24">
     <header className="flex items-center justify-between">
-      <h2 className="text-2xl font-bold text-slate-900">Orações</h2>
+      <h2 className="text-2xl font-bold text-slate-900">Oração</h2>
       <Button className="rounded-full w-10 h-10 p-0" onClick={onAdd}>
         <Plus className="w-6 h-6" />
       </Button>
@@ -10602,7 +10602,7 @@ const joinCell = async (cellId: string) => {
 
   const memberTabs = [
     { id: 'home', icon: Home, label: 'Início' },
-    { id: 'prayer', icon: PrayingHands, label: 'Orações' },
+    { id: 'prayer', icon: PrayingHands, label: 'Oração' },
     { id: 'bible', icon: BookOpen, label: 'Bíblia' },
     { id: 'sermons', icon: Radio, label: 'Sermões' },
     { id: 'tithes', icon: Heart, label: 'Dízimos' },
@@ -10699,7 +10699,7 @@ const joinCell = async (cellId: string) => {
     { id: 'tithes', icon: Heart, label: 'Dízimos e Ofertas' },
     { id: 'pastoral', icon: Heart, label: 'Visitas' },
     { id: 'sermons', icon: Radio, label: 'Sermões' },
-    { id: 'prayer', icon: PrayingHands, label: 'Orações' },
+    { id: 'prayer', icon: PrayingHands, label: 'Oração' },
     { id: 'serviceReports', icon: FileText, label: 'Relatórios' },
     { id: 'inventory', icon: Package, label: 'Inventário' },
     { id: 'crm', icon: MessageSquare, label: 'Atendimento' },
