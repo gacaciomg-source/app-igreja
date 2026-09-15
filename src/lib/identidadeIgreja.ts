@@ -41,11 +41,15 @@ const PRIVACIDADE_RENOVAR: DadosPrivacidade = {
   encarregado: 'Gustavo Acácio dos Santos',
 };
 
-const NOME_PADRAO = 'Igreja';
+// Nome usado quando a Personalização ainda não tem nome. Vem do .env
+// (CHURCH_NAME) em cada instalação nova. Sem ele, fica "Igreja Renovar": é a
+// instalação original, que já está em produção e não pode mudar de nome
+// sozinha nesta atualização.
+const NOME_PADRAO = () => String(process.env.CHURCH_NAME || '').trim() || 'Igreja Renovar';
 
 export function identidadeDe(appearance: any): Identidade {
   const a = appearance || {};
-  const nome = String(a.churchName || '').trim() || NOME_PADRAO;
+  const nome = String(a.churchName || '').trim() || NOME_PADRAO();
   const salvos: DadosPrivacidade = a.privacidade || {};
   const preenchido = Object.values(salvos).some(v => String(v || '').trim());
   const base = !preenchido && /renovar/i.test(nome) ? PRIVACIDADE_RENOVAR : {};

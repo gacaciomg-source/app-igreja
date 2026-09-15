@@ -31,12 +31,17 @@ Edite o `.env`:
 
 ```
 APP_URL="https://app.igrejaexemplo.com.br"
+CHURCH_NAME="Igreja Exemplo"
 PORT=3001
 NODE_ENV=production
 JWT_SECRET=<gere um novo: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))">
 SUPERADMIN_EMAIL="admin"
 SUPERADMIN_PASSWORD=
 ```
+
+> **`CHURCH_NAME` é obrigatório nas igrejas novas.** Sem ele (e sem nome na
+> Personalização), a instalação assume o nome e os dados de privacidade da
+> Igreja Renovar, que é a instalação original.
 
 Instale, gere e suba com um nome próprio no PM2:
 
