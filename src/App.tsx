@@ -9834,14 +9834,18 @@ export default function App() {
     }
 
     try {
+      // Nunca mandar o próprio id (nem campos de controle) junto das alterações.
+      const { id: _id, createdAt: _c, ...dados } = newEvent as any;
       if (editingEvent) {
-        await api.update('events', editingEvent.id, newEvent);
+        const salvo = await api.update('events', String(editingEvent.id), dados);
+        // Mostra na hora o que foi salvo, sem esperar a próxima recarga.
+        setEvents(prev => prev.map(e => String(e.id) === String(editingEvent.id) ? { ...e, ...dados, ...(salvo || {}) } : e));
         setEditingEvent(null);
         handleApiSuccess('Evento atualizado!');
       } else {
-        await api.create('events', {
-          ...newEvent,
-        });
+        const criado = await api.create('events', dados);
+        // Troca o evento provisório pelo de verdade, com o id do servidor.
+        if (criado?.id) setEvents(prev => [...prev.filter(e => !String(e.id).startsWith('temp-')), criado]);
         handleApiSuccess('Evento criado!');
       }
       setShowAddEvent(false);
@@ -10865,7 +10869,10 @@ const joinCell = async (cellId: string) => {
 
           {showAddEvent && (
             <Modal title={editingEvent ? "Editar Evento" : "Novo Evento"} onClose={() => { setShowAddEvent(false); setEditingEvent(null); }}>
-              <EventForm onSubmit={addEvent} initialData={editingEvent || undefined} />
+              {/* key: formulário novo a cada evento aberto, nunca com dados de outro */}
+              <div key={editingEvent ? String(editingEvent.id) : 'novo'}>
+                <EventForm onSubmit={addEvent} initialData={editingEvent || undefined} />
+              </div>
             </Modal>
           )}
            {showAddTransaction && (
@@ -11076,7 +11083,21 @@ export const Modal = ({ title, children, onClose }: { title: string, children: R
 };
 
 const EventForm = ({ onSubmit, initialData }: { onSubmit: (e: any) => void, initialData?: Event }) => {
-  const [form, setForm] = useState<Partial<Event>>(initialData || { 
+  // O campo de data só entende AAAA-MM-DD e o de horário HH:MM. Evento gravado
+  // em outro formato abria com o campo vazio, obrigando a digitar de novo.
+  const paraCampoData = (d?: string) => {
+    if (!d) return new Date().toISOString().split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+    const br = d.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+    const t = Date.parse(d);
+    return Number.isNaN(t) ? '' : new Date(t).toISOString().slice(0, 10);
+  };
+  const [form, setForm] = useState<Partial<Event>>(initialData ? {
+    ...initialData,
+    date: paraCampoData(initialData.date),
+    time: (initialData.time || '').slice(0, 5),
+  } : {
     title: '', 
     date: new Date().toISOString().split('T')[0], 
     time: '19:00', 

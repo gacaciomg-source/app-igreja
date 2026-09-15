@@ -128,7 +128,9 @@ export function mutate<T>(collectionName: string, alterar: (colecao: T[]) => T[]
 
 export async function findById<T extends { id: string }>(collectionName: string, id: string): Promise<T | undefined> {
   const collection = await readCollection<T>(collectionName);
-  return collection.find(item => item.id === id);
+  // Compara como texto: registros antigos podem ter id numérico, e o id da URL
+  // sempre chega como texto. Com ===, 123 nunca era igual a "123".
+  return collection.find(item => String(item.id) === String(id));
 }
 
 export async function insert<T extends { id: string }>(collectionName: string, item: T): Promise<T> {
@@ -142,9 +144,10 @@ export async function insert<T extends { id: string }>(collectionName: string, i
 export async function update<T extends { id: string }>(collectionName: string, id: string, updates: Partial<T>): Promise<T | undefined> {
   let atualizado: T | undefined;
   await mutate<T>(collectionName, collection => {
-    const index = collection.findIndex(item => item.id === id);
+    const index = collection.findIndex(item => String(item.id) === String(id));
     if (index === -1) return null;
-    collection[index] = { ...collection[index], ...updates };
+    // O id do registro nunca muda, mesmo que venha outro nas alterações.
+    collection[index] = { ...collection[index], ...updates, id: collection[index].id };
     atualizado = collection[index];
     return collection;
   });
@@ -154,7 +157,7 @@ export async function update<T extends { id: string }>(collectionName: string, i
 export async function remove<T extends { id: string }>(collectionName: string, id: string): Promise<boolean> {
   let removeu = false;
   await mutate<T>(collectionName, collection => {
-    const filtered = collection.filter(item => item.id !== id);
+    const filtered = collection.filter(item => String(item.id) !== String(id));
     if (filtered.length === collection.length) return null;
     removeu = true;
     return filtered;
