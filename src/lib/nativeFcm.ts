@@ -93,7 +93,7 @@ export async function iniciarFirebase(): Promise<void> {
       await LocalNotifications.schedule({
         notifications: [{
           id: notificationId(id || String(Date.now())),
-          title: n.title || 'Igreja Renovar',
+          title: n.title || 'Nova notificação',
           body: n.body || '',
           smallIcon: 'ic_stat_igreja',
           extra: { url: (n.data as any)?.url || '/' },

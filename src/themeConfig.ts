@@ -11,9 +11,11 @@ export const APP_CONFIG = {
   
   // URL das Imagens (Você pode trocar pelos seus links)
   logos: {
-    dark: "https://renovar.warpserver.com.br/icon1024.png", // Logo para fundos claros
-    light: "https://renovar.warpserver.com.br/icon1024.png", // Logo para fundos escuros
-    icon: "https://renovar.warpserver.com.br/icon1024.png", // Ícone circular
+    // Arquivos que vão junto com o sistema (public/icons). Cada igreja troca
+    // os logos pela Personalização, sem mexer aqui.
+    dark: "/icons/icon-512.png", // Logo para fundos claros
+    light: "/icons/icon-512.png", // Logo para fundos escuros
+    icon: "/icons/icon-192.png", // Ícone circular
   },
   
   // ⚠️ ATENÇÃO: este bloco `theme` NÃO É USADO por nenhuma tela.

@@ -112,7 +112,8 @@ import { cn, UserRole, User as UserType, MemberStatus, Ministry, MinistrySchedul
 import { BIBLE_BOOKS, READING_PLAN_TEMPLATES, SYSTEM_VERSION, SYSTEM_VERSION_BASE } from './constants';
 import { api, getApiUrl, BASE_URL, getAbsoluteUrl } from './services/apiService';
 
-const DEFAULT_AVATAR = "https://renovar.warpserver.com.br/avatar.png";
+// Silhueta neutra embutida: não depende do site de nenhuma igreja.
+const DEFAULT_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#e2e8f0"/><circle cx="32" cy="25" r="12" fill="#94a3b8"/><path d="M10 58c2-12 11-18 22-18s20 6 22 18" fill="#94a3b8"/></svg>');
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '';
@@ -692,7 +693,7 @@ const LoginScreen = ({ onAuthSuccess, cacheVersion, appearanceConfig, darkMode }
                   </button>
                 </div>
                 <iframe 
-                  src="https://renovar.warpserver.com.br/privacidade.html" 
+                  src={getAbsoluteUrl('/privacidade.html')}
                   className="w-full h-[60vh]"
                   title="Política de Privacidade"
                 />
@@ -4876,6 +4877,38 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
       </header>
 
       <Card className="p-6 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-bold">Política de Privacidade (LGPD)</h3>
+          <a href={getAbsoluteUrl('/privacidade.html')} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-primary">Ver página</a>
+        </div>
+        <p className="text-xs text-slate-500">
+          A política fica no endereço deste site (<code>/privacidade.html</code>) e mostra estes dados.
+          É o link que vai na Play Store. Campo vazio aparece destacado na página até ser preenchido.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {([
+            ['controlador', 'Razão social (responsável pelos dados)', config.churchName || 'Nome da igreja'],
+            ['cnpj', 'CNPJ', '00.000.000/0001-00'],
+            ['natureza', 'Natureza jurídica', 'Organização Religiosa (322-0)'],
+            ['email', 'E-mail para privacidade', 'contato@igreja.com'],
+            ['endereco', 'Endereço completo', 'Rua, número — bairro, cidade/UF — CEP'],
+            ['encarregado', 'Encarregado de dados (nome)', 'Nome de quem responde pela LGPD'],
+          ] as const).map(([campo, rotulo, exemplo]) => (
+            <div key={campo} className={`space-y-1 ${campo === 'endereco' ? 'md:col-span-2' : ''}`}>
+              <label className="text-[10px] font-bold text-slate-400 uppercase">{rotulo}</label>
+              <input
+                type="text"
+                value={config.privacidade?.[campo] || ''}
+                onChange={e => setConfig({ ...config, privacidade: { ...(config.privacidade || {}), [campo]: e.target.value } })}
+                placeholder={exemplo}
+                className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+              />
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-4">
         <h3 className="font-bold">Informações Globais</h3>
         <p className="text-xs text-slate-500">Dados da instituição que aparecem pelo app (incluindo imagens compartilhadas e login).</p>
         <div className="space-y-4">
@@ -4888,6 +4921,46 @@ const AdminAppearanceScreen = ({ showMessage, isSuperAdmin }: { showMessage: (ms
               placeholder={APP_CONFIG.name}
               className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
             />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">Nome curto (embaixo do ícone no celular)</label>
+              <input
+                type="text"
+                value={config.churchShortName || ''}
+                onChange={e => setConfig({ ...config, churchShortName: e.target.value.slice(0, 20) })}
+                placeholder={config.churchName || 'Ex: Renovar'}
+                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">Título das notificações</label>
+              <input
+                type="text"
+                value={config.notificationTitle || ''}
+                onChange={e => setConfig({ ...config, notificationTitle: e.target.value })}
+                placeholder={config.churchName || 'Nome da igreja'}
+                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Ícone do app (instalado pelo navegador)</label>
+            <div className="flex items-center gap-3">
+              {config.appIconUrl && <img src={getAbsoluteUrl(config.appIconUrl)} alt="" className="w-14 h-14 rounded-xl object-cover border" />}
+              <label className="flex-1 cursor-pointer py-3 rounded-xl border border-dashed border-slate-300 text-sm font-bold text-slate-600 hover:bg-slate-50 text-center">
+                {config.appIconUrl ? 'Trocar ícone' : 'Enviar ícone (PNG quadrado, 512x512)'}
+                <input type="file" accept="image/png" className="hidden" onChange={async e => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!f) return;
+                  try { const { url } = await api.upload(f); setConfig({ ...config, appIconUrl: url }); }
+                  catch { alert('Não foi possível enviar o ícone.'); }
+                }} />
+              </label>
+              {config.appIconUrl && <button type="button" onClick={() => setConfig({ ...config, appIconUrl: '' })} className="text-xs font-bold text-red-500">Remover</button>}
+            </div>
+            <p className="text-[10px] text-slate-400">Sem ícone próprio, o app usa o ícone padrão do sistema. Quem já instalou pode precisar reinstalar para ver o novo.</p>
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase">Instagram (com ou sem @)</label>
@@ -7370,7 +7443,7 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
                    setFormData(newFormData);
                    onUpdate(newFormData);
                 }}
-                placeholder="Ex: Parabéns {{nome}}! A Igreja Renovar te deseja um feliz aniversário! 🙏🎉"
+                placeholder="Ex: Parabéns {{nome}}! Toda a nossa igreja te deseja um feliz aniversário! 🙏🎉"
                 className="w-full p-4 bg-white rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all min-h-[100px]"
               />
               <p className="text-[10px] text-slate-500 italic px-1">Use <code>{`{{nome}}`}</code> para inserir o nome do membro e <code>{`{{idade}}`}</code> para a idade.</p>
@@ -9192,7 +9265,7 @@ export default function App() {
     try {
       const permission = await Notification.requestPermission();
       if (permission === "granted") {
-        new Notification("Igreja Renovar", {
+        new Notification(appearanceConfig?.notificationTitle || appearanceConfig?.churchName || APP_CONFIG.name, {
           body: "Notificações ativadas com sucesso!",
           icon: APP_CONFIG.logos.icon
         });
@@ -9444,6 +9517,8 @@ export default function App() {
       if (appearanceConfig.faviconUrl && document.querySelector("link[rel~='icon']")) {
         (document.querySelector("link[rel~='icon']") as HTMLLinkElement).href = appearanceConfig.faviconUrl;
       }
+      // Nome da aba = nome da igreja desta instalação (Personalização).
+      if (appearanceConfig.churchName) document.title = appearanceConfig.churchName;
     }
   }, [appearanceConfig, darkMode]);
 
@@ -9696,7 +9771,7 @@ export default function App() {
           if (u.phone && u.notificationSettings?.newSermonEnabled) {
             notifyViaWhatsApp(
               u.phone,
-              `✨ *Novo Sermão Disponível!*\n\n"${data.title}"\nPregador: ${data.preacher}\nAssista agora no App da Igreja Renovar!`
+              `✨ *Novo Sermão Disponível!*\n\n"${data.title}"\nPregador: ${data.preacher}\nAssista agora no App ${appearanceConfig?.churchName ? `da ${appearanceConfig.churchName}` : 'da igreja'}!`
             );
           }
         });

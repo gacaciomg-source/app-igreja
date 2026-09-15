@@ -18,7 +18,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : { title: 'Igreja Renovar', body: 'Nova atualização!' };
+  const data = event.data ? event.data.json() : { title: 'Nova notificação', body: 'Nova atualização!' };
   
   const options = {
     body: data.body,

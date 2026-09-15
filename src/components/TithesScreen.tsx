@@ -81,7 +81,7 @@ export const TithesScreen = ({ config, onConfirmDonation, showMessage, currentUs
               </div>
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Titular</p>
-                <p className="font-bold text-slate-900">{config?.accountHolder || 'Igreja Renovar'}</p>
+                <p className="font-bold text-slate-900">{config?.accountHolder || ''}</p>
               </div>
             </div>
           </div>

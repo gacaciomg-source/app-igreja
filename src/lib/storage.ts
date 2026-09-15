@@ -88,7 +88,7 @@ export async function readCollection<T>(collectionName: string): Promise<T[]> {
   } catch {
     // Return default tithe config if requested and doesn't exist
     if (safeCollectionName === 'config') {
-      return [{ id: 'tithes', message: 'Tudo o que tenho vem de Ti, e o que das Tuas mãos recebemos, Ti damos.', pixKey: 'igrejarenovar@pix.com', churchName: 'Igreja Renovar' }] as any;
+      return [{ id: 'tithes', message: 'Tudo o que tenho vem de Ti, e o que das Tuas mãos recebemos, Ti damos.', pixKey: '', churchName: '' }] as any;
     }
     return [];
   }

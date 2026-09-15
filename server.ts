@@ -24,6 +24,7 @@ import { enviarFcm, statusFirebase, salvarChave, removerChave, validarChave } fr
 import { listarBiblias, lerCapitulo, buscarLocal, importarBiblia, removerBiblia, restaurarPadrao, esquecerLocal } from "./src/lib/biblias";
 import { lerBibliaJson } from "./src/lib/bibliaJson";
 import * as envioMassa from "./src/lib/envioMassa";
+import { identidadeDe, montarIndex, montarManifesto } from "./src/lib/identidadeIgreja";
 import { fetchVerseText } from "./src/lib/bible";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia, Poll } = pkg;
@@ -1173,6 +1174,11 @@ async function startServer() {
         churchName: appearance?.churchName || null,
         churchInstagram: appearance?.churchInstagram || null,
         enabledModules: appearance?.enabledModules || null,
+        // Identidade da igreja (ver src/lib/identidadeIgreja.ts)
+        churchShortName: appearance?.churchShortName || null,
+        notificationTitle: appearance?.notificationTitle || null,
+        appIconUrl: appearance?.appIconUrl || null,
+        privacidade: identidadeDe(appearance).privacidade,
       });
     } catch (e) {
       res.status(500).json({ error: "Erro ao carregar configurações públicas" });
@@ -3387,6 +3393,21 @@ async function startServer() {
     }
   });
 
+  // --- Identidade da igreja no navegador ---
+  // Nome e ícone vêm da Personalização: cada instalação aparece com o nome da
+  // própria igreja na aba e no ícone instalado no celular.
+  const lerIdentidade = async () =>
+    identidadeDe((await storage.readCollection<any>("config")).find((c: any) => c.id === 'appearance'));
+
+  app.get("/manifest.json", async (req, res) => {
+    try {
+      const base = JSON.parse(await fs.promises.readFile(path.join(process.cwd(), 'public', 'manifest.json'), 'utf8'));
+      res.type('application/manifest+json').json(montarManifesto(base, await lerIdentidade()));
+    } catch (e) {
+      res.sendFile(path.join(process.cwd(), 'public', 'manifest.json'));
+    }
+  });
+
   // --- Vite / Static files ---
   if (process.env.NODE_ENV !== "production") {
     // Import dinâmico de propósito: o Vite é dependência de desenvolvimento.
@@ -3398,8 +3419,17 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+    // index: false — senão o "/" sairia direto do disco, sem o nome da igreja.
+    app.use(express.static(distPath, { index: false }));
+    let indexOriginal: string | null = null;
+    app.get("*", async (req, res) => {
+      try {
+        indexOriginal ??= await fs.promises.readFile(path.join(distPath, "index.html"), 'utf8');
+        res.type('html').send(montarIndex(indexOriginal, await lerIdentidade()));
+      } catch (e) {
+        res.sendFile(path.join(distPath, "index.html"));
+      }
+    });
   }
 
   await ensureMinistries();

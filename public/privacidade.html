@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Política de Privacidade — Igreja Renovar</title>
+<title>Política de Privacidade</title>
+<!--
+  Os dados da igreja (nome, CNPJ, endereço, contato, encarregado) vêm do
+  painel: Personalização → Política de Privacidade. Cada instalação mostra
+  os dados da própria igreja. Campo vazio aparece destacado em amarelo.
+-->
 <style>
   :root { color-scheme: light dark; }
   body {
@@ -38,19 +43,19 @@
 <body>
 
 <h1>Política de Privacidade</h1>
-<p class="atualizado">Aplicativo <strong>Igreja Renovar</strong> · Última atualização: 12 de agosto de 2026</p>
+<p class="atualizado">Aplicativo <strong data-campo="nome">da igreja</strong> · Última atualização: 15 de setembro de 2026</p>
 
-<p>Esta política explica quais dados pessoais o aplicativo Igreja Renovar coleta, para que
+<p>Esta política explica quais dados pessoais o aplicativo <span data-campo="nome">da igreja</span> coleta, para que
 eles são usados, com quem são compartilhados e como você pode exercer seus direitos,
 conforme a <strong>Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD)</strong>.</p>
 
 <h2>1. Quem é o responsável pelos seus dados</h2>
 <table>
-  <tr><th>Controlador</th><td>Igreja Renovar</td></tr>
-  <tr><th>CNPJ</th><td>52.966.563/0001-32</td></tr>
-  <tr><th>Natureza jurídica</th><td>Organização Religiosa (322-0)</td></tr>
-  <tr><th>Endereço</th><td>Avenida Coração de Estudante, 10 — Moradas da Lapinha<br>Lagoa Santa/MG — CEP 33.231-568</td></tr>
-  <tr><th>Contato para privacidade</th><td><a href="mailto:igrejarenovaroficial@gmail.com">igrejarenovaroficial@gmail.com</a></td></tr>
+  <tr><th>Controlador</th><td data-campo="controlador"></td></tr>
+  <tr><th>CNPJ</th><td data-campo="cnpj"></td></tr>
+  <tr><th>Natureza jurídica</th><td data-campo="natureza"></td></tr>
+  <tr><th>Endereço</th><td data-campo="endereco"></td></tr>
+  <tr><th>Contato para privacidade</th><td data-campo="email" data-link="1"></td></tr>
 </table>
 
 <h2>2. Dados que coletamos</h2>
@@ -163,8 +168,7 @@ para o funcionamento do aplicativo.</p>
   <li>Revogar o consentimento a qualquer momento.</li>
 </ol>
 <p>Para exercer qualquer um deles, escreva para
-<a href="mailto:igrejarenovaroficial@gmail.com">igrejarenovaroficial@gmail.com</a>. Responderemos em até
-15 dias.</p>
+<span data-campo="email" data-link="1"></span>. Responderemos em até 15 dias.</p>
 
 <h2 id="exclusao">8. Como excluir sua conta e seus dados</h2>
 <div class="destaque">
@@ -178,7 +182,7 @@ para o funcionamento do aplicativo.</p>
   <p>A exclusão é <strong>imediata e definitiva</strong>.</p>
 
   <h3>Sem o aplicativo instalado</h3>
-  <p>Envie um e-mail para <a href="mailto:igrejarenovaroficial@gmail.com">igrejarenovaroficial@gmail.com</a>
+  <p>Envie um e-mail para <span data-campo="email" data-link="1"></span>
   com o assunto <code>Exclusão de conta</code>, informando o e-mail ou telefone cadastrado.
   Processamos o pedido em até <strong>15 dias</strong> após confirmarmos sua identidade.</p>
 </div>
@@ -213,11 +217,40 @@ atualizaremos a data no topo. Mudanças relevantes serão avisadas dentro do apl
 
 <h2>12. Encarregado de Proteção de Dados</h2>
 <table>
-  <tr><th>Nome</th><td>Gustavo Acácio dos Santos</td></tr>
-  <tr><th>E-mail</th><td><a href="mailto:igrejarenovaroficial@gmail.com">igrejarenovaroficial@gmail.com</a></td></tr>
+  <tr><th>Nome</th><td data-campo="encarregado"></td></tr>
+  <tr><th>E-mail</th><td data-campo="email" data-link="1"></td></tr>
 </table>
 <p>Você também pode apresentar reclamação à <strong>Autoridade Nacional de Proteção de
 Dados (ANPD)</strong> em <a href="https://www.gov.br/anpd">gov.br/anpd</a>.</p>
 
+<script>
+  // Preenche com os dados da igreja desta instalação (Personalização no painel).
+  (function () {
+    var marcar = function (el) {
+      el.textContent = 'a preencher no painel (Personalização → Política de Privacidade)';
+      el.className = 'preencher';
+    };
+    fetch('/api/public-config').then(function (r) { return r.json(); }).then(function (c) {
+      var p = c.privacidade || {};
+      var dados = { nome: c.churchName, controlador: p.controlador, cnpj: p.cnpj, natureza: p.natureza,
+        endereco: p.endereco, email: p.email, encarregado: p.encarregado };
+      if (c.churchName) document.title = 'Política de Privacidade — ' + c.churchName;
+      document.querySelectorAll('[data-campo]').forEach(function (el) {
+        var v = dados[el.getAttribute('data-campo')];
+        if (!v) { if (el.getAttribute('data-campo') !== 'nome') marcar(el); return; }
+        if (el.getAttribute('data-link')) {
+          el.textContent = '';
+          var a = document.createElement('a');
+          a.href = 'mailto:' + v; a.textContent = v;
+          el.appendChild(a);
+        } else {
+          el.textContent = v;
+        }
+      });
+    }).catch(function () {
+      document.querySelectorAll('[data-campo]').forEach(function (el) { if (el.getAttribute('data-campo') !== 'nome') marcar(el); });
+    });
+  })();
+</script>
 </body>
 </html>
