@@ -13,9 +13,9 @@ export const APP_CONFIG = {
   logos: {
     // Arquivos que vão junto com o sistema (public/icons). Cada igreja troca
     // os logos pela Personalização, sem mexer aqui.
-    dark: "/icons/icon-512.png", // Logo para fundos claros
-    light: "/icons/icon-512.png", // Logo para fundos escuros
-    icon: "/icons/icon-192.png", // Ícone circular
+    dark: "/icons/logo-transparente.png", // Logo para fundos claros
+    light: "/icons/logo-transparente.png", // Logo para fundos escuros
+    icon: "/icons/logo-transparente.png", // Ícone (fundo transparente: usado no cartão de compartilhar versículo)
   },
   
   // ⚠️ ATENÇÃO: este bloco `theme` NÃO É USADO por nenhuma tela.
