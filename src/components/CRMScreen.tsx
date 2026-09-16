@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, UserCheck, Clock, CheckCircle, MessageSquare, ListTodo, Paperclip, AlertCircle, RefreshCw, LogOut, Edit } from 'lucide-react';
+import { Search, Send, UserCheck, Clock, CheckCircle, MessageSquare, ListTodo, Paperclip, AlertCircle, RefreshCw, LogOut, Edit, ArrowLeft } from 'lucide-react';
 import { CRMTicket, CRMMessage, User as UserType } from '../types';
 import { Card, Button } from '../App';
 import { api } from '../services/apiService';
@@ -188,7 +188,8 @@ export const CRMScreen = ({
     <div className="flex h-[calc(100vh-160px)] min-h-[600px] bg-slate-50 rounded-2xl overflow-hidden border border-slate-200">
 
       {/* Left Sidebar - Ticket List */}
-      <div className="w-1/3 bg-white border-r border-slate-200 flex flex-col h-full">
+      {/* No celular, uma coisa por vez: a lista, ou a conversa aberta. */}
+      <div className={cn("w-full md:w-1/3 bg-white border-r border-slate-200 flex-col h-full", activeTicketId ? "hidden md:flex" : "flex")}>
         <div className="p-4 border-b border-slate-100 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-lg text-slate-900">Atendimentos</h2>
@@ -283,12 +284,15 @@ export const CRMScreen = ({
       </div>
 
       {/* Right Content - Chat & Details */}
-      <div className="flex-1 flex flex-col h-full relative bg-slate-50">
+      <div className={cn("flex-1 flex-col h-full relative bg-slate-50", activeTicketId ? "flex" : "hidden md:flex")}>
         {activeTicket ? (
           <>
             {/* Chat Header */}
             <header className="bg-white p-4 border-b border-slate-200 flex justify-between items-center z-10 shadow-sm">
               <div className="flex items-center gap-4">
+                <button onClick={() => setActiveTicketId(null)} className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800" aria-label="Voltar para a lista">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
                   <UserCheck className="w-5 h-5" />
                 </div>

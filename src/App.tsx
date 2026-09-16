@@ -11136,8 +11136,10 @@ const joinCell = async (cellId: string) => {
       </div>
 
         <nav className={cn(
-          "bottom-nav fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-5xl bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-3 flex justify-between items-center z-50",
-          isAdminPanel ? "md:hidden" : ""
+          "bottom-nav fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-5xl bg-white/80 backdrop-blur-xl border-t border-slate-100 py-3 flex items-center z-50",
+          // Painel no celular: são muitas telas — o menu rola para o lado em vez
+          // de espremer os nomes uns em cima dos outros.
+          isAdminPanel ? "md:hidden px-3 gap-1 justify-start overflow-x-auto" : "px-6 justify-between"
         )}>
           {tabs.map(tab => (
             <button
@@ -11152,6 +11154,7 @@ const joinCell = async (cellId: string) => {
               }}
               className={cn(
                 "flex flex-col items-center gap-1 transition-all",
+                isAdminPanel && "shrink-0 w-[76px]",
                 currentTab === tab.id ? "text-primary" : "text-slate-400 hover:text-slate-600"
               )}
             >
@@ -11164,7 +11167,10 @@ const joinCell = async (cellId: string) => {
                   ...(tab.id === 'prayer' ? { active: currentTab === tab.id, cacheVersion } : {})
                 })}
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
+              <span className={cn(
+                "text-[10px] font-bold uppercase tracking-wider",
+                isAdminPanel && "w-full text-center truncate normal-case tracking-normal"
+              )}>{tab.label}</span>
             </button>
           ))}
         </nav>
