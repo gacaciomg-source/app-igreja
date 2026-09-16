@@ -348,8 +348,20 @@ async function sendWhatsAppNotifications(message: string) {
     }
 }
 
+let iniciandoWhatsApp = false;
+
 async function initWhatsApp() {
-  if (whatsappClient) return;
+  // Uma conexão por vez: duas abrindo juntas disputam a mesma pasta de sessão.
+  if (whatsappClient || iniciandoWhatsApp) return;
+  iniciandoWhatsApp = true;
+  try {
+    await iniciarClienteWhatsApp();
+  } finally {
+    iniciandoWhatsApp = false;
+  }
+}
+
+async function iniciarClienteWhatsApp() {
 
   console.log('Initializing WhatsApp Client...');
   whatsappStatus = 'INITIALIZING';
@@ -386,10 +398,10 @@ async function initWhatsApp() {
   whatsappClient = new Client({
     authStrategy: new LocalAuth({ dataPath: authPath }),
     authTimeoutMs: 120000, 
-    webVersionCache: {
-      type: 'remote',
-      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
-    },
+    // Antes: versão do WhatsApp Web fixada em 2.2412.54 (março/2024). O WhatsApp
+    // recusa versões antigas — o QR era lido, o pareamento falhava e um QR novo
+    // aparecia sem parar. Agora a biblioteca usa a versão atual e guarda cópia local.
+    webVersionCache: { type: 'local' },
     puppeteer: {
       headless: true,
       handleSIGINT: false,
@@ -399,8 +411,8 @@ async function initWhatsApp() {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--no-zygote',
-        '--single-process',
+        // Sem --single-process e --no-zygote: em servidor Linux eles derrubam o
+        // Chrome escondido, e o WhatsApp cai e volta a pedir QR.
         '--disable-extensions',
         '--no-first-run'
       ]
@@ -442,9 +454,13 @@ async function initWhatsApp() {
     console.log('WhatsApp STATUS: DESCONECTADO:', reason);
     whatsappStatus = 'DISCONNECTED';
     lastQr = null;
+    // Fecha o Chrome desta conexão antes de abrir outro. Sem isso, cada queda
+    // deixava um Chrome velho gastando memória e travando a pasta da sessão.
+    const antigo = whatsappClient;
     whatsappClient = null;
-    // Tenta reconectar em 10 segundos se foi desconexão acidental
-    setTimeout(initWhatsApp, 10000);
+    Promise.resolve(antigo?.destroy()).catch(() => undefined).finally(() => {
+      setTimeout(initWhatsApp, 10000);
+    });
   });
 
   whatsappClient.on('vote_update', async (vote: any) => {
@@ -703,6 +719,8 @@ async function initWhatsApp() {
         try { await whatsappClient.destroy(); } catch(e) {}
     }
     whatsappClient = null;
+    // Falha passageira (rede, Chrome demorando): tenta de novo em 1 minuto.
+    setTimeout(initWhatsApp, 60_000);
   }
 }
 
