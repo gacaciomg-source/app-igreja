@@ -60,6 +60,15 @@ const config: CapacitorConfig = {
       resizeOnFullScreen: true,
     },
 
+    CapacitorUpdater: {
+      // O plugin @capgo/capacitor-updater veio no projeto original e nunca foi
+      // configurado. Ligado por padrão, ele consulta a nuvem da Capgo toda vez
+      // que o app abre — serviço de fora que não está na política de
+      // privacidade. Desligado até a atualização automática pelo próprio site
+      // da igreja ser feita (aí ele aponta para o nosso servidor).
+      autoUpdate: false,
+    },
+
     LocalNotifications: {
       // Ícone monocromático da barra de status. Sem isso o Android desenha um
       // quadrado branco no lugar do ícone (ele exige silhueta, não a logo

@@ -2820,14 +2820,16 @@ const Dashboard = ({
         </div>
       </header>
       
-      {user?.memberStatus === 'new_member' && (
+      {/* Só para novo membro com cadastro incompleto. O servidor marca todo cadastro
+          novo como new_member, completo ou não — o status sozinho não serve. */}
+      {user?.memberStatus === 'new_member' && (!user?.phone || !(user as any)?.birthDate || !(user as any)?.address) && (
       <Card className="bg-amber-50 border-amber-200 border-2 relative overflow-hidden group">
         <div className="relative z-10 flex gap-4">
           <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 shrink-0">
             <Heart className="w-6 h-6 animate-pulse" />
           </div>
           <div className="space-y-1">
-            <h4 className="font-bold text-amber-900">Seja bem-vindo à {APP_CONFIG.shortName}!</h4>
+            <h4 className="font-bold text-amber-900">Seja bem-vindo à {appearanceConfig?.churchName || APP_CONFIG.shortName}!</h4>
             <p className="text-sm text-amber-700 leading-tight">Ficamos muito felizes em ter você aqui. Queremos te conhecer melhor!</p>
             <button 
               onClick={() => onTabChange('profile-edit')}
@@ -3477,14 +3479,15 @@ const paraBibliaApp = (b: any): BibliaApp => ({
 
 const BIBLIAS_RESERVA: BibliaApp[] = BIBLE_TRANSLATIONS.map(t => paraBibliaApp({ id: t.id, nome: t.name, sigla: t.bollsStr, fonte: 'bolls', codigo: t.bollsStr }));
 
-function useBiblias(): BibliaApp[] {
-  const [lista, setLista] = useState<BibliaApp[]>(BIBLIAS_RESERVA);
+/** `doServidor` = a lista já veio do painel (e não é a de reserva). */
+function useBiblias(): { lista: BibliaApp[]; doServidor: boolean } {
+  const [estado, setEstado] = useState({ lista: BIBLIAS_RESERVA, doServidor: false });
   useEffect(() => {
     api.request('/biblias')
-      .then((l: any[]) => { if (Array.isArray(l) && l.length) setLista(l.map(paraBibliaApp)); })
+      .then((l: any[]) => { if (Array.isArray(l) && l.length) setEstado({ lista: l.map(paraBibliaApp), doServidor: true }); })
       .catch(() => { /* servidor antigo ou fora do ar: fica a lista de reserva */ });
   }, []);
-  return lista;
+  return estado;
 }
 
 const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlights, onToggleHighlight, onShareVerse, fontSize }: { onTabChange?: (tab: string) => void, showMessage?: (msg: string) => void, readingPlans: ReadingPlan[], progress?: Record<string, string[]>, highlights?: VerseHighlight[], onToggleHighlight?: (book: string, chapter: number, verse: number, text: string, color: string) => void, onShareVerse?: (v: {text: string, ref: string}) => void, fontSize?: 'small' | 'normal' | 'large' | 'xl' }) => {
@@ -3512,8 +3515,17 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
 
   const currentVerseSize = verseFontSizeClasses[fontSize || 'normal'];
 
-  const biblias = useBiblias();
+  const { lista: biblias, doServidor: bibliasDoServidor } = useBiblias();
   const currentTranslation = biblias.find(t => t.id === translation) || biblias[0];
+
+  // A versão escolhida foi apagada no painel: passa para a primeira da lista e
+  // guarda a escolha. Só com a lista do servidor — a de reserva não tem as
+  // versões importadas nem a Almeida, e trocaria a escolha de quem as usa.
+  useEffect(() => {
+    if (!bibliasDoServidor || !biblias.length || biblias.some(b => b.id === translation)) return;
+    setTranslation(biblias[0].id);
+    localStorage.setItem('bibleTranslation', biblias[0].id);
+  }, [bibliasDoServidor, biblias, translation]);
 
   const colors = [
     { name: 'Amarelo', value: 'bg-yellow-200' },
