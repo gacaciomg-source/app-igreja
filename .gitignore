@@ -40,3 +40,6 @@ android/local.properties
 ios/App/Pods/
 ios/App/build/
 ios/DerivedData/
+
+# Identificação do app no Firebase: fora do repositório (ele fica público ao atualizar o servidor)
+android/app/google-services.json

@@ -20,7 +20,7 @@
 import { IS_NATIVE } from './native';
 import { api } from '../services/apiService';
 
-export const FIREBASE_NO_APP = false;
+export const FIREBASE_NO_APP = true;
 
 const KEY_TOKEN = 'fcm_token';
 const KEY_VISTOS = 'fcm_ids_vistos';
