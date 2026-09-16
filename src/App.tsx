@@ -1244,6 +1244,40 @@ const MinistriesScreen = ({ ministries, users, currentUser, adminRoles = [], onJ
       console.log('Generated Tools:', tools.length);
     }
 
+    // Escalas, avisos, atalhos e equipe são só de quem foi aprovado no ministério
+    // (isLeader já inclui administradores). O servidor também não envia esse
+    // conteúdo para quem não participa.
+    if (!isLeader(selectedMinistry) && !isMember(selectedMinistry)) {
+      return (
+        <div className="space-y-6 pb-24">
+          <header className="flex items-center gap-4">
+            <button onClick={() => setSelectedMinistry(null)} className="p-2 hover:bg-slate-100 rounded-full">
+              <ArrowLeft className="w-6 h-6 text-slate-400" />
+            </button>
+            <h2 className="text-xl font-bold text-slate-900">{selectedMinistry.name}</h2>
+          </header>
+          <div className="relative h-48 rounded-3xl overflow-hidden">
+            <img src={getAbsoluteUrl(selectedMinistry.imageUrl) || 'https://picsum.photos/seed/ministry/800/400'} className="w-full h-full object-cover" alt={selectedMinistry.name} />
+            <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent flex items-end p-6">
+              <p className="text-white text-sm leading-relaxed">{selectedMinistry.description}</p>
+            </div>
+          </div>
+          <Card className="p-6 text-center space-y-3">
+            <Shield className="w-8 h-8 text-slate-300 mx-auto" />
+            <h3 className="font-bold text-slate-900">Conteúdo da equipe</h3>
+            <p className="text-sm text-slate-500">Escalas, atividades e avisos aparecem depois que a liderança aprovar sua participação.</p>
+            {isPending(selectedMinistry) ? (
+              <p className="text-sm font-bold text-amber-600">Solicitação enviada. Aguarde a aprovação.</p>
+            ) : (
+              <button onClick={() => onJoinRequest(selectedMinistry.id)} className="px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-bold">
+                Quero Participar
+              </button>
+            )}
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6 pb-24">
         <header className="flex items-center justify-between">

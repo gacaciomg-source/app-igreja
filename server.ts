@@ -2320,6 +2320,24 @@ async function startServer() {
         data = data.filter((item: any) => ownsRecord(item, user.id));
       }
 
+      // Ministérios: escalas, avisos e atalhos são só da equipe. Quem ainda não
+      // foi aprovado vê o ministério (nome, foto, descrição) para pedir entrada,
+      // mas não recebe o conteúdo interno.
+      if (!admin && (name === 'ministries' || name === 'ministrySchedules')) {
+        const ministerios = name === 'ministries' ? data : await storage.readCollection<any>('ministries');
+        const participa = (m: any) => (m.memberIds || []).includes(user.id) || (m.leaderIds || []).includes(user.id);
+        if (name === 'ministries') {
+          data = data.map((m: any) => {
+            if (participa(m)) return m;
+            const { notes, ministryTools, memberRoles, ...publico } = m;
+            return publico;
+          });
+        } else {
+          const meus = new Set(ministerios.filter(participa).map((m: any) => m.id));
+          data = data.filter((s: any) => meus.has(s.ministryId) || (s.assignedUserIds || []).includes(user.id));
+        }
+      }
+
       res.json(filterCollectionForUser(name, data, user));
     } catch (error) {
       console.error(`Erro ao ler coleção ${name}:`, error);
