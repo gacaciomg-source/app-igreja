@@ -25,6 +25,7 @@ import { listarBiblias, lerCapitulo, buscarLocal, importarBiblia, removerBiblia,
 import { lerBibliaJson } from "./src/lib/bibliaJson";
 import * as envioMassa from "./src/lib/envioMassa";
 import { identidadeDe, montarIndex, montarManifesto } from "./src/lib/identidadeIgreja";
+import { ClienteEvolution, mensagemDoWebhook, type ConfigEvolution } from "./src/lib/evolutionApi";
 import { fetchVerseText } from "./src/lib/bible";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia, Poll } = pkg;
@@ -350,11 +351,198 @@ async function sendWhatsAppNotifications(message: string) {
 
 let iniciandoWhatsApp = false;
 
+/**
+ * WHATSAPP PELA EVOLUTION API (ver src/lib/evolutionApi.ts e GUIA_EVOLUTION_API.md)
+ * Configuração em data/config.json, id "evolution". A chave nunca volta ao navegador.
+ */
+async function lerConfigEvolution(): Promise<ConfigEvolution | null> {
+  const c = (await storage.readCollection<any>("config")).find((x: any) => x.id === 'evolution');
+  return c && c.url && c.apiKey && c.instancia ? c : null;
+}
+
+let timerEvolution: ReturnType<typeof setInterval> | null = null;
+
+async function atualizarEstadoEvolution() {
+  if (!(whatsappClient instanceof ClienteEvolution)) return;
+  try {
+    const estado = await whatsappClient.estado();
+    whatsappStatus = estado === 'open' ? 'READY' : estado === 'connecting' ? 'AUTHENTRICATING' : 'DISCONNECTED';
+    whatsappError = null;
+    if (estado === 'open') lastQr = null;
+  } catch (e: any) {
+    whatsappStatus = 'DISCONNECTED';
+    whatsappError = 'Evolution API: ' + (e.message || 'sem acesso');
+  }
+}
+
+async function iniciarEvolution(cfg: ConfigEvolution) {
+  console.log(`WhatsApp pela Evolution API (instância "${cfg.instancia}")`);
+  whatsappClient = new ClienteEvolution(cfg);
+  whatsappStatus = 'INITIALIZING';
+  await atualizarEstadoEvolution();
+  if (timerEvolution) clearInterval(timerEvolution);
+  timerEvolution = setInterval(atualizarEstadoEvolution, 20_000);
+}
+
+function pararEvolution() {
+  if (timerEvolution) clearInterval(timerEvolution);
+  timerEvolution = null;
+}
+
+/**
+ * Mensagem recebida no WhatsApp (Atendimento, respostas 1/2, enquetes).
+ * Usada pelo WhatsApp antigo e pelo webhook da Evolution API.
+ */
+async function tratarMensagemWhatsApp(msg: any) {
+    try {
+      if (msg.from.includes('@g.us')) return; // ignore groups
+      if (msg.from === 'status@broadcast') return; // ignore status updates
+      
+      const contact = await msg.getContact();
+      const ticketId = msg.from;
+      let text = msg.body;
+      
+      // Process simple text opt-out / opt-in
+      const cleanText = text ? text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : '';
+      console.log(`Received message: "${text}" | Cleaned: "${cleanText}" from ${ticketId}`);
+      
+      const matchPhone = (dbPhone: string, ticketIdStr: string): boolean => {
+          const ticketPhone = ticketIdStr.split('@')[0].replace(/\D/g, '');
+          const cleanDb = dbPhone.replace(/\D/g, '');
+          
+          const getPerms = (p: string) => {
+              let clean = p;
+              if (clean.startsWith('55') && clean.length >= 12) clean = clean.substring(2);
+              const perms = [clean];
+              if (clean.length === 11) {
+                  perms.push(clean.substring(0,2) + clean.substring(3));
+              } else if (clean.length === 10) {
+                  perms.push(clean.substring(0,2) + '9' + clean.substring(2));
+              }
+              return perms;
+          };
+          
+          const dbPerms = getPerms(cleanDb);
+          const tkPerms = getPerms(ticketPhone);
+          
+          return dbPerms.some(dbP => tkPerms.includes(dbP));
+      };
+
+      if (cleanText === '1' || cleanText === 'nao quero' || cleanText === 'parar' || cleanText === 'parar de receber' || cleanText === 'me tira' || cleanText === 'cancelar convites' || cleanText === 'opt-out' || cleanText === 'opt out' || cleanText === 'nao enviar' || cleanText === 'sair') {
+          console.log(`Matching opt-out for ${ticketId}`);
+          let users = await storage.readCollection<any>('users');
+          let userUpdated = false;
+          
+          for (let u of users) {
+             if (!u.phone) continue;
+             if (matchPhone(u.phone, ticketId)) {
+                console.log(`User matched for opt-out: ${u.name} (${u.phone})`);
+                u.consolidationOptOut = true;
+                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
+                     u.forceConsolidation = false;
+                }
+                userUpdated = true;
+             }
+          }
+          
+          if (userUpdated) {
+             await storage.writeCollection('users', users);
+             try {
+                await whatsappClient.sendMessage(ticketId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.\n\nSe mudar de ideia, basta responder *2* para voltar a receber.');
+             } catch (sendErr) {
+                console.error('Erro ao enviar confirmação de opt-out:', sendErr);
+             }
+          } else {
+             try {
+                await whatsappClient.sendMessage(ticketId, 'Este número não foi encontrado na nossa base de dados. Peça para um administrador verificar o formato do seu número cadastrado. Agradecemos o contato!');
+             } catch (sendErr) {
+                console.error('Erro ao enviar fallback:', sendErr);
+             }
+          }
+      } else if (cleanText === '2' || cleanText === 'quero receber' || cleanText === 'voltar a receber' || cleanText === 'receber convites' || cleanText === 'sim quero') {
+          let users = await storage.readCollection<any>('users');
+          let userUpdated = false;
+          
+          for (let u of users) {
+             if (!u.phone) continue;
+             if (matchPhone(u.phone, ticketId)) {
+                u.consolidationOptOut = false;
+                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
+                     u.forceConsolidation = true;
+                }
+                userUpdated = true;
+             }
+          }
+          
+          if (userUpdated) {
+             await storage.writeCollection('users', users);
+             try {
+                await whatsappClient.sendMessage(ticketId, 'Que bom! Você voltou a receber nossos convites automáticos.');
+             } catch (sendErr) {
+                console.error('Erro ao enviar confirmação de opt-in:', sendErr);
+             }
+          } else {
+             try {
+                await whatsappClient.sendMessage(ticketId, 'Seu número não foi encontrado na nossa base de dados. Peça para um administrador cadastrar você diretamente no painel!');
+             } catch (sendErr) {
+                console.error('Erro ao enviar fallback:', sendErr);
+             }
+          }
+      }
+      
+      // se for uma enquete, vamos extrair os dados da enquete para apresentar no CRM
+      if (msg.type === 'poll_creation') {
+        text = `[Enquete] ${msg.pollName}\n` + msg.pollOptions.map((o: any) => `- ${o.name}`).join('\n');
+      }
+      
+      let tickets = await storage.readCollection<any>('crmTickets');
+      let ticket = tickets.find((t: any) => t.id === ticketId);
+      
+      if (!ticket) {
+        ticket = {
+          id: ticketId,
+          phoneNumber: contact.number,
+          contactName: contact.name || contact.pushname || contact.number,
+          status: 'open',
+          assignedTo: null,
+          updatedAt: new Date().toISOString(),
+          unreadCount: 1,
+          lastMessage: text
+        };
+        await storage.insert('crmTickets', ticket);
+      } else {
+        if (ticket.status === 'closed') {
+          ticket.assignedTo = null; // Re-open unassigned so someone can pick it up
+        }
+        ticket.status = 'open';
+        ticket.updatedAt = new Date().toISOString();
+        ticket.unreadCount = (ticket.unreadCount || 0) + 1;
+        ticket.lastMessage = text;
+        ticket.contactName = contact.name || contact.pushname || contact.number || ticket.contactName; 
+        await storage.update('crmTickets', ticket.id, ticket);
+      }
+      
+      const newMsg = {
+        id: msg.id.id || require('crypto').randomUUID(),
+        ticketId: ticketId,
+        text: text,
+        fromMe: false,
+        timestamp: new Date().toISOString()
+      };
+      await storage.insert('crmMessages', newMsg);
+    } catch (e) {
+      console.error('Error handling incoming WA message:', e);
+    }
+}
+
 async function initWhatsApp() {
   // Uma conexão por vez: duas abrindo juntas disputam a mesma pasta de sessão.
   if (whatsappClient || iniciandoWhatsApp) return;
   iniciandoWhatsApp = true;
   try {
+    // Evolution API ligada no painel (Integrações): usa ela e não abre Chrome.
+    const evolution = await lerConfigEvolution();
+    if (evolution?.ativo) return iniciarEvolution(evolution);
     await iniciarClienteWhatsApp();
   } finally {
     iniciandoWhatsApp = false;
@@ -562,147 +750,8 @@ async function iniciarClienteWhatsApp() {
     }
   });
 
-  whatsappClient.on('message', async (msg: any) => {
-    try {
-      if (msg.from.includes('@g.us')) return; // ignore groups
-      if (msg.from === 'status@broadcast') return; // ignore status updates
-      
-      const contact = await msg.getContact();
-      const ticketId = msg.from;
-      let text = msg.body;
-      
-      // Process simple text opt-out / opt-in
-      const cleanText = text ? text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : '';
-      console.log(`Received message: "${text}" | Cleaned: "${cleanText}" from ${ticketId}`);
-      
-      const matchPhone = (dbPhone: string, ticketIdStr: string): boolean => {
-          const ticketPhone = ticketIdStr.split('@')[0].replace(/\D/g, '');
-          const cleanDb = dbPhone.replace(/\D/g, '');
-          
-          const getPerms = (p: string) => {
-              let clean = p;
-              if (clean.startsWith('55') && clean.length >= 12) clean = clean.substring(2);
-              const perms = [clean];
-              if (clean.length === 11) {
-                  perms.push(clean.substring(0,2) + clean.substring(3));
-              } else if (clean.length === 10) {
-                  perms.push(clean.substring(0,2) + '9' + clean.substring(2));
-              }
-              return perms;
-          };
-          
-          const dbPerms = getPerms(cleanDb);
-          const tkPerms = getPerms(ticketPhone);
-          
-          return dbPerms.some(dbP => tkPerms.includes(dbP));
-      };
+  whatsappClient.on('message', (msg: any) => tratarMensagemWhatsApp(msg));
 
-      if (cleanText === '1' || cleanText === 'nao quero' || cleanText === 'parar' || cleanText === 'parar de receber' || cleanText === 'me tira' || cleanText === 'cancelar convites' || cleanText === 'opt-out' || cleanText === 'opt out' || cleanText === 'nao enviar' || cleanText === 'sair') {
-          console.log(`Matching opt-out for ${ticketId}`);
-          let users = await storage.readCollection<any>('users');
-          let userUpdated = false;
-          
-          for (let u of users) {
-             if (!u.phone) continue;
-             if (matchPhone(u.phone, ticketId)) {
-                console.log(`User matched for opt-out: ${u.name} (${u.phone})`);
-                u.consolidationOptOut = true;
-                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
-                     u.forceConsolidation = false;
-                }
-                userUpdated = true;
-             }
-          }
-          
-          if (userUpdated) {
-             await storage.writeCollection('users', users);
-             try {
-                await whatsappClient.sendMessage(ticketId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.\n\nSe mudar de ideia, basta responder *2* para voltar a receber.');
-             } catch (sendErr) {
-                console.error('Erro ao enviar confirmação de opt-out:', sendErr);
-             }
-          } else {
-             try {
-                await whatsappClient.sendMessage(ticketId, 'Este número não foi encontrado na nossa base de dados. Peça para um administrador verificar o formato do seu número cadastrado. Agradecemos o contato!');
-             } catch (sendErr) {
-                console.error('Erro ao enviar fallback:', sendErr);
-             }
-          }
-      } else if (cleanText === '2' || cleanText === 'quero receber' || cleanText === 'voltar a receber' || cleanText === 'receber convites' || cleanText === 'sim quero') {
-          let users = await storage.readCollection<any>('users');
-          let userUpdated = false;
-          
-          for (let u of users) {
-             if (!u.phone) continue;
-             if (matchPhone(u.phone, ticketId)) {
-                u.consolidationOptOut = false;
-                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
-                     u.forceConsolidation = true;
-                }
-                userUpdated = true;
-             }
-          }
-          
-          if (userUpdated) {
-             await storage.writeCollection('users', users);
-             try {
-                await whatsappClient.sendMessage(ticketId, 'Que bom! Você voltou a receber nossos convites automáticos.');
-             } catch (sendErr) {
-                console.error('Erro ao enviar confirmação de opt-in:', sendErr);
-             }
-          } else {
-             try {
-                await whatsappClient.sendMessage(ticketId, 'Seu número não foi encontrado na nossa base de dados. Peça para um administrador cadastrar você diretamente no painel!');
-             } catch (sendErr) {
-                console.error('Erro ao enviar fallback:', sendErr);
-             }
-          }
-      }
-      
-      // se for uma enquete, vamos extrair os dados da enquete para apresentar no CRM
-      if (msg.type === 'poll_creation') {
-        text = `[Enquete] ${msg.pollName}\n` + msg.pollOptions.map((o: any) => `- ${o.name}`).join('\n');
-      }
-      
-      let tickets = await storage.readCollection<any>('crmTickets');
-      let ticket = tickets.find((t: any) => t.id === ticketId);
-      
-      if (!ticket) {
-        ticket = {
-          id: ticketId,
-          phoneNumber: contact.number,
-          contactName: contact.name || contact.pushname || contact.number,
-          status: 'open',
-          assignedTo: null,
-          updatedAt: new Date().toISOString(),
-          unreadCount: 1,
-          lastMessage: text
-        };
-        await storage.insert('crmTickets', ticket);
-      } else {
-        if (ticket.status === 'closed') {
-          ticket.assignedTo = null; // Re-open unassigned so someone can pick it up
-        }
-        ticket.status = 'open';
-        ticket.updatedAt = new Date().toISOString();
-        ticket.unreadCount = (ticket.unreadCount || 0) + 1;
-        ticket.lastMessage = text;
-        ticket.contactName = contact.name || contact.pushname || contact.number || ticket.contactName; 
-        await storage.update('crmTickets', ticket.id, ticket);
-      }
-      
-      const newMsg = {
-        id: msg.id.id || require('crypto').randomUUID(),
-        ticketId: ticketId,
-        text: text,
-        fromMe: false,
-        timestamp: new Date().toISOString()
-      };
-      await storage.insert('crmMessages', newMsg);
-    } catch (e) {
-      console.error('Error handling incoming WA message:', e);
-    }
-  });
 
   try {
     await whatsappClient.initialize();
@@ -2886,6 +2935,107 @@ async function startServer() {
       return copia;
     });
     res.json({ success: true });
+  });
+
+  /**
+   * INTEGRAÇÕES — Evolution API. Só o super admin. A chave nunca volta ao navegador.
+   */
+  const enderecoWebhook = (req: any, segredo: string) => {
+    const base = (process.env.APP_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+    return `${base}/api/integracoes/evolution/webhook/${segredo}`;
+  };
+  const configEvolutionBruta = async () => (await storage.readCollection<any>("config")).find((c: any) => c.id === 'evolution') || null;
+
+  app.get("/api/integracoes/evolution", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    const c = await configEvolutionBruta();
+    let estado = 'desligado', erro: string | undefined;
+    if (c?.ativo && whatsappClient instanceof ClienteEvolution) {
+      try { estado = await whatsappClient.estado(); } catch (e: any) { estado = 'erro'; erro = e.message; }
+    }
+    res.json({ ativo: !!c?.ativo, url: c?.url || '', instancia: c?.instancia || '', temChave: !!c?.apiKey,
+      webhookUrl: c?.segredoWebhook ? enderecoWebhook(req, c.segredoWebhook) : '', estado, ...(erro ? { erro } : {}) });
+  });
+
+  app.post("/api/integracoes/evolution", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    const atual = await configEvolutionBruta();
+    const url = String(req.body?.url || atual?.url || '').trim();
+    const apiKey = String(req.body?.apiKey || '').trim() || atual?.apiKey || '';
+    const instancia = String(req.body?.instancia || atual?.instancia || '').trim();
+    const ativo = !!req.body?.ativo;
+    if (ativo && (!/^https?:\/\//.test(url) || !apiKey || !/^[a-zA-Z0-9_-]{2,60}$/.test(instancia))) {
+      return res.status(400).json({ error: "Preencha o endereço (https://...), a chave e o nome da instância (letras, números, - e _)." });
+    }
+    const cfg: ConfigEvolution & { id: string } = {
+      id: 'evolution', url, apiKey, instancia, ativo,
+      segredoWebhook: atual?.segredoWebhook || crypto.randomBytes(24).toString('hex'),
+    };
+    try {
+      if (ativo) {
+        const cliente = new ClienteEvolution(cfg);
+        await cliente.testarAcesso();
+        const webhook = enderecoWebhook(req, cfg.segredoWebhook);
+        if ((await cliente.estado()) === 'inexistente') await cliente.criarInstancia(webhook);
+        else await cliente.definirWebhook(webhook);
+      }
+      await storage.mutate<any>("config", todos => [...todos.filter((c: any) => c.id !== 'evolution'), cfg]);
+
+      // Troca quem está atrás de whatsappClient.
+      const anterior = whatsappClient;
+      whatsappClient = null;
+      pararEvolution();
+      if (anterior && !(anterior instanceof ClienteEvolution)) await anterior.destroy().catch(() => undefined);
+      lastQr = null;
+      whatsappStatus = 'DISCONNECTED';
+      if (ativo) await initWhatsApp();
+      else initWhatsApp(); // o WhatsApp antigo leva minutos para abrir o Chrome: não segura a resposta
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: "Não foi possível acessar a Evolution API: " + (e.message || 'erro desconhecido') });
+    }
+  });
+
+  app.post("/api/integracoes/evolution/conectar", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    if (!(whatsappClient instanceof ClienteEvolution)) return res.status(400).json({ error: "Ligue a integração primeiro." });
+    try {
+      if ((await whatsappClient.estado()) === 'open') return res.json({ qr: null, mensagem: 'Já está conectado.' });
+      const qr = await whatsappClient.conectar();
+      if (qr) lastQr = qr; // aparece também na tela WhatsApp de sempre
+      res.json({ qr });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message || "Falha ao gerar o QR Code" });
+    }
+  });
+
+  app.post("/api/integracoes/evolution/teste", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    if (!(whatsappClient instanceof ClienteEvolution)) return res.status(400).json({ error: "Ligue a integração primeiro." });
+    const telefone = String(req.body?.telefone || '').replace(/\D/g, '');
+    if (telefone.length < 10) return res.status(400).json({ error: "Telefone inválido" });
+    try {
+      const chatId = await getWhatsAppChatId(telefone);
+      await whatsappClient.sendMessage(chatId, '✅ Teste da integração Evolution API: o WhatsApp da igreja está funcionando.');
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message || "Falha ao enviar" });
+    }
+  });
+
+  // Mensagens recebidas: a Evolution chama este endereço. Sem login; protegido pelo segredo.
+  app.post("/api/integracoes/evolution/webhook/:segredo", async (req: any, res) => {
+    res.json({ ok: true }); // responde logo: a Evolution não espera o processamento
+    try {
+      const c = await configEvolutionBruta();
+      const recebido = Buffer.from(String(req.params.segredo));
+      const esperado = Buffer.from(String(c?.segredoWebhook || ''));
+      if (!c?.ativo || recebido.length !== esperado.length || !crypto.timingSafeEqual(recebido, esperado)) return;
+      const msg = mensagemDoWebhook(req.body);
+      if (msg) await tratarMensagemWhatsApp(msg);
+    } catch (e) {
+      console.error('[Evolution] Falha ao tratar mensagem recebida:', e);
+    }
   });
 
   app.post("/api/whatsapp/test", authenticateToken, async (req, res) => {

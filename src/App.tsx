@@ -11,6 +11,7 @@ import {
 import { toPng } from 'html-to-image';
 import { fetchVerseText, BIBLE_TRANSLATIONS } from './lib/bible';
 import AdminBiblias from './components/AdminBiblias';
+import AdminIntegracoes from './components/AdminIntegracoes';
 import AdminVerses from './components/AdminVerses';
 import { ServiceReportsScreen } from './components/ServiceReportsScreen';
 import { CRMScreen } from './components/CRMScreen';
@@ -6335,7 +6336,8 @@ const AdminAllScreens = ({ onTabChange, isTabAllowed, userRole }: { onTabChange:
     ...(userRole === 'superadmin' ? [
         { id: 'appearance', label: 'Personalização do App', icon: Palette, color: 'bg-pink-500' },
         { id: 'whatsapp', label: 'Configuração WhatsApp', icon: MessageSquare, color: 'bg-green-500' },
-        { id: 'bibles', label: 'Versões da Bíblia', icon: BookOpen, color: 'bg-emerald-700' }
+        { id: 'bibles', label: 'Versões da Bíblia', icon: BookOpen, color: 'bg-emerald-700' },
+        { id: 'integracoes', label: 'Integrações (WhatsApp API)', icon: MessageSquare, color: 'bg-emerald-600' }
     ] : []),
     { id: 'hosting', label: 'Servidor e Backups', icon: Server, color: 'bg-slate-700' },
   ].filter(s => isTabAllowed(s.id));
@@ -10621,6 +10623,7 @@ const joinCell = async (cellId: string) => {
         case 'home': return <AdminDashboard appearanceConfig={appearanceConfig} stats={stats} users={visibleUsers} verseStats={verseStats} onAddEvent={() => setShowAddEvent(true)} onAddAnnouncement={() => setShowAddAnnouncement(true)} onAddReadingPlan={() => setShowAddReadingPlan(true)} onAddTransaction={() => setShowAddTransaction(true)} onSwitchToMember={() => navigate('/')} onTabChange={setCurrentTab} showMessage={showMessage} onRefreshVerses={refreshData} />;
         case 'bible': return <AdminVerses onBack={() => setCurrentTab('home')} showMessage={showMessage} isSuperAdmin={userRole === 'superadmin'} />;
         case 'bibles': return <AdminBiblias onBack={() => setCurrentTab('all_screens')} showMessage={showMessage} />;
+        case 'integracoes': return <AdminIntegracoes onBack={() => setCurrentTab('all_screens')} showMessage={showMessage} />;
         case 'all_screens': return <AdminAllScreens onTabChange={setCurrentTab} isTabAllowed={isTabAllowed} userRole={userRole} />;
         case 'financial': return (
           <AdminFinancial 
@@ -10826,7 +10829,7 @@ const joinCell = async (cellId: string) => {
 
   const isTabAllowed = (tabId: string) => {
     // Admins always have access to appearance/whatsapp config in their panel if superadmin
-    if (userRole === 'superadmin' && ['appearance', 'whatsapp', 'bibles'].includes(tabId)) return true;
+    if (userRole === 'superadmin' && ['appearance', 'whatsapp', 'bibles', 'integracoes'].includes(tabId)) return true;
     
     // Check if module is turned off globally by superadmin
     const moduleMap: Record<string, string> = {
