@@ -3580,7 +3580,13 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
     const { lerCapitulo } = await import('./lib/leitorBiblia');
     try {
       // Só o texto: sem falar o número de cada versículo.
-      const terminou = await lerCapitulo(anuncio, verses.map(v => v.text), i => {
+      const terminou = await lerCapitulo({
+        biblia: currentTranslation.id,
+        livro: BIBLE_BOOKS.findIndex(b => b.name === selectedBook),
+        capitulo: selectedChapter || 1,
+        anuncio,
+        textos: verses.map(v => v.text),
+      }, i => {
         setVersoLido(i);
         if (i >= 0) document.getElementById(`versiculo-${verses[i]?.verse}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });

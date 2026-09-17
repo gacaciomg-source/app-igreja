@@ -38,6 +38,7 @@
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^5.0.4",
     "adm-zip": "^0.5.17",
+    "aws4fetch": "^1.0.20",
     "bcryptjs": "^3.0.3",
     "browser-image-compression": "^2.0.2",
     "clsx": "^2.1.1",

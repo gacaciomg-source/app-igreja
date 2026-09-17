@@ -6,8 +6,8 @@
  * o WhatsApp é usado só pelo servidor. Instalação em GUIA_EVOLUTION_API.md.
  */
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, MessageSquare, CheckCircle2, AlertCircle, QrCode, Send, Power } from 'lucide-react';
-import { api } from '../services/apiService';
+import { ChevronLeft, MessageSquare, CheckCircle2, AlertCircle, QrCode, Send, Power, Volume2 } from 'lucide-react';
+import { api, getAbsoluteUrl } from '../services/apiService';
 
 type Estado = { ativo: boolean; url: string; instancia: string; temChave: boolean; webhookUrl: string; estado: string; erro?: string };
 
@@ -148,6 +148,129 @@ export default function AdminIntegracoes({ onBack, showMessage }: { onBack: () =
           <p className="text-[11px] text-slate-400 break-all">Endereço que a Evolution usa para avisar mensagens recebidas (configurado sozinho): {info.webhookUrl}</p>
         )}
       </div>
+
+      <CartaoVozNeural showMessage={showMessage} />
+    </div>
+  );
+}
+
+/**
+ * BÍBLIA FALADA COM VOZ NEURAL — Azure Speech (+ Cloudflare R2 opcional).
+ * Sem R2, os áudios ficam guardados neste servidor.
+ */
+function CartaoVozNeural({ showMessage }: { showMessage?: (m: string) => void }) {
+  type Info = { ativo: boolean; azureRegiao: string; voz: 'masculina' | 'feminina'; temAzureKey: boolean;
+    r2: { accountId: string; bucket: string; urlPublica: string; temChaves: boolean } };
+  const [info, setInfo] = useState<Info | null>(null);
+  const [form, setForm] = useState({ azureKey: '', azureRegiao: 'brazilsouth', voz: 'masculina' as 'masculina' | 'feminina',
+    accountId: '', bucket: '', urlPublica: '', accessKeyId: '', secretAccessKey: '' });
+  const [ocupado, setOcupado] = useState('');
+  const [erro, setErro] = useState('');
+  const [audioTeste, setAudioTeste] = useState<string | null>(null);
+
+  const carregar = async () => {
+    try {
+      const r: Info = await api.request('/integracoes/voz');
+      setInfo(r);
+      setForm(f => ({ ...f, azureRegiao: r.azureRegiao, voz: r.voz, accountId: r.r2.accountId, bucket: r.r2.bucket, urlPublica: r.r2.urlPublica }));
+    } catch (e: any) { setErro(e.message || 'Não foi possível carregar.'); }
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const salvar = async (ativo: boolean) => {
+    setErro(''); setOcupado('salvar');
+    try {
+      await api.request('/integracoes/voz', { method: 'POST', body: JSON.stringify({
+        ativo, azureKey: form.azureKey, azureRegiao: form.azureRegiao, voz: form.voz,
+        r2: { accountId: form.accountId, bucket: form.bucket, urlPublica: form.urlPublica, accessKeyId: form.accessKeyId, secretAccessKey: form.secretAccessKey },
+      }) });
+      setForm(f => ({ ...f, azureKey: '', accessKeyId: '', secretAccessKey: '' }));
+      showMessage?.(ativo ? 'Voz neural ligada.' : 'Voz neural desligada.');
+      await carregar();
+    } catch (e: any) { setErro(e.message || 'Falhou.'); }
+    finally { setOcupado(''); }
+  };
+
+  const testar = async () => {
+    setErro(''); setOcupado('teste'); setAudioTeste(null);
+    try {
+      const { url } = await api.request('/integracoes/voz/teste', { method: 'POST' });
+      const completo = getAbsoluteUrl(url);
+      setAudioTeste(completo);
+      new Audio(completo).play().catch(() => undefined);
+    } catch (e: any) { setErro(e.message || 'Falhou.'); }
+    finally { setOcupado(''); }
+  };
+
+  const campo = 'w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none';
+  const usaR2 = !!(info?.r2.bucket && info?.r2.urlPublica && info?.r2.temChaves);
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-bold text-slate-900 flex items-center gap-2"><Volume2 className="w-5 h-5 text-emerald-600" /> Bíblia falada — voz neural (Azure)</h3>
+        <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${info?.ativo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+          {info?.ativo ? `Ligada · ${usaR2 ? 'áudios no Cloudflare R2' : 'áudios neste servidor'}` : 'Desligada (usa a voz do celular)'}
+        </span>
+      </div>
+      <p className="text-xs text-slate-500 leading-relaxed">
+        Voz quase humana para o botão "Ouvir" da Bíblia. Cada capítulo é gerado uma única vez e guardado; depois toca na hora, sem custo.
+        No plano gratuito (F0) da Azure cabem cerca de 130 capítulos novos por mês. Se algo falhar, o app usa a voz do celular.
+      </p>
+      {erro && <p className="text-xs text-red-700 bg-red-50 border border-red-200 p-2 rounded-lg flex gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{erro}</p>}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="space-y-1 md:col-span-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase">Chave da Azure (CHAVE 1)</label>
+          <input className={campo} type="password" autoComplete="off" value={form.azureKey} onChange={e => setForm({ ...form, azureKey: e.target.value })}
+            placeholder={info?.temAzureKey ? '•••••••• (guardada — deixe vazio para manter)' : 'Cole a CHAVE 1 do recurso de Fala'} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-400 uppercase">Região</label>
+          <input className={campo} value={form.azureRegiao} onChange={e => setForm({ ...form, azureRegiao: e.target.value })} placeholder="brazilsouth" />
+        </div>
+        <div className="space-y-1 md:col-span-3">
+          <label className="text-[10px] font-bold text-slate-400 uppercase">Voz</label>
+          <div className="flex gap-2">
+            {([['masculina', 'Masculina (Antonio)'], ['feminina', 'Feminina (Francisca)']] as const).map(([v, rotulo]) => (
+              <button key={v} type="button" onClick={() => setForm({ ...form, voz: v })}
+                className={`px-3 py-2 rounded-xl text-sm font-bold border ${form.voz === v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                {rotulo}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <details className="rounded-xl border border-slate-100 p-3">
+        <summary className="text-sm font-bold text-slate-700 cursor-pointer">Cloudflare R2 (opcional — guardar os áudios na Cloudflare)</summary>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+          <input className={campo} value={form.accountId} onChange={e => setForm({ ...form, accountId: e.target.value })} placeholder="Account ID" />
+          <input className={campo} value={form.bucket} onChange={e => setForm({ ...form, bucket: e.target.value })} placeholder="Nome do bucket (ex.: biblia-audio)" />
+          <input className={campo} type="password" autoComplete="off" value={form.accessKeyId} onChange={e => setForm({ ...form, accessKeyId: e.target.value })}
+            placeholder={info?.r2.temChaves ? 'Access Key ID guardada — vazio para manter' : 'Access Key ID'} />
+          <input className={campo} type="password" autoComplete="off" value={form.secretAccessKey} onChange={e => setForm({ ...form, secretAccessKey: e.target.value })}
+            placeholder={info?.r2.temChaves ? 'Secret guardado — vazio para manter' : 'Secret Access Key'} />
+          <input className={`${campo} md:col-span-2`} value={form.urlPublica} onChange={e => setForm({ ...form, urlPublica: e.target.value })} placeholder="Endereço público (ex.: https://audio.igrejarenovar.com)" />
+        </div>
+      </details>
+
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => salvar(true)} disabled={!!ocupado || (!form.azureKey && !info?.temAzureKey)}
+          className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold disabled:opacity-50 flex items-center gap-2">
+          <Power className="w-4 h-4" /> {ocupado === 'salvar' ? 'Salvando...' : info?.ativo ? 'Salvar alterações' : 'Salvar e ligar'}
+        </button>
+        <button onClick={testar} disabled={!!ocupado || !info?.temAzureKey} className="px-4 py-2.5 rounded-xl bg-slate-800 text-white text-sm font-bold disabled:opacity-50 flex items-center gap-2">
+          <Volume2 className="w-4 h-4" /> {ocupado === 'teste' ? 'Gerando...' : 'Testar voz'}
+        </button>
+        {info?.ativo && (
+          <button onClick={() => salvar(false)} disabled={!!ocupado} className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-bold disabled:opacity-50">
+            Desligar
+          </button>
+        )}
+      </div>
+      {audioTeste && <audio controls src={audioTeste} className="w-full" />}
+      <p className="text-[11px] text-slate-400">Salve antes de testar: o teste usa a chave, a voz e o armazenamento já salvos.</p>
     </div>
   );
 }

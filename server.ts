@@ -26,6 +26,8 @@ import { lerBibliaJson } from "./src/lib/bibliaJson";
 import * as envioMassa from "./src/lib/envioMassa";
 import { identidadeDe, montarIndex, montarManifesto } from "./src/lib/identidadeIgreja";
 import { ClienteEvolution, mensagemDoWebhook, type ConfigEvolution } from "./src/lib/evolutionApi";
+import { dividirEmPartes, obterAudio, arquivoLocal, testar as testarVoz, type ConfigVoz } from "./src/lib/vozNeural";
+import { BIBLE_BOOKS as LIVROS_BIBLIA } from "./src/constants";
 import { fetchVerseText } from "./src/lib/bible";
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia, Poll } = pkg;
@@ -3028,6 +3030,108 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       res.status(400).json({ error: e.message || "Falha ao enviar" });
+    }
+  });
+
+  /**
+   * BÍBLIA FALADA COM VOZ NEURAL (ver src/lib/vozNeural.ts)
+   * Configuração em config/"vozNeural". Chaves nunca voltam ao navegador.
+   */
+  const configVoz = async (): Promise<(ConfigVoz & { id: string }) | null> =>
+    (await storage.readCollection<any>("config")).find((c: any) => c.id === 'vozNeural') || null;
+  const urlLocalVoz = (chave: string) => `/api/voz-arquivo/${chave}`;
+  const numeroValido = (v: any, min: number, max: number) => Number.isInteger(Number(v)) && Number(v) >= min && Number(v) <= max;
+  const pedidoVozValido = (p: any) => /^[a-z0-9-]{2,30}$/.test(p.biblia) && numeroValido(p.livro, 0, 65) && numeroValido(p.cap, 1, 150);
+
+  // Arquivos guardados neste servidor (quando o R2 não está configurado). Público: é só áudio da Bíblia.
+  app.get("/api/voz-arquivo/*", (req: any, res) => {
+    const arquivo = arquivoLocal(String(req.params[0] || ''));
+    if (!arquivo) return res.status(404).end();
+    res.set('Cache-Control', 'public, max-age=31536000, immutable').type('audio/mpeg').sendFile(arquivo);
+  });
+
+  app.get("/api/voz/:biblia/:livro/:cap", authenticateToken, async (req: any, res) => {
+    const cfg = await configVoz();
+    if (!cfg?.ativo || !cfg.azureKey || !pedidoVozValido(req.params)) return res.json({ ativo: false });
+    try {
+      const versos = await lerCapitulo(req.params.biblia, Number(req.params.livro), Number(req.params.cap));
+      res.json({ ativo: true, partes: dividirEmPartes(versos.map(v => v.text)) });
+    } catch {
+      res.json({ ativo: false });
+    }
+  });
+
+  app.get("/api/voz/:biblia/:livro/:cap/anuncio/:tipo", authenticateToken, async (req: any, res) => {
+    const cfg = await configVoz();
+    if (!cfg?.ativo || !pedidoVozValido(req.params)) return res.status(404).json({ error: "Voz neural desligada" });
+    const livro = Number(req.params.livro), cap = Number(req.params.cap);
+    const curto = req.params.tipo === 'curto';
+    const texto = curto ? `Capítulo ${cap}.` : `${LIVROS_BIBLIA[livro]?.name}, capítulo ${cap}.`;
+    try {
+      res.json({ url: await obterAudio(cfg, `anuncios/${cfg.voz}/${livro}-${cap}-${curto ? 'curto' : 'longo'}.mp3`, texto, urlLocalVoz) });
+    } catch (e: any) {
+      res.status(502).json({ error: e.message || "Falha ao gerar o áudio" });
+    }
+  });
+
+  app.get("/api/voz/:biblia/:livro/:cap/parte/:p", authenticateToken, async (req: any, res) => {
+    const cfg = await configVoz();
+    if (!cfg?.ativo || !pedidoVozValido(req.params) || !numeroValido(req.params.p, 0, 200)) return res.status(404).json({ error: "Voz neural desligada" });
+    try {
+      const { biblia } = req.params;
+      const livro = Number(req.params.livro), cap = Number(req.params.cap), p = Number(req.params.p);
+      const versos = await lerCapitulo(biblia, livro, cap);
+      const parte = dividirEmPartes(versos.map(v => v.text))[p];
+      if (!parte) return res.status(404).json({ error: "Parte inexistente" });
+      const texto = versos.slice(parte.inicio, parte.fim + 1).map(v => v.text).join(' ');
+      res.json({ url: await obterAudio(cfg, `${biblia}/${cfg.voz}/${livro}-${cap}-p${p}.mp3`, texto, urlLocalVoz) });
+    } catch (e: any) {
+      res.status(502).json({ error: e.message || "Falha ao gerar o áudio" });
+    }
+  });
+
+  app.get("/api/integracoes/voz", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    const c = await configVoz();
+    res.json({
+      ativo: !!c?.ativo, azureRegiao: c?.azureRegiao || 'brazilsouth', voz: c?.voz || 'masculina', temAzureKey: !!c?.azureKey,
+      r2: { accountId: c?.r2?.accountId || '', bucket: c?.r2?.bucket || '', urlPublica: c?.r2?.urlPublica || '', temChaves: !!(c?.r2?.accessKeyId && c?.r2?.secretAccessKey) },
+    });
+  });
+
+  app.post("/api/integracoes/voz", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    const atual = await configVoz();
+    const b = req.body || {};
+    const texto = (v: any) => String(v || '').trim();
+    const cfg: ConfigVoz & { id: string } = {
+      id: 'vozNeural',
+      ativo: !!b.ativo,
+      azureKey: texto(b.azureKey) || atual?.azureKey || '',
+      azureRegiao: texto(b.azureRegiao).toLowerCase().replace(/\s+/g, '') || 'brazilsouth',
+      voz: b.voz === 'feminina' ? 'feminina' : 'masculina',
+      r2: {
+        accountId: texto(b.r2?.accountId),
+        bucket: texto(b.r2?.bucket),
+        urlPublica: texto(b.r2?.urlPublica).replace(/\/+$/, ''),
+        accessKeyId: texto(b.r2?.accessKeyId) || atual?.r2?.accessKeyId || '',
+        secretAccessKey: texto(b.r2?.secretAccessKey) || atual?.r2?.secretAccessKey || '',
+      },
+    };
+    if (cfg.ativo && !cfg.azureKey) return res.status(400).json({ error: "Informe a chave da Azure." });
+    if (cfg.r2?.urlPublica && !/^https:\/\//.test(cfg.r2.urlPublica)) return res.status(400).json({ error: "O endereço público do R2 precisa começar com https://" });
+    await storage.mutate<any>("config", todos => [...todos.filter((c: any) => c.id !== 'vozNeural'), cfg]);
+    res.json({ success: true });
+  });
+
+  app.post("/api/integracoes/voz/teste", authenticateToken, async (req: any, res) => {
+    if (req.user?.role !== 'superadmin') return res.status(403).json({ error: "Acesso negado" });
+    const cfg = await configVoz();
+    if (!cfg?.azureKey) return res.status(400).json({ error: "Salve a chave da Azure primeiro." });
+    try {
+      res.json({ url: await testarVoz(cfg, urlLocalVoz) });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message || "Falha no teste" });
     }
   });
 
