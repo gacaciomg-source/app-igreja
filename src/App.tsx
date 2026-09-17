@@ -788,7 +788,12 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
   }, [selectedLogo, config]);
 
   const currentLogoSrc = selectedLogo === 'logo1' ? logoUrl : (logo2Url || logoUrl) || logoUrl;
-  const proxyLogoSrc = currentLogoSrc.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(currentLogoSrc)}` : currentLogoSrc;
+  // Proxy só para imagem de outro site (para o html-to-image conseguir ler).
+  // O logo que vai junto com o sistema já está no mesmo servidor: carrega direto.
+  const doProprioServidor = !!BASE_URL && currentLogoSrc.startsWith(BASE_URL);
+  const proxyLogoSrc = currentLogoSrc.startsWith('http') && !doProprioServidor
+    ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(currentLogoSrc)}`
+    : currentLogoSrc;
   
   const bgUrl = (selectedBg as any).url;
   const proxiedBgUrl = bgUrl && bgUrl.startsWith('http') ? `${BASE_URL}/api/proxy-image?url=${encodeURIComponent(bgUrl)}` : bgUrl;
@@ -977,7 +982,7 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
           <div className="bg-slate-50 p-4 rounded-3xl border-2 border-slate-100 shadow-inner">
             <div 
               ref={verseCardRef}
-            className="w-[280px] h-[497px] rounded-2xl flex flex-col items-center justify-center p-8 text-center relative overflow-hidden shadow-2xl"
+            className="w-[280px] h-[497px] rounded-2xl flex flex-col items-center justify-between px-6 py-6 text-center relative overflow-hidden shadow-2xl"
             style={{
               backgroundColor: '#1e293b',
             }}
@@ -1002,7 +1007,9 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
             )}
 
             {!logoError && (
-              <div className="absolute top-6 left-1/2 -translate-x-1/2 w-14 h-14 flex items-center justify-center p-1 z-10">
+              // Logo, texto e rodapé empilhados, cada um no seu espaço: antes eram
+              // posicionados por cima e o versículo longo passava por cima deles.
+              <div className="shrink-0 w-14 h-14 flex items-center justify-center p-1 z-10">
                 <img 
                   src={base64Logo || proxyLogoSrc} 
                   className="w-full h-full object-contain drop-shadow-md opacity-90" 
@@ -1013,18 +1020,19 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
               </div>
             )}
             
-            <div className="flex-1 flex flex-col justify-center items-center space-y-4 z-10 mt-12 mb-10 w-full px-2" style={{ maxHeight: '100%' }}>
+            <div className="flex-1 min-h-0 flex flex-col justify-center items-center gap-3 z-10 my-3 w-full">
               <p className={cn(
-                "text-white font-medium italic leading-relaxed drop-shadow-lg",
-                currentText.length > 400 ? "text-[11px]" : 
-                currentText.length > 250 ? "text-[13px]" : 
-                currentText.length > 150 ? "text-sm" : 
-                currentText.length > 80 ? "text-base" : "text-lg"
+                "text-white font-medium italic drop-shadow-lg",
+                currentText.length > 400 ? "text-[10px] leading-snug" :
+                currentText.length > 300 ? "text-[11px] leading-snug" :
+                currentText.length > 200 ? "text-[12.5px] leading-normal" :
+                currentText.length > 120 ? "text-sm leading-relaxed" :
+                currentText.length > 70 ? "text-base leading-relaxed" : "text-lg leading-relaxed"
               )}>
                 "{currentText}"
               </p>
               <div className="h-0.5 w-12 bg-white/40 mx-auto rounded-full shrink-0"></div>
-              <p className="text-white font-bold drop-shadow-md shrink-0" style={{ fontSize: '15px' }}>
+              <p className="text-white font-bold drop-shadow-md shrink-0 leading-tight" style={{ fontSize: '14px' }}>
                 {verse.ref}
               </p>
             </div>
@@ -1038,7 +1046,7 @@ const VerseShareModal = ({ verse, onClose, cacheVersion, config }: { verse: { te
             )}
 
 
-            <div className="absolute bottom-6 left-0 right-0 text-center flex flex-col items-center">
+            <div className="shrink-0 z-10 text-center flex flex-col items-center">
               <p className="text-white/80 text-[10px] font-bold uppercase tracking-[0.2em] drop-shadow-md">{config?.churchName || APP_CONFIG.name}</p>
               <p className="text-white/60 text-[9px] font-medium tracking-[0.1em] mt-0.5 drop-shadow-md">{(config?.churchInstagram ? `@${config.churchInstagram.replace('@', '')}` : APP_CONFIG.social.instagram.replace('https://instagram.com/', '@'))}</p>
               <p className="text-white/50 text-[8px] font-bold uppercase tracking-[0.15em] mt-1.5 drop-shadow-md">{BIBLE_TRANSLATIONS.find(t => t.id === selectedTranslation)?.bollsStr || selectedTranslation.toUpperCase()}</p>
