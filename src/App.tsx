@@ -21,7 +21,9 @@ import {
   Home, 
   Calendar, 
   Users, 
-  BookOpen, 
+  BookOpen,
+  Volume2,
+  Square,
   Play, 
   User, 
   MessageSquare, 
@@ -3439,8 +3441,8 @@ const PrayerWall = ({ prayers, cells, onAdd, onDelete, onTogglePrayed, onAddComm
                   prayer.prayedBy?.includes(currentUserId || '') ? "text-accent" : "text-slate-500 hover:text-accent"
                 )}
               >
-                <Heart className={cn("w-4 h-4", prayer.prayedBy?.includes(currentUserId || '') && "fill-current")} />
-                <span className="text-xs font-medium">{prayer.likes} Oreis</span>
+                <span aria-hidden className={cn("text-base leading-none transition-opacity", prayer.prayedBy?.includes(currentUserId || '') ? "opacity-100" : "opacity-60 grayscale")}>🙏</span>
+                <span className="text-xs font-medium">{prayer.likes} em oração</span>
               </button>
               <button 
                 onClick={() => setCommentingId(commentingId === prayer.id ? null : prayer.id)} 
@@ -3558,6 +3560,22 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   const currentVerseSize = verseFontSizeClasses[fontSize || 'normal'];
 
   const { lista: biblias, doServidor: bibliasDoServidor } = useBiblias();
+
+  // Bíblia falada (src/lib/leitorBiblia.ts): índice do versículo sendo lido.
+  const [versoLido, setVersoLido] = useState<number | null>(null);
+  const alternarLeitura = async () => {
+    const { lerVersiculos, pararLeitura } = await import('./lib/leitorBiblia');
+    if (versoLido !== null) {
+      setVersoLido(null); // a leitura cancelada não avisa a tela: volta o botão aqui
+      return pararLeitura();
+    }
+    lerVersiculos(verses.map(v => `${v.verse}. ${v.text}`), i => {
+      setVersoLido(i);
+      if (i !== null) document.getElementById(`versiculo-${verses[i]?.verse}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }).catch(() => showMessage?.('Não foi possível ler em voz alta neste aparelho.'));
+  };
+  // Troca de capítulo, de versão ou saída da tela: para de ler.
+  useEffect(() => () => { import('./lib/leitorBiblia').then(m => m.pararLeitura()); }, [selectedBook, selectedChapter, translation]);
   const currentTranslation = biblias.find(t => t.id === translation) || biblias[0];
 
   // A versão escolhida foi apagada no painel: passa para a primeira da lista e
@@ -3816,6 +3834,18 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
               <p className="text-[10px] text-slate-500 font-bold uppercase">{currentTranslation.name}</p>
             </div>
           </div>
+          <button
+            onClick={alternarLeitura}
+            disabled={loadingVerses || verses.length === 0}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold transition-colors disabled:opacity-40",
+              versoLido !== null ? "bg-primary text-white" : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+            )}
+            aria-label={versoLido !== null ? 'Parar leitura' : 'Ouvir capítulo'}
+          >
+            {versoLido !== null ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+            {versoLido !== null ? 'Parar' : 'Ouvir'}
+          </button>
           <select 
             value={translation}
             onChange={(e) => {
@@ -3839,7 +3869,7 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
               {verses.map(v => {
                 const highlight = highlights?.find(h => h.book === selectedBook && h.chapter === selectedChapter && h.verse === v.verse);
                 return (
-                  <div key={v.verse} className="relative group">
+                  <div key={v.verse} id={`versiculo-${v.verse}`} className={cn("relative group rounded-lg transition-colors", versoLido !== null && verses[versoLido]?.verse === v.verse && "bg-primary/10")}>
                     <p 
                       className={cn(
                         "text-slate-700 leading-relaxed p-1 rounded transition-all cursor-pointer hover:bg-slate-50",
