@@ -12,6 +12,7 @@ import { toPng } from 'html-to-image';
 import { fetchVerseText, BIBLE_TRANSLATIONS } from './lib/bible';
 import AdminBiblias from './components/AdminBiblias';
 import AdminIntegracoes from './components/AdminIntegracoes';
+import { createPortal } from 'react-dom';
 import { desbloquearAudio } from './lib/leitorBiblia';
 import AdminVerses from './components/AdminVerses';
 import { ServiceReportsScreen } from './components/ServiceReportsScreen';
@@ -3529,6 +3530,18 @@ const paraBibliaApp = (b: any): BibliaApp => ({
 const BIBLIAS_RESERVA: BibliaApp[] = BIBLE_TRANSLATIONS.map(t => paraBibliaApp({ id: t.id, nome: t.name, sigla: t.bollsStr, fonte: 'bolls', codigo: t.bollsStr }));
 
 /** `doServidor` = a lista já veio do painel (e não é a de reserva). */
+/**
+ * Quanto o menu de baixo ocupa do fundo da tela (0 se não houver menu).
+ * Mede na hora: no iPhone o menu é mais alto (área do gesto), no tablet
+ * pode não existir. O player da Bíblia falada fica logo acima dele.
+ */
+const alturaMenuInferior = () => {
+  const menu = document.querySelector('.bottom-nav') as HTMLElement | null;
+  if (!menu || getComputedStyle(menu).display === 'none') return 0;
+  const r = menu.getBoundingClientRect();
+  return r.height > 0 ? Math.max(0, Math.round(window.innerHeight - r.top)) : 0;
+};
+
 const CHAVE_LISTA_BIBLIAS = 'biblias_lista';
 
 /**
@@ -3597,6 +3610,13 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   const [versoFim, setVersoFim] = useState<number | null>(null); // fim do trecho (voz neural lê vários versículos por vez)
   const [pausado, setPausado] = useState(false);
   const retomarDe = useRef(0); // versículo onde a leitura pausou
+  // Girar o tablet ou mudar o tamanho da janela: reposiciona o player.
+  const [, redesenharPlayer] = useState(0);
+  useEffect(() => {
+    const aoMudar = () => redesenharPlayer(n => n + 1);
+    window.addEventListener('resize', aoMudar);
+    return () => window.removeEventListener('resize', aoMudar);
+  }, []);
   const leituraAtiva = useRef(false);    // leitura contínua ligada pelo botão
   const avancoAutomatico = useRef(false); // troca de capítulo feita pela própria leitura
   const anuncioPendente = useRef('');
@@ -3975,8 +3995,13 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
             {versoLido !== null ? 'Parar' : pausado ? 'Continuar' : 'Ouvir'}
           </button>
           {/* Player da Bíblia falada: fixo acima do menu enquanto estiver ouvindo ou pausado */}
-          {(versoLido !== null || pausado) && (
-            <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 w-[calc(100%-1.5rem)] max-w-md bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2">
+          {/* Desenhado direto no body (portal): dentro do cabeçalho, blocos animados
+              cortavam o player no tablet. Posição pela altura real do menu de baixo. */}
+          {(versoLido !== null || pausado) && createPortal(
+            <div
+              className="fixed left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-1.5rem)] max-w-md sm:max-w-xl bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-3 sm:px-6 sm:py-4 flex items-center gap-2 sm:gap-4"
+              style={{ bottom: alturaMenuInferior() ? `${alturaMenuInferior() + 12}px` : 'calc(env(safe-area-inset-bottom) + 16px)' }}
+            >
               <Volume2 className="w-5 h-5 text-emerald-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold truncate">{selectedBook} {selectedChapter}</p>
@@ -3996,7 +4021,8 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
               <button onClick={pararTudo} aria-label="Parar" className="p-2 rounded-full hover:bg-white/10">
                 <Square className="w-4 h-4" />
               </button>
-            </div>
+            </div>,
+            document.body
           )}
           <select 
             value={translation}
