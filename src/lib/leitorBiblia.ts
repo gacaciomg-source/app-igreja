@@ -17,6 +17,46 @@ import { api, getAbsoluteUrl } from '../services/apiService';
 let sessao = 0;
 let audioAtual: HTMLAudioElement | null = null;
 
+/**
+ * O navegador só deixa tocar som logo depois de um toque. A voz neural leva
+ * alguns segundos gerando o áudio, e aí o play() saía mudo/bloqueado.
+ * Solução: no próprio toque em "Ouvir" (antes de qualquer espera) destravamos
+ * UM player tocando silêncio, e ele é reaproveitado para todas as partes.
+ */
+let playerUnico: HTMLAudioElement | null = null;
+
+function silencioWav(): string {
+  const amostras = 800; // ~0,1 s a 8 kHz
+  const b = new ArrayBuffer(44 + amostras);
+  const v = new DataView(b);
+  const txt = (o: number, s: string) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  txt(0, 'RIFF'); v.setUint32(4, 36 + amostras, true); txt(8, 'WAVE'); txt(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  txt(36, 'data'); v.setUint32(40, amostras, true);
+  for (let i = 0; i < amostras; i++) v.setUint8(44 + i, 128);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
+
+/** Chamar DIRETO no toque do botão, antes de qualquer await. */
+export function desbloquearAudio() {
+  try {
+    if (!playerUnico) playerUnico = new Audio();
+    playerUnico.src = silencioWav();
+    playerUnico.play().catch(() => undefined);
+    // Voz do aparelho no navegador: também precisa ser destravada no toque.
+    const s = (globalThis as any).speechSynthesis;
+    if (s) { const u = new SpeechSynthesisUtterance(''); u.volume = 0; s.speak(u); }
+  } catch { /* sem áudio neste ambiente */ }
+}
+
+/** Toca um endereço no player já destravado (ex.: botão "Testar voz" do painel). */
+export function tocarAgora(url: string) {
+  if (!playerUnico) playerUnico = new Audio();
+  playerUnico.src = getAbsoluteUrl(url);
+  return playerUnico.play();
+}
+
 // ---------------- voz neural ----------------
 
 type Manifesto = { ativo: boolean; partes?: { inicio: number; fim: number }[] };
@@ -24,7 +64,8 @@ type Manifesto = { ativo: boolean; partes?: { inicio: number; fim: number }[] };
 function tocar(url: string, minha: number): Promise<boolean> {
   return new Promise((resolve, reject) => {
     if (minha !== sessao) return resolve(false);
-    const audio = new Audio(getAbsoluteUrl(url));
+    const audio = playerUnico || new Audio();
+    audio.src = getAbsoluteUrl(url);
     audioAtual = audio;
     audio.onended = () => resolve(minha === sessao);
     audio.onerror = () => reject(new Error('Falha ao tocar o áudio'));

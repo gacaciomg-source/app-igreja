@@ -12,6 +12,7 @@ import { toPng } from 'html-to-image';
 import { fetchVerseText, BIBLE_TRANSLATIONS } from './lib/bible';
 import AdminBiblias from './components/AdminBiblias';
 import AdminIntegracoes from './components/AdminIntegracoes';
+import { desbloquearAudio } from './lib/leitorBiblia';
 import AdminVerses from './components/AdminVerses';
 import { ServiceReportsScreen } from './components/ServiceReportsScreen';
 import { CRMScreen } from './components/CRMScreen';
@@ -3614,6 +3615,7 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
 
   const alternarLeitura = () => {
     if (versoLido !== null) return pararTudo();
+    desbloquearAudio(); // no próprio toque: senão o navegador bloqueia o som
     leituraAtiva.current = true;
     setVersoLido(-1);
     lerCapituloAtual(`${selectedBook}, capítulo ${selectedChapter}`);

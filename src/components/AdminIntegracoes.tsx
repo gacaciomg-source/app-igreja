@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, MessageSquare, CheckCircle2, AlertCircle, QrCode, Send, Power, Volume2 } from 'lucide-react';
 import { api, getAbsoluteUrl } from '../services/apiService';
+import { desbloquearAudio, tocarAgora } from '../lib/leitorBiblia';
 
 type Estado = { ativo: boolean; url: string; instancia: string; temChave: boolean; webhookUrl: string; estado: string; erro?: string };
 
@@ -193,11 +194,13 @@ function CartaoVozNeural({ showMessage }: { showMessage?: (m: string) => void })
 
   const testar = async () => {
     setErro(''); setOcupado('teste'); setAudioTeste(null);
+    // Player criado e destravado no próprio clique: gerar o áudio leva alguns
+    // segundos, e depois disso o navegador bloquearia o som.
+    desbloquearAudio();
     try {
       const { url } = await api.request('/integracoes/voz/teste', { method: 'POST' });
-      const completo = getAbsoluteUrl(url);
-      setAudioTeste(completo);
-      new Audio(completo).play().catch(() => undefined);
+      setAudioTeste(getAbsoluteUrl(url));
+      tocarAgora(url).catch(() => undefined);
     } catch (e: any) { setErro(e.message || 'Falhou.'); }
     finally { setOcupado(''); }
   };
