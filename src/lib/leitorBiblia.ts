@@ -78,7 +78,7 @@ function tocar(url: string, minha: number): Promise<boolean> {
  * null (voz neural indisponível: quem chamou deve usar a voz do aparelho).
  */
 async function lerNeural(minha: number, biblia: string, livro: number, capitulo: number, anuncioCurto: boolean,
-  total: number, aoMudar: (i: number) => void): Promise<boolean | null> {
+  total: number, aoMudar: (i: number, fim?: number) => void): Promise<boolean | null> {
   let manifesto: Manifesto;
   try {
     manifesto = await api.request(`/voz/${biblia}/${livro}/${capitulo}`);
@@ -97,7 +97,7 @@ async function lerNeural(minha: number, biblia: string, livro: number, capitulo:
       const atual = api.request(`${base}/parte/${p}`);
       if (p + 1 < manifesto.partes.length) api.request(`${base}/parte/${p + 1}`).catch(() => undefined);
       const { url } = await atual;
-      aoMudar(Math.min(manifesto.partes[p].inicio, total - 1));
+      aoMudar(Math.min(manifesto.partes[p].inicio, total - 1), Math.min(manifesto.partes[p].fim, total - 1));
       if (!(await tocar(url, minha))) return false;
     }
     return minha === sessao;
@@ -134,7 +134,7 @@ async function melhorVoz(): Promise<number | undefined> {
   return vozEscolhida;
 }
 
-async function lerAparelho(minha: number, anuncio: string, textos: string[], aoMudar: (i: number) => void) {
+async function lerAparelho(minha: number, anuncio: string, textos: string[], aoMudar: (i: number, fim?: number) => void) {
   const voz = await melhorVoz();
   const falar = (text: string) => TextToSpeech.speak({
     text, lang: 'pt-BR', rate: 0.9, pitch: 1, volume: 1, category: 'playback',
@@ -144,7 +144,7 @@ async function lerAparelho(minha: number, anuncio: string, textos: string[], aoM
   for (let i = 0; i < textos.length; i++) {
     if (minha !== sessao) return false;
     if (!textos[i]) continue;
-    aoMudar(i);
+    aoMudar(i, i);
     await falar(textos[i]);
   }
   return minha === sessao;
@@ -164,7 +164,7 @@ export interface PedidoLeitura {
  * Lê o capítulo. `aoMudar(-1)` = anunciando; `aoMudar(i)` = no versículo i.
  * Devolve true se leu até o fim (e não foi interrompida).
  */
-export async function lerCapitulo(pedido: PedidoLeitura, aoMudar: (indice: number) => void): Promise<boolean> {
+export async function lerCapitulo(pedido: PedidoLeitura, aoMudar: (indice: number, fim?: number) => void): Promise<boolean> {
   const minha = ++sessao;
   const anuncioCurto = !pedido.anuncio.includes(',');
   const neural = await lerNeural(minha, pedido.biblia, pedido.livro, pedido.capitulo, anuncioCurto, pedido.textos.length, aoMudar);

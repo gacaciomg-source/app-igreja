@@ -3566,6 +3566,7 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   // Bíblia falada (src/lib/leitorBiblia.ts).
   // versoLido: null = parado; -1 = anunciando o capítulo; i = lendo o versículo i.
   const [versoLido, setVersoLido] = useState<number | null>(null);
+  const [versoFim, setVersoFim] = useState<number | null>(null); // fim do trecho (voz neural lê vários versículos por vez)
   const leituraAtiva = useRef(false);    // leitura contínua ligada pelo botão
   const avancoAutomatico = useRef(false); // troca de capítulo feita pela própria leitura
   const anuncioPendente = useRef('');
@@ -3587,8 +3588,9 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
         capitulo: selectedChapter || 1,
         anuncio,
         textos: verses.map(v => v.text),
-      }, i => {
+      }, (i, fim) => {
         setVersoLido(i);
+        setVersoFim(fim ?? i);
         if (i >= 0) document.getElementById(`versiculo-${verses[i]?.verse}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
       if (!terminou || !leituraAtiva.current) return;
@@ -3927,7 +3929,16 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
               {verses.map(v => {
                 const highlight = highlights?.find(h => h.book === selectedBook && h.chapter === selectedChapter && h.verse === v.verse);
                 return (
-                  <div key={v.verse} id={`versiculo-${v.verse}`} className={cn("relative group rounded-lg transition-colors", versoLido !== null && verses[versoLido]?.verse === v.verse && "bg-primary/10")}>
+                  <div key={v.verse} id={`versiculo-${v.verse}`} className={cn(
+                    "relative group rounded-lg transition-all duration-300",
+                    // Bíblia falada: trecho sendo lido bem destacado; o resto fica mais apagado
+                    versoLido !== null && versoLido >= 0 && (() => { const i = verses.indexOf(v); return i >= versoLido && i <= Math.max(versoFim ?? versoLido, versoLido); })()
+                      ? "bg-primary/15 border-l-4 border-primary pl-3 py-1 shadow-sm"
+                      : versoLido !== null && versoLido >= 0 ? "opacity-50" : ""
+                  )}>
+                    {versoLido !== null && verses.indexOf(v) === versoLido && (
+                      <span className="inline-flex items-center gap-1 mb-1 text-[10px] font-bold uppercase tracking-wider text-primary">🔊 Lendo</span>
+                    )}
                     <p 
                       className={cn(
                         "text-slate-700 leading-relaxed p-1 rounded transition-all cursor-pointer hover:bg-slate-50",
