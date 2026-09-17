@@ -7594,9 +7594,7 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
             "mt-2 inline-block text-[11px] font-bold px-2.5 py-1 rounded-full",
             statusData.provedor === 'evolution' ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
           )}>
-            {statusData.provedor === 'evolution'
-              ? 'Usando: Evolution API (Integrações)'
-              : 'Usando: WhatsApp antigo (Chrome no servidor) — para trocar, ligue a Evolution em Telas → Integrações'}
+            {'Usando: Evolution API (Integrações)'}
           </p>
         )}
       </header>
@@ -7626,7 +7624,11 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
             </div>
             <div className="flex flex-col gap-2">
               <p className="text-[10px] text-slate-400 animate-pulse font-bold uppercase tracking-wider">Aguardando leitura...</p>
-              <Button variant="ghost" className="text-slate-400 text-xs" onClick={fetchStatus}>Atualizar QR Code</Button>
+              <Button variant="ghost" className="text-slate-400 text-xs" onClick={async () => {
+                // O QR da Evolution expira: pede um novo e atualiza a tela.
+                await api.request('/integracoes/evolution/conectar', { method: 'POST' }).catch(() => undefined);
+                fetchStatus();
+              }}>Atualizar QR Code</Button>
             </div>
           </div>
         ) : (
@@ -7634,8 +7636,12 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
             <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto animate-spin">
               <RefreshCw className="w-8 h-8" />
             </div>
-            <p className="text-sm text-slate-500">Iniciando conexão com o WhatsApp...</p>
-            <Button onClick={handleReconnect} disabled={loading}>Tentar Conectar</Button>
+            <p className="text-sm text-slate-500">
+              {statusData.provedor === 'evolution'
+                ? 'WhatsApp desconectado. Gere o QR Code em Telas → Integrações → Conectar.'
+                : 'WhatsApp não configurado. Ligue a Evolution API em Telas → Integrações.'}
+            </p>
+            <Button onClick={handleReconnect} disabled={loading}>Verificar novamente</Button>
           </div>
         )}
       </div>

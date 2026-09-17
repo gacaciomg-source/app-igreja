@@ -29,10 +29,35 @@ import { ClienteEvolution, mensagemDoWebhook, type ConfigEvolution } from "./src
 import { dividirEmPartes, obterAudio, arquivoLocal, testar as testarVoz, type ConfigVoz } from "./src/lib/vozNeural";
 import { BIBLE_BOOKS as LIVROS_BIBLIA } from "./src/constants";
 import { fetchVerseText } from "./src/lib/bible";
-import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth, MessageMedia, Poll } = pkg;
-import qrcode from 'qrcode';
-import qrcodeTerminal from 'qrcode-terminal';
+/**
+ * Formatos de mídia e enquete usados nos envios de WhatsApp. Antes vinham do
+ * whatsapp-web.js (Chrome no servidor); hoje todo envio passa pela Evolution
+ * API, e o ClienteEvolution (src/lib/evolutionApi.ts) entende estes objetos.
+ */
+class MessageMedia {
+  constructor(public mimetype: string, public data: string, public filename?: string) {}
+
+  static fromFilePath(caminho: string) {
+    const tipos: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.pdf': 'application/pdf', '.mp4': 'video/mp4' };
+    const mime = tipos[path.extname(caminho).toLowerCase()] || 'application/octet-stream';
+    return new MessageMedia(mime, fs.readFileSync(caminho).toString('base64'), path.basename(caminho));
+  }
+
+  static async fromUrl(url: string, _opcoes?: unknown) {
+    const r = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    if (!r.ok) throw new Error(`Imagem indisponível (${r.status})`);
+    const mime = (r.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim();
+    const nome = url.split('/').pop()?.split('?')[0] || 'arquivo';
+    return new MessageMedia(mime, Buffer.from(await r.arrayBuffer()).toString('base64'), nome);
+  }
+}
+
+class Poll {
+  pollOptions: { name: string }[];
+  constructor(public pollName: string, opcoes: string[], _config?: unknown) {
+    this.pollOptions = opcoes.map(name => ({ name }));
+  }
+}
 import cron from 'node-cron';
 import AdmZip from 'adm-zip';
 import multer from 'multer';
@@ -551,234 +576,16 @@ async function initWhatsApp() {
   }
 }
 
+/**
+ * O WhatsApp funciona só pela Evolution API (Integrações). Sem ela configurada,
+ * fica desligado — o antigo whatsapp-web.js, que abria um Chrome por igreja,
+ * foi removido.
+ */
 async function iniciarClienteWhatsApp() {
-  // Trava: com a Evolution API ligada, nunca abrir o Chrome do WhatsApp antigo,
-  // venha a chamada de onde vier (reinício, queda, botão do painel).
-  if ((await lerConfigEvolution())?.ativo) {
-    console.log('WhatsApp antigo não iniciado: a Evolution API está ligada.');
-    return;
-  }
-
-  console.log('Initializing WhatsApp Client...');
-  whatsappStatus = 'INITIALIZING';
-  whatsappError = null;
-
-  const authPath = path.join(process.cwd(), '.wwebjs_auth');
-  const sessionName = 'session';
-  const sessionPath = path.join(authPath, `session-${sessionName}`);
-  
-  // Limpeza de arquivos de trava do Puppeteer que impedem reinicialização
-  try {
-    const lockFiles = [
-      path.join(sessionPath, 'SingletonLock'),
-      path.join(sessionPath, 'SingletonCookie'),
-      path.join(sessionPath, 'SingletonSocket'),
-      path.join(sessionPath, 'Default', 'SingletonLock'),
-      path.join(sessionPath, 'Default', 'SingletonCookie'),
-      path.join(sessionPath, 'Default', 'SingletonSocket')
-    ];
-    lockFiles.forEach(file => {
-      if (fs.existsSync(file)) {
-        console.log(`Limpando arquivo de trava: ${file}`);
-        try {
-          fs.unlinkSync(file);
-        } catch (err) {
-          console.error(`Erro ao remover trava ${file}:`, err);
-        }
-      }
-    });
-  } catch (e) {
-    console.error('Falha ao limpar arquivos de trava do Puppeteer:', e);
-  }
-
-  whatsappClient = new Client({
-    authStrategy: new LocalAuth({ dataPath: authPath }),
-    authTimeoutMs: 120000, 
-    // Antes: versão do WhatsApp Web fixada em 2.2412.54 (março/2024). O WhatsApp
-    // recusa versões antigas — o QR era lido, o pareamento falhava e um QR novo
-    // aparecia sem parar. Agora a biblioteca usa a versão atual e guarda cópia local.
-    webVersionCache: { type: 'local' },
-    puppeteer: {
-      headless: true,
-      handleSIGINT: false,
-      handleSIGTERM: false,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        // Sem --single-process e --no-zygote: em servidor Linux eles derrubam o
-        // Chrome escondido, e o WhatsApp cai e volta a pedir QR.
-        '--disable-extensions',
-        '--no-first-run'
-      ]
-    }
-  });
-
-  whatsappClient.on('qr', async (qr) => {
-    console.log('--- NOVO QR CODE GERADO ---');
-    console.log('Escaneie o código abaixo no seu WhatsApp:');
-    qrcodeTerminal.generate(qr, {small: true});
-    try {
-      lastQr = await qrcode.toDataURL(qr);
-      console.log('QR Code formatado para exibição no Painel Web!');
-    } catch (err) {
-      console.error('Erro ao converter QR para DataURL:', err);
-    }
-    whatsappStatus = 'DISCONNECTED';
-  });
-
-  whatsappClient.on('ready', () => {
-    console.log('WhatsApp Client STATUS: PRONTO!');
-    whatsappStatus = 'READY';
-    lastQr = null;
-    whatsappError = null;
-  });
-
-  whatsappClient.on('authenticated', () => {
-    console.log('WhatsApp STATUS: AUTENTICADO (carregando sessão)');
-    whatsappStatus = 'AUTHENTRICATING';
-  });
-
-  whatsappClient.on('auth_failure', (msg) => {
-    console.error('WhatsApp STATUS: FALHA NA AUTENTICAÇÃO:', msg);
-    whatsappStatus = 'DISCONNECTED';
-    whatsappError = 'Falha na autenticação: ' + msg;
-  });
-
-  whatsappClient.on('disconnected', (reason) => {
-    console.log('WhatsApp STATUS: DESCONECTADO:', reason);
-    whatsappStatus = 'DISCONNECTED';
-    lastQr = null;
-    // Fecha o Chrome desta conexão antes de abrir outro. Sem isso, cada queda
-    // deixava um Chrome velho gastando memória e travando a pasta da sessão.
-    const antigo = whatsappClient;
-    whatsappClient = null;
-    Promise.resolve(antigo?.destroy()).catch(() => undefined).finally(() => {
-      setTimeout(initWhatsApp, 10000);
-    });
-  });
-
-  whatsappClient.on('vote_update', async (vote: any) => {
-    try {
-      console.log('Vote update received:', vote);
-      const voterIdRaw = vote.voter || vote.sender || vote.author || (vote.parentMessage && vote.parentMessage.from);
-      if (!voterIdRaw) return;
-
-      let voterId = '';
-      if (typeof voterIdRaw === 'string') {
-          voterId = voterIdRaw;
-      } else if (typeof voterIdRaw === 'object') {
-          voterId = voterIdRaw._serialized || voterIdRaw.id || '';
-      }
-
-      if (!voterId) return;
-      const selectedOptions = vote.selectedOptions || [];
-      
-      // se selecionou alguma opção, vamos ver qual
-      if (selectedOptions.length > 0) {
-        const optionName = selectedOptions[0].name.toLowerCase();
-        
-        // Verifica se é a enquete de consolidação (Não quero mais receber)
-        if (optionName.includes('não') || optionName.includes('nao') || optionName.includes('parar')) {
-           // set user as opted-out
-           let users = await storage.readCollection<any>('users');
-           let userUpdated = false;
-           
-           for (let u of users) {
-             if (!u.phone) continue;
-             let clean = u.phone.replace(/\D/g, '');
-             if (!clean.startsWith('55')) clean = '55' + clean;
-             
-             if (voterId.includes(clean) || (clean.length === 12 && voterId.includes(clean.substring(0,4) + '9' + clean.substring(4))) || (clean.length === 13 && voterId.includes(clean.substring(0,4) + clean.substring(5)))) {
-                u.consolidationOptOut = true;
-                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
-                     u.forceConsolidation = false;
-                }
-                userUpdated = true;
-                break;
-             }
-           }
-           
-           if (userUpdated) {
-             await storage.writeCollection('users', users);
-             try {
-                 await whatsappClient.sendMessage(voterId, 'Tudo bem! Você não receberá mais os convites automáticos da nossa igreja.');
-             } catch (sendErr) {
-                 console.error('Erro ao enviar mensagem de opt-out:', sendErr);
-             }
-           }
-        } else if (optionName.includes('sim') || optionName.includes('continuar')) {
-           let users = await storage.readCollection<any>('users');
-           let userUpdated = false;
-           for (let u of users) {
-             if (!u.phone) continue;
-             let clean = u.phone.replace(/\D/g, '');
-             if (!clean.startsWith('55')) clean = '55' + clean;
-             
-             if (voterId.includes(clean) || (clean.length === 12 && voterId.includes(clean.substring(0,4) + '9' + clean.substring(4))) || (clean.length === 13 && voterId.includes(clean.substring(0,4) + clean.substring(5)))) {
-                u.consolidationOptOut = false;
-                if (u.memberStatus !== 'visitor' && u.memberStatus !== 'new_member') {
-                     u.forceConsolidation = true;
-                }
-                userUpdated = true;
-                break;
-             }
-           }
-           if (userUpdated) {
-             await storage.writeCollection('users', users);
-             try {
-                 await whatsappClient.sendMessage(voterId, 'Que bom! Continuaremos enviando nossos convites.');
-             } catch (sendErr) {
-                 console.error('Erro ao enviar mensagem de opt-in:', sendErr);
-             }
-           }
-        }
-        
-        // Adicionar registro no CRM tickets (opcional mas bom para rastreio)
-        let tickets = await storage.readCollection<any>('crmTickets');
-        let ticket = tickets.find((t: any) => t.id === voterId);
-        if (ticket) {
-          const newMsg = {
-             id: require('crypto').randomUUID(),
-             ticketId: voterId,
-             text: `[Voto em Enquete] Respondeu: ${selectedOptions[0].name}`,
-             fromMe: false,
-             timestamp: new Date().toISOString()
-          };
-          await storage.insert('crmMessages', newMsg);
-          ticket.updatedAt = new Date().toISOString();
-          ticket.unreadCount = (ticket.unreadCount || 0) + 1;
-          ticket.lastMessage = `[Enquete] ${selectedOptions[0].name}`;
-          await storage.writeCollection('crmTickets', tickets);
-        }
-      }
-    } catch (err) {
-      console.error('Error handling vote_update:', err);
-    }
-  });
-
-  whatsappClient.on('message', (msg: any) => tratarMensagemWhatsApp(msg));
-
-
-  try {
-    await whatsappClient.initialize();
-  } catch (err: any) {
-    console.error('ERRO CRÍTICO NA INICIALIZAÇÃO DO WHATSAPP:', err);
-    whatsappError = err.message || String(err);
-    
-    if (whatsappError.includes('Code: 127')) {
-      whatsappError = "Erro 127: Faltam bibliotecas do Chrome no seu Linux (Ubuntu). Execute os comandos de 'Hospedagem' no admin.";
-    }
-
-    whatsappStatus = 'DISCONNECTED';
-    if (whatsappClient) {
-        try { await whatsappClient.destroy(); } catch(e) {}
-    }
-    whatsappClient = null;
-    // Falha passageira (rede, Chrome demorando): tenta de novo em 1 minuto.
-    setTimeout(initWhatsApp, 60_000);
-  }
+  whatsappStatus = 'DISCONNECTED';
+  lastQr = null;
+  whatsappError = 'WhatsApp não configurado. Ligue a Evolution API em Telas → Integrações.';
+  console.log('WhatsApp desligado: configure a Evolution API em Integrações.');
 }
 
 // Process cleanup
@@ -2775,7 +2582,7 @@ async function startServer() {
       qr: lastQr,
       error: whatsappError,
       // Qual WhatsApp está em uso: a tela mostra isso em destaque.
-      provedor: whatsappClient instanceof ClienteEvolution ? 'evolution' : whatsappClient ? 'whatsapp-web' : 'nenhum',
+      provedor: whatsappClient instanceof ClienteEvolution ? 'evolution' : 'nenhum',
     });
   });
 
@@ -2998,8 +2805,7 @@ async function startServer() {
       if (anterior && !(anterior instanceof ClienteEvolution)) await anterior.destroy().catch(() => undefined);
       lastQr = null;
       whatsappStatus = 'DISCONNECTED';
-      if (ativo) await initWhatsApp();
-      else initWhatsApp(); // o WhatsApp antigo leva minutos para abrir o Chrome: não segura a resposta
+      await initWhatsApp();
       res.json({ success: true });
     } catch (e: any) {
       res.status(400).json({ error: "Não foi possível acessar a Evolution API: " + (e.message || 'erro desconhecido') });

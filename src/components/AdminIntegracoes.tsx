@@ -52,7 +52,7 @@ export default function AdminIntegracoes({ onBack, showMessage }: { onBack: () =
   const salvar = (ativo: boolean) => executar(ativo ? 'salvar' : 'desligar', async () => {
     await api.request('/integracoes/evolution', { method: 'POST', body: JSON.stringify({ url: url.trim(), apiKey: apiKey.trim(), instancia: instancia.trim(), ativo }) });
     setApiKey('');
-    showMessage?.(ativo ? 'Evolution API ligada.' : 'Voltou para o WhatsApp antigo.');
+    showMessage?.(ativo ? 'Evolution API ligada.' : 'WhatsApp desligado.');
   });
 
   const conectar = () => executar('conectar', async () => {
@@ -86,7 +86,7 @@ export default function AdminIntegracoes({ onBack, showMessage }: { onBack: () =
         </div>
         <p className="text-xs text-slate-500 leading-relaxed">
           Com a integração ligada, todo o WhatsApp do sistema (Atendimento, envio em massa, lembretes e recuperação de senha)
-          passa a usar a Evolution API, e o WhatsApp antigo deixa de abrir o Chrome no servidor. Como instalar: GUIA_EVOLUTION_API.md.
+          usa a Evolution API. Sem ela ligada, o WhatsApp fica desligado. Como instalar: GUIA_EVOLUTION_API.md.
         </p>
 
         {info?.erro && <p className="text-xs text-red-700 bg-red-50 border border-red-200 p-2 rounded-lg flex gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{info.erro}</p>}
@@ -119,7 +119,7 @@ export default function AdminIntegracoes({ onBack, showMessage }: { onBack: () =
                 <QrCode className="w-4 h-4" /> {ocupado === 'conectar' ? 'Gerando...' : 'Conectar (QR Code)'}
               </button>
               <button onClick={() => salvar(false)} disabled={!!ocupado} className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-bold disabled:opacity-50">
-                {ocupado === 'desligar' ? 'Desligando...' : 'Desligar e voltar ao WhatsApp antigo'}
+                {ocupado === 'desligar' ? 'Desligando...' : 'Desligar WhatsApp'}
               </button>
             </>
           )}
