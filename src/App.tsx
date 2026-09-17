@@ -7691,23 +7691,7 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
           <p className="text-[10px] text-slate-500 italic px-1">Números que receberão comandos de administração (opcional).</p>
         </div>
 
-        <div className="grid gap-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase">Telefone Principal de Notificações</label>
-          <input 
-            type="text"
-            value={formData.destinationPhone || ''}
-            onChange={(e) => {
-               const newFormData = {...formData, destinationPhone: e.target.value};
-               setFormData(newFormData);
-               onUpdate(newFormData);
-            }}
-            placeholder="Ex: 5511999999999"
-            className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
-          />
-          <p className="text-[10px] text-slate-500 italic px-1">Número que receberá avisos sobre novos pedidos de oração e visitas.</p>
-        </div>
-
-        <div className="grid gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-100 mt-2">
+<div className="grid gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-100 mt-2">
           <label className="flex items-center gap-2 cursor-pointer">
             <input 
               type="checkbox"
@@ -10453,17 +10437,17 @@ export default function App() {
       });
       handleApiSuccess('Pedido de oração enviado!');
 
-      // WhatsApp Notification to Admin
-      if (whatsappConfig.isEnabled && whatsappConfig.destinationPhone) {
+      // Aviso no WhatsApp de todos os telefones de administradores
+      if (whatsappConfig.isEnabled) (whatsappConfig.adminPhones || []).forEach(telefoneAdmin =>
         notifyViaWhatsApp(
-          whatsappConfig.destinationPhone,
+          telefoneAdmin,
           `🙏 *Novo Pedido de Oração*
 
 *Membro:* ${currentUserData?.name}
 *Privacidade:* ${privacy}
 *Mensagem:* ${content}`
-        );
-      }
+        )
+      );
     } catch (err) {
       // Revert optimistic update
       setPrayers(prev => prev.filter(p => p.id !== tempPrayer.id));
@@ -10738,13 +10722,13 @@ const joinCell = async (cellId: string) => {
       setShowAddPastoralVisit(false);
       handleApiSuccess('Solicitação de visita enviada com sucesso!');
       
-      // WhatsApp Notification to Admin
-      if (whatsappConfig.isEnabled && whatsappConfig.destinationPhone) {
+      // Aviso no WhatsApp de todos os telefones de administradores
+      if (whatsappConfig.isEnabled) (whatsappConfig.adminPhones || []).forEach(telefoneAdmin =>
         notifyViaWhatsApp(
-          whatsappConfig.destinationPhone,
+          telefoneAdmin,
           `📖 *Nova Solicitação de Visita*\n\n*Membro:* ${data.userName}\n*Motivo:* ${data.reason}\n*Data Preferencial:* ${new Date(data.preferredDate).toLocaleDateString('pt-BR')}\n*Telefone:* ${data.userPhone || 'Não informado'}`
-        );
-      }
+        )
+      );
     } catch (err) {
       setPastoralVisits(prev => prev.filter(v => v.id !== tempVisit.id));
       handleApiError(err, 'handlePastoralVisitSubmit');

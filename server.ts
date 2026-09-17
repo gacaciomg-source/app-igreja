@@ -2575,7 +2575,28 @@ async function startServer() {
   });
 
   // --- WhatsApp API Endpoints ---
-  app.get("/api/whatsapp/status", authenticateToken, (req, res) => {
+  // QR da Evolution expira em ~40 s. Enquanto a tela WhatsApp está aberta e
+  // não conectou, cada consulta de status renova o QR a cada 30 s.
+  let qrGeradoEm = 0;
+  let renovandoQr = false;
+  app.get("/api/whatsapp/status", authenticateToken, async (req, res) => {
+    if (whatsappClient instanceof ClienteEvolution && whatsappStatus !== 'READY' && !renovandoQr && Date.now() - qrGeradoEm > 30_000) {
+      renovandoQr = true;
+      try {
+        const estado = await whatsappClient.estado();
+        if (estado === 'open') {
+          whatsappStatus = 'READY';
+          lastQr = null;
+        } else if (estado !== 'inexistente') {
+          const qr = await whatsappClient.conectar();
+          if (qr) { lastQr = qr; qrGeradoEm = Date.now(); }
+        }
+      } catch (e) {
+        // Evolution fora do ar: a tela mostra o erro que o status já traz
+      } finally {
+        renovandoQr = false;
+      }
+    }
     res.json({
       status: whatsappStatus,
       hasQr: !!lastQr,

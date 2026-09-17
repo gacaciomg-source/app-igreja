@@ -136,23 +136,52 @@ export class ClienteEvolution {
 /**
  * Converte o aviso de mensagem recebida (evento messages.upsert) no formato
  * do cliente antigo, que o Atendimento já trata. Devolve null para o que não
- * é mensagem de alguém para a igreja (mensagens enviadas por nós, grupos...).
+ * é mensagem de alguém para a igreja: mensagens enviadas por nós, grupos,
+ * status, reações, confirmações de leitura e outros eventos sem conteúdo.
  */
 export function mensagemDoWebhook(corpo: any) {
-  const evento = String(corpo?.event || '').toLowerCase().replace('_', '.');
+  const evento = String(corpo?.event || '').toLowerCase().replace(/_/g, '.');
   if (evento !== 'messages.upsert') return null;
   const d = Array.isArray(corpo.data) ? corpo.data[0] : corpo.data;
-  if (!d?.key?.remoteJid || d.key.fromMe) return null;
+  const key = d?.key || {};
+  if (!key.remoteJid || key.fromMe) return null;
 
-  const from = String(d.key.remoteJid).replace('@s.whatsapp.net', '@c.us');
-  const m = d.message || {};
-  const body = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption || '';
+  const jid = String(key.remoteJid);
+  if (/@g\.us$|@broadcast$|@newsletter$/.test(jid) || jid === 'status@broadcast') return null;
+
+  // Novo identificador do WhatsApp (@lid) esconde o telefone. Quando a
+  // Evolution manda o número real em outro campo, usamos ele — senão o
+  // atendimento aparecia com um número estranho e a resposta não chegava.
+  const comTelefone = [key.senderPn, key.remoteJidAlt, d.remoteJidAlt, key.participantPn, jid]
+    .map((x: any) => String(x || ''))
+    .find(x => /@s\.whatsapp\.net$|@c\.us$/.test(x));
+  const from = (comTelefone || jid).replace('@s.whatsapp.net', '@c.us');
+
+  // Mensagens "embrulhadas": temporária, visualização única, documento com legenda, editada.
+  let m: any = d.message || {};
+  for (let i = 0; i < 5; i++) {
+    const dentro = m.ephemeralMessage?.message || m.viewOnceMessage?.message || m.viewOnceMessageV2?.message
+      || m.viewOnceMessageV2Extension?.message || m.documentWithCaptionMessage?.message
+      || m.editedMessage?.message?.protocolMessage?.editedMessage || m.editedMessage?.message;
+    if (!dentro) break;
+    m = dentro;
+  }
+
+  const texto = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption
+    || m.documentMessage?.caption || m.buttonsResponseMessage?.selectedDisplayText
+    || m.listResponseMessage?.title || m.templateButtonReplyMessage?.selectedDisplayText || '';
+  const midia = m.imageMessage ? '📷 Imagem' : m.videoMessage ? '🎥 Vídeo' : m.audioMessage ? '🎤 Áudio'
+    : m.documentMessage ? '📄 Documento' : m.stickerMessage ? 'Figurinha' : m.locationMessage ? '📍 Localização'
+    : m.contactMessage ? '👤 Contato' : (m.pollCreationMessage || m.pollCreationMessageV3) ? '📊 Enquete' : '';
+  const body = texto && midia ? `[${midia}] ${texto}` : texto || (midia ? `[${midia}]` : '');
+  if (!body) return null; // reação, leitura, sistema: não vira atendimento em branco
+
   const nome = d.pushName || '';
   return {
     from,
     body,
-    type: body ? 'chat' : 'unknown',
-    id: { _serialized: d.key.id, id: d.key.id },
+    type: 'chat',
+    id: { _serialized: key.id, id: key.id },
     getContact: async () => ({ name: nome, pushname: nome, number: from.split('@')[0] }),
   };
 }
