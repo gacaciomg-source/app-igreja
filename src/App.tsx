@@ -26,6 +26,9 @@ import {
   BookOpen,
   Volume2,
   Square,
+  Pause,
+  SkipBack,
+  SkipForward,
   Play, 
   User, 
   MessageSquare, 
@@ -3526,12 +3529,37 @@ const paraBibliaApp = (b: any): BibliaApp => ({
 const BIBLIAS_RESERVA: BibliaApp[] = BIBLE_TRANSLATIONS.map(t => paraBibliaApp({ id: t.id, nome: t.name, sigla: t.bollsStr, fonte: 'bolls', codigo: t.bollsStr }));
 
 /** `doServidor` = a lista já veio do painel (e não é a de reserva). */
+const CHAVE_LISTA_BIBLIAS = 'biblias_lista';
+
+/**
+ * Lista de versões sempre acompanhando o painel: busca ao abrir, a cada minuto
+ * e quando o app volta para a tela. A última lista fica guardada no aparelho,
+ * então sem internet continua com as versões que já tinha.
+ */
 function useBiblias(): { lista: BibliaApp[]; doServidor: boolean } {
-  const [estado, setEstado] = useState({ lista: BIBLIAS_RESERVA, doServidor: false });
+  const [estado, setEstado] = useState(() => {
+    try {
+      const guardada = JSON.parse(localStorage.getItem(CHAVE_LISTA_BIBLIAS) || 'null');
+      if (Array.isArray(guardada) && guardada.length) return { lista: guardada.map(paraBibliaApp), doServidor: true };
+    } catch { /* sem armazenamento */ }
+    return { lista: BIBLIAS_RESERVA, doServidor: false };
+  });
+
   useEffect(() => {
-    api.request('/biblias')
-      .then((l: any[]) => { if (Array.isArray(l) && l.length) setEstado({ lista: l.map(paraBibliaApp), doServidor: true }); })
-      .catch(() => { /* servidor antigo ou fora do ar: fica a lista de reserva */ });
+    const assinatura = (l: { id: string; nome: string; sigla: string }[]) => l.map(b => `${b.id}|${b.nome}|${b.sigla}`).join(';');
+    const buscar = () => api.request('/biblias')
+      .then((l: any[]) => {
+        if (!Array.isArray(l) || !l.length) return;
+        try { localStorage.setItem(CHAVE_LISTA_BIBLIAS, JSON.stringify(l)); } catch { /* sem armazenamento */ }
+        setEstado(atual => atual.doServidor && assinatura(atual.lista) === assinatura(l) ? atual : { lista: l.map(paraBibliaApp), doServidor: true });
+      })
+      .catch(() => { /* sem internet ou servidor fora: fica a lista que já tinha */ });
+
+    buscar();
+    const timer = setInterval(buscar, 60_000);
+    const aoVoltar = () => { if (document.visibilityState === 'visible') buscar(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', aoVoltar); };
   }, []);
   return estado;
 }
@@ -3567,6 +3595,8 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   // versoLido: null = parado; -1 = anunciando o capítulo; i = lendo o versículo i.
   const [versoLido, setVersoLido] = useState<number | null>(null);
   const [versoFim, setVersoFim] = useState<number | null>(null); // fim do trecho (voz neural lê vários versículos por vez)
+  const [pausado, setPausado] = useState(false);
+  const retomarDe = useRef(0); // versículo onde a leitura pausou
   const leituraAtiva = useRef(false);    // leitura contínua ligada pelo botão
   const avancoAutomatico = useRef(false); // troca de capítulo feita pela própria leitura
   const anuncioPendente = useRef('');
@@ -3575,10 +3605,11 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
     leituraAtiva.current = false;
     avancoAutomatico.current = false;
     setVersoLido(null);
+    setPausado(false);
     (await import('./lib/leitorBiblia')).pararLeitura();
   };
 
-  const lerCapituloAtual = async (anuncio: string) => {
+  const lerCapituloAtual = async (anuncio: string, inicio = 0) => {
     const { lerCapitulo } = await import('./lib/leitorBiblia');
     try {
       // Só o texto: sem falar o número de cada versículo.
@@ -3588,6 +3619,7 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
         capitulo: selectedChapter || 1,
         anuncio,
         textos: verses.map(v => v.text),
+        inicio,
       }, (i, fim) => {
         setVersoLido(i);
         setVersoFim(fim ?? i);
@@ -3616,11 +3648,46 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   };
 
   const alternarLeitura = () => {
+    if (pausado) return continuarLeitura();
     if (versoLido !== null) return pararTudo();
     desbloquearAudio(); // no próprio toque: senão o navegador bloqueia o som
     leituraAtiva.current = true;
     setVersoLido(-1);
     lerCapituloAtual(`${selectedBook}, capítulo ${selectedChapter}`);
+  };
+
+  // Player: pausar, continuar e trocar de capítulo sem parar a leitura.
+  const pausarLeitura = async () => {
+    retomarDe.current = Math.max(versoLido ?? 0, 0);
+    leituraAtiva.current = false;
+    avancoAutomatico.current = false;
+    setVersoLido(null);
+    setPausado(true);
+    (await import('./lib/leitorBiblia')).pararLeitura();
+  };
+
+  const continuarLeitura = () => {
+    desbloquearAudio(); // no próprio toque
+    setPausado(false);
+    leituraAtiva.current = true;
+    setVersoLido(retomarDe.current);
+    lerCapituloAtual('', retomarDe.current);
+  };
+
+  const irParaCapitulo = async (delta: 1 | -1) => {
+    desbloquearAudio(); // no próprio toque, antes de qualquer espera
+    const idx = BIBLE_BOOKS.findIndex(b => b.name === selectedBook);
+    if (idx < 0) return;
+    let livro = idx, cap = (selectedChapter || 1) + delta;
+    if (cap < 1) { livro = idx - 1; if (livro < 0) return; cap = BIBLE_BOOKS[livro].chapters; }
+    else if (cap > BIBLE_BOOKS[idx].chapters) { livro = idx + 1; if (livro >= BIBLE_BOOKS.length) return; cap = 1; }
+    (await import('./lib/leitorBiblia')).pararLeitura();
+    setPausado(false);
+    leituraAtiva.current = true;
+    anuncioPendente.current = `${BIBLE_BOOKS[livro].name}, capítulo ${cap}`;
+    avancoAutomatico.current = true;
+    setVersoLido(-1);
+    handleSelectChapter(BIBLE_BOOKS[livro].name, cap);
   };
 
   // Capítulo seguinte carregado pela própria leitura: continua lendo.
@@ -3634,6 +3701,7 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
   useEffect(() => () => {
     if (avancoAutomatico.current) return;
     leituraAtiva.current = false;
+    setPausado(false);
     import('./lib/leitorBiblia').then(m => m.pararLeitura());
   }, [selectedBook, selectedChapter, translation]);
   const currentTranslation = biblias.find(t => t.id === translation) || biblias[0];
@@ -3904,8 +3972,32 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
             aria-label={versoLido !== null ? 'Parar leitura' : 'Ouvir capítulo'}
           >
             {versoLido !== null ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-            {versoLido !== null ? 'Parar' : 'Ouvir'}
+            {versoLido !== null ? 'Parar' : pausado ? 'Continuar' : 'Ouvir'}
           </button>
+          {/* Player da Bíblia falada: fixo acima do menu enquanto estiver ouvindo ou pausado */}
+          {(versoLido !== null || pausado) && (
+            <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 w-[calc(100%-1.5rem)] max-w-md bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2">
+              <Volume2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold truncate">{selectedBook} {selectedChapter}</p>
+                <p className="text-[11px] text-slate-300 truncate">
+                  {pausado ? 'Pausado' : versoLido === -1 ? 'Anunciando o capítulo...' : `Lendo · versículo ${verses[versoLido ?? 0]?.verse ?? ''}`}
+                </p>
+              </div>
+              <button onClick={() => irParaCapitulo(-1)} aria-label="Capítulo anterior" className="p-2 rounded-full hover:bg-white/10">
+                <SkipBack className="w-5 h-5" />
+              </button>
+              <button onClick={pausado ? continuarLeitura : pausarLeitura} aria-label={pausado ? 'Continuar' : 'Pausar'} className="p-2.5 rounded-full bg-emerald-500 hover:bg-emerald-400">
+                {pausado ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+              </button>
+              <button onClick={() => irParaCapitulo(1)} aria-label="Próximo capítulo" className="p-2 rounded-full hover:bg-white/10">
+                <SkipForward className="w-5 h-5" />
+              </button>
+              <button onClick={pararTudo} aria-label="Parar" className="p-2 rounded-full hover:bg-white/10">
+                <Square className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <select 
             value={translation}
             onChange={(e) => {

@@ -78,7 +78,7 @@ function tocar(url: string, minha: number): Promise<boolean> {
  * null (voz neural indisponível: quem chamou deve usar a voz do aparelho).
  */
 async function lerNeural(minha: number, biblia: string, livro: number, capitulo: number, anuncioCurto: boolean,
-  total: number, aoMudar: (i: number, fim?: number) => void): Promise<boolean | null> {
+  total: number, aoMudar: (i: number, fim?: number) => void, inicio = 0): Promise<boolean | null> {
   let manifesto: Manifesto;
   try {
     manifesto = await api.request(`/voz/${biblia}/${livro}/${capitulo}`);
@@ -87,11 +87,15 @@ async function lerNeural(minha: number, biblia: string, livro: number, capitulo:
 
   const base = `/voz/${biblia}/${livro}/${capitulo}`;
   try {
-    aoMudar(-1);
-    const { url: anuncio } = await api.request(`${base}/anuncio/${anuncioCurto ? 'curto' : 'longo'}`);
-    if (!(await tocar(anuncio, minha))) return false;
+    // Continuar de onde pausou: sem repetir o anúncio, a partir do trecho do versículo.
+    if (!inicio) {
+      aoMudar(-1);
+      const { url: anuncio } = await api.request(`${base}/anuncio/${anuncioCurto ? 'curto' : 'longo'}`);
+      if (!(await tocar(anuncio, minha))) return false;
+    }
 
-    for (let p = 0; p < manifesto.partes.length; p++) {
+    const primeira = Math.max(0, manifesto.partes.findIndex(x => x.fim >= inicio));
+    for (let p = primeira; p < manifesto.partes.length; p++) {
       if (minha !== sessao) return false;
       // Pede já a próxima parte, para não haver pausa entre elas.
       const atual = api.request(`${base}/parte/${p}`);
@@ -134,14 +138,14 @@ async function melhorVoz(): Promise<number | undefined> {
   return vozEscolhida;
 }
 
-async function lerAparelho(minha: number, anuncio: string, textos: string[], aoMudar: (i: number, fim?: number) => void) {
+async function lerAparelho(minha: number, anuncio: string, textos: string[], aoMudar: (i: number, fim?: number) => void, inicio = 0) {
   const voz = await melhorVoz();
   const falar = (text: string) => TextToSpeech.speak({
     text, lang: 'pt-BR', rate: 0.9, pitch: 1, volume: 1, category: 'playback',
     ...(voz !== undefined ? { voice: voz } : {}),
   });
-  if (anuncio) { aoMudar(-1); await falar(anuncio); }
-  for (let i = 0; i < textos.length; i++) {
+  if (anuncio && !inicio) { aoMudar(-1); await falar(anuncio); }
+  for (let i = inicio; i < textos.length; i++) {
     if (minha !== sessao) return false;
     if (!textos[i]) continue;
     aoMudar(i, i);
@@ -158,6 +162,7 @@ export interface PedidoLeitura {
   capitulo: number;
   anuncio: string;         // "João, capítulo 3" ou "Capítulo 4"
   textos: string[];        // texto de cada versículo (sem número)
+  inicio?: number;         // continuar a partir deste versículo (sem anúncio)
 }
 
 /**
@@ -167,10 +172,11 @@ export interface PedidoLeitura {
 export async function lerCapitulo(pedido: PedidoLeitura, aoMudar: (indice: number, fim?: number) => void): Promise<boolean> {
   const minha = ++sessao;
   const anuncioCurto = !pedido.anuncio.includes(',');
-  const neural = await lerNeural(minha, pedido.biblia, pedido.livro, pedido.capitulo, anuncioCurto, pedido.textos.length, aoMudar);
+  const inicio = pedido.inicio || 0;
+  const neural = await lerNeural(minha, pedido.biblia, pedido.livro, pedido.capitulo, anuncioCurto, pedido.textos.length, aoMudar, inicio);
   if (neural !== null) return neural;
   if (minha !== sessao) return false;
-  return lerAparelho(minha, pedido.anuncio, pedido.textos, aoMudar);
+  return lerAparelho(minha, pedido.anuncio, pedido.textos, aoMudar, inicio);
 }
 
 export async function pararLeitura() {
