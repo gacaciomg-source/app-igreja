@@ -7452,6 +7452,16 @@ const WhatsAppAdminConfig = ({ config, onUpdate, showMessage }: { config: WhatsA
           WhatsApp (Não Oficial)
         </h3>
         <p className="text-xs text-slate-500">Conecte sua conta para notificações automáticas</p>
+        {statusData?.provedor && statusData.provedor !== 'nenhum' && (
+          <p className={cn(
+            "mt-2 inline-block text-[11px] font-bold px-2.5 py-1 rounded-full",
+            statusData.provedor === 'evolution' ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
+          )}>
+            {statusData.provedor === 'evolution'
+              ? 'Usando: Evolution API (Integrações)'
+              : 'Usando: WhatsApp antigo (Chrome no servidor) — para trocar, ligue a Evolution em Telas → Integrações'}
+          </p>
+        )}
       </header>
 
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xl space-y-6 text-center">

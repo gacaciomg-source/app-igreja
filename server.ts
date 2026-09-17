@@ -550,6 +550,12 @@ async function initWhatsApp() {
 }
 
 async function iniciarClienteWhatsApp() {
+  // Trava: com a Evolution API ligada, nunca abrir o Chrome do WhatsApp antigo,
+  // venha a chamada de onde vier (reinício, queda, botão do painel).
+  if ((await lerConfigEvolution())?.ativo) {
+    console.log('WhatsApp antigo não iniciado: a Evolution API está ligada.');
+    return;
+  }
 
   console.log('Initializing WhatsApp Client...');
   whatsappStatus = 'INITIALIZING';
@@ -2761,11 +2767,13 @@ async function startServer() {
 
   // --- WhatsApp API Endpoints ---
   app.get("/api/whatsapp/status", authenticateToken, (req, res) => {
-    res.json({ 
+    res.json({
       status: whatsappStatus,
       hasQr: !!lastQr,
       qr: lastQr,
-      error: whatsappError
+      error: whatsappError,
+      // Qual WhatsApp está em uso: a tela mostra isso em destaque.
+      provedor: whatsappClient instanceof ClienteEvolution ? 'evolution' : whatsappClient ? 'whatsapp-web' : 'nenhum',
     });
   });
 
