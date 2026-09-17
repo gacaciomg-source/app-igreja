@@ -3562,21 +3562,70 @@ const BibleScreen = ({ onTabChange, showMessage, readingPlans, progress, highlig
 
   const { lista: biblias, doServidor: bibliasDoServidor } = useBiblias();
 
-  // Bíblia falada (src/lib/leitorBiblia.ts): índice do versículo sendo lido.
+  // Bíblia falada (src/lib/leitorBiblia.ts).
+  // versoLido: null = parado; -1 = anunciando o capítulo; i = lendo o versículo i.
   const [versoLido, setVersoLido] = useState<number | null>(null);
-  const alternarLeitura = async () => {
-    const { lerVersiculos, pararLeitura } = await import('./lib/leitorBiblia');
-    if (versoLido !== null) {
-      setVersoLido(null); // a leitura cancelada não avisa a tela: volta o botão aqui
-      return pararLeitura();
-    }
-    lerVersiculos(verses.map(v => `${v.verse}. ${v.text}`), i => {
-      setVersoLido(i);
-      if (i !== null) document.getElementById(`versiculo-${verses[i]?.verse}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }).catch(() => showMessage?.('Não foi possível ler em voz alta neste aparelho.'));
+  const leituraAtiva = useRef(false);    // leitura contínua ligada pelo botão
+  const avancoAutomatico = useRef(false); // troca de capítulo feita pela própria leitura
+  const anuncioPendente = useRef('');
+
+  const pararTudo = async () => {
+    leituraAtiva.current = false;
+    avancoAutomatico.current = false;
+    setVersoLido(null);
+    (await import('./lib/leitorBiblia')).pararLeitura();
   };
-  // Troca de capítulo, de versão ou saída da tela: para de ler.
-  useEffect(() => () => { import('./lib/leitorBiblia').then(m => m.pararLeitura()); }, [selectedBook, selectedChapter, translation]);
+
+  const lerCapituloAtual = async (anuncio: string) => {
+    const { lerCapitulo } = await import('./lib/leitorBiblia');
+    try {
+      // Só o texto: sem falar o número de cada versículo.
+      const terminou = await lerCapitulo(anuncio, verses.map(v => v.text), i => {
+        setVersoLido(i);
+        if (i >= 0) document.getElementById(`versiculo-${verses[i]?.verse}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      if (!terminou || !leituraAtiva.current) return;
+
+      // Fim do capítulo: segue para o próximo (ou para o próximo livro).
+      const idx = BIBLE_BOOKS.findIndex(b => b.name === selectedBook);
+      const livro = BIBLE_BOOKS[idx];
+      let proximoLivro = livro?.name, proximoCap = (selectedChapter || 0) + 1;
+      if (!livro || proximoCap > livro.chapters) {
+        const seguinte = BIBLE_BOOKS[idx + 1];
+        if (!seguinte) return pararTudo(); // fim de Apocalipse
+        proximoLivro = seguinte.name;
+        proximoCap = 1;
+      }
+      anuncioPendente.current = proximoLivro !== selectedBook ? `${proximoLivro}, capítulo 1` : `Capítulo ${proximoCap}`;
+      avancoAutomatico.current = true;
+      setVersoLido(-1);
+      handleSelectChapter(proximoLivro!, proximoCap);
+    } catch {
+      pararTudo();
+      showMessage?.('Não foi possível ler em voz alta neste aparelho.');
+    }
+  };
+
+  const alternarLeitura = () => {
+    if (versoLido !== null) return pararTudo();
+    leituraAtiva.current = true;
+    setVersoLido(-1);
+    lerCapituloAtual(`${selectedBook}, capítulo ${selectedChapter}`);
+  };
+
+  // Capítulo seguinte carregado pela própria leitura: continua lendo.
+  useEffect(() => {
+    if (!avancoAutomatico.current || !leituraAtiva.current || loadingVerses || verses.length === 0) return;
+    avancoAutomatico.current = false;
+    lerCapituloAtual(anuncioPendente.current);
+  }, [verses, loadingVerses]);
+
+  // Troca feita pela pessoa (capítulo, versão) ou saída da tela: para de ler.
+  useEffect(() => () => {
+    if (avancoAutomatico.current) return;
+    leituraAtiva.current = false;
+    import('./lib/leitorBiblia').then(m => m.pararLeitura());
+  }, [selectedBook, selectedChapter, translation]);
   const currentTranslation = biblias.find(t => t.id === translation) || biblias[0];
 
   // A versão escolhida foi apagada no painel: passa para a primeira da lista e
